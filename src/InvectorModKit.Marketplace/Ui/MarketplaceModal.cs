@@ -86,12 +86,7 @@ namespace InvectorModKit.Marketplace.Ui
             if (backdrop) backdrop.color = new Color(0, 0, 0, 0.94f);
             Box = (RectTransform)transform.Find("QuestionBox");
             GameUi.Place(Box, 0, 0, Width, Height);
-            // A solid fill under the game's frame, so nothing shows through the window.
-            var fill = GameUi.Image(Box, "Fill", new Color32(0x0C, 0x09, 0x12, 0xF5));
-            var fillRt = (RectTransform)fill.transform;
-            fillRt.anchorMin = Vector2.zero; fillRt.anchorMax = Vector2.one;
-            fillRt.offsetMin = new Vector2(18, 12); fillRt.offsetMax = new Vector2(-18, -12);
-            fill.transform.SetAsFirstSibling();
+            AddFill(Box);
             foreach (var name in new[] { "Answer Yes", "Answer No" })
             {
                 var old = Box.Find(name);
@@ -274,7 +269,14 @@ namespace InvectorModKit.Marketplace.Ui
             var go = GameUi.Clone(GameUi.QuestionButtonTemplate.gameObject, parent, "Button " + label);
             var button = go.GetComponent<ButtonWithEvents>();
             GameUi.Place(button, x, y, width, height);
-            var text = go.GetComponentInChildren<Text>(true);
+            StyleButton(button, label, fontSize, onClick);
+            return button;
+        }
+
+        /// <summary>Centred, best-fit label and a click handler on one of the game's dialog buttons.</summary>
+        public static void StyleButton(ButtonWithEvents button, string label, int fontSize, Action onClick)
+        {
+            var text = button.GetComponentInChildren<Text>(true);
             foreach (var fitter in text.GetComponents<ContentSizeFitter>()) Destroy(fitter);
             var rt = (RectTransform)text.transform;
             rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = new Vector2(10, 0); rt.offsetMax = new Vector2(-10, 0);
@@ -289,7 +291,16 @@ namespace InvectorModKit.Marketplace.Ui
                 try { onClick(); }
                 catch (Exception e) { MarketplacePlugin.Log.LogError(e); }
             });
-            return button;
+        }
+
+        /// <summary>A solid fill under a dialog box's frame, so nothing shows through.</summary>
+        public static void AddFill(RectTransform box)
+        {
+            var fill = GameUi.Image(box, "Fill", new Color32(0x0C, 0x09, 0x12, 0xF5));
+            var rt = (RectTransform)fill.transform;
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+            rt.offsetMin = new Vector2(18, 12); rt.offsetMax = new Vector2(-18, -12);
+            fill.transform.SetAsFirstSibling();
         }
 
         public static void SetLabel(ButtonWithEvents button, string label) => button.GetComponentInChildren<Text>(true).text = label;
@@ -408,7 +419,7 @@ namespace InvectorModKit.Marketplace.Ui
         }
     }
 
-    /// <summary>Yes/no question over the window.</summary>
+    /// <summary>Yes/no question over the window: the game's own question dialog, a little larger.</summary>
     internal sealed class Confirmation
     {
         private readonly GameObject _root;
@@ -420,15 +431,30 @@ namespace InvectorModKit.Marketplace.Ui
 
         public Confirmation(MarketplaceModal modal)
         {
-            var dim = GameUi.Image(modal.Box, "Confirmation", new Color(0, 0, 0, 0.85f));
-            dim.raycastTarget = true;
-            var rt = (RectTransform)dim.transform;
-            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = new Vector2(16, 10); rt.offsetMax = new Vector2(-16, -10);
-            _root = dim.gameObject;
-            _question = GameUi.Text(_root.transform, "Question", modal.Regular, 34, TextAnchor.MiddleCenter, Color.white);
-            GameUi.Place(_question, 0, 80, 1100, 260);
-            _yes = modal.MakeButton(_root.transform, "CONFIRMER", -170, -140, 300, 84, () => Answer(true), 34);
-            modal.MakeButton(_root.transform, "ANNULER", 170, -140, 300, 84, () => Answer(false), 34);
+            _root = GameUi.Clone(GameUi.DialogTemplate, modal.transform, "Confirmation", stillImage: true);
+            var group = _root.GetComponent<CanvasGroup>();
+            if (group) { group.alpha = 1; group.interactable = true; group.blocksRaycasts = true; }
+            var backdrop = GameUi.Find<Image>(_root, "Background");
+            if (backdrop) backdrop.color = new Color(0, 0, 0, 0.8f);
+            var box = (RectTransform)_root.transform.Find("QuestionBox");
+            GameUi.Place(box, 0, 0, 960, 380);
+            MarketplaceModal.AddFill(box);
+
+            _question = GameUi.Find<Text>(box.gameObject, "Text");
+            _question.alignment = TextAnchor.MiddleCenter;
+            _question.resizeTextForBestFit = true;
+            _question.resizeTextMinSize = 20;
+            _question.resizeTextMaxSize = 36;
+            GameUi.Place(_question, 0, 60, 860, 190);
+
+            _yes = GameUi.Find<ButtonWithEvents>(box.gameObject, "Answer Yes");
+            var no = GameUi.Find<ButtonWithEvents>(box.gameObject, "Answer No");
+            GameUi.Place(_yes, -165, -115, 300, 84);
+            GameUi.Place(no, 165, -115, 300, 84);
+            MarketplaceModal.StyleButton(_yes, "CONFIRMER", 34, () => Answer(true));
+            MarketplaceModal.StyleButton(no, "ANNULER", 34, () => Answer(false));
+            _yes.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnRight = no };
+            no.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = _yes };
             _root.SetActive(false);
         }
 
