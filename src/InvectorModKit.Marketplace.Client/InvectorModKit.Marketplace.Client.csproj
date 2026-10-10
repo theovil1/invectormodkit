@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Marketplace client without Unity: API calls, models and the local install store. The HTTP transport is
+       injected (HttpClient outside the game, UnityWebRequest in the plugin). -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>InvectorModKit.Marketplace.Client</RootNamespace>
+    <NoWarn>$(NoWarn);NU1903</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Same Newtonsoft.Json as the game ships (12.0.0.0), which the plugin binds to at runtime. -->
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <ProjectReference Include="..\InvectorModKit.Charting\InvectorModKit.Charting.csproj" />
+  </ItemGroup>
+</Project>
