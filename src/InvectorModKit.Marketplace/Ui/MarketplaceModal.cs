@@ -124,6 +124,8 @@ namespace InvectorModKit.Marketplace.Ui
             _mine = new MySongsTab(this);
             _confirmation = new Confirmation(this);
             _previousSelection = GameUi.Selected;
+            _lastMouse = Input.mousePosition;
+            TakeMouse();
             RefreshAccount();
             Show(_browse);
         }
@@ -146,24 +148,58 @@ namespace InvectorModKit.Marketplace.Ui
             tab.originalColors = colors;
         }
 
-        private int _clicksLogged;
+        // ----- mouse
+        // The game's input module only feeds the mouse to the Rewired players controlling the current menu,
+        // which may not own the mouse: the window reads the mouse itself (and switches the module's mouse
+        // off meanwhile, so nothing is clicked twice).
 
-        /// <summary>Diagnostics for the first clicks: what is under the cursor, front to back.</summary>
-        private void LogClick()
+        private Rewired.Integration.UnityUI.RewiredStandaloneInputModule _module;
+        private bool _moduleMouse;
+        private Vector3 _lastMouse;
+        private readonly List<RaycastResult> _hits = new List<RaycastResult>();
+
+        private void TakeMouse()
         {
-            if (_clicksLogged >= 3 || !Input.GetMouseButtonDown(0) || EventSystem.current == null) return;
-            _clicksLogged++;
-            var data = new PointerEventData(EventSystem.current) { position = Input.mousePosition };
-            var hits = new List<RaycastResult>();
-            EventSystem.current.RaycastAll(data, hits);
-            var module = EventSystem.current.currentInputModule;
-            MarketplacePlugin.Log.LogInfo($"Marketplace click at {Input.mousePosition} (module {(module ? module.GetType().Name : "none")}, cursor {(Cursor.visible ? "visible" : "hidden")}): " +
-                (hits.Count == 0 ? "nothing under the cursor" : string.Join(" | ", hits.GetRange(0, Math.Min(5, hits.Count)).ConvertAll(h => $"{h.gameObject.name} ({h.module?.GetType().Name}, order {h.sortingOrder})"))));
+            _module = EventSystem.current ? EventSystem.current.currentInputModule as Rewired.Integration.UnityUI.RewiredStandaloneInputModule : null;
+            if (_module == null) return;
+            _moduleMouse = _module.allowMouseInput;
+            _module.allowMouseInput = false;
+        }
+
+        private void GiveMouseBack()
+        {
+            if (_module) _module.allowMouseInput = _moduleMouse;
+        }
+
+        private void HandleMouse()
+        {
+            var position = Input.mousePosition;
+            bool moved = (position - _lastMouse).sqrMagnitude > 1f;
+            _lastMouse = position;
+            bool click = Input.GetMouseButtonDown(0);
+            float wheel = Input.mouseScrollDelta.y;
+            if ((!moved && !click && wheel == 0) || EventSystem.current == null || !Cursor.visible) return;
+
+            var data = new PointerEventData(EventSystem.current) { position = position, button = PointerEventData.InputButton.Left, scrollDelta = Input.mouseScrollDelta };
+            _hits.Clear();
+            EventSystem.current.RaycastAll(data, _hits);
+            var hit = _hits.Count > 0 && _hits[0].gameObject.transform.IsChildOf(transform) ? _hits[0].gameObject : null;
+            if (hit == null) return;
+            var selectable = hit.GetComponentInParent<Selectable>();
+            bool usable = selectable && selectable.IsInteractable() && selectable.transform.IsChildOf(transform);
+
+            if (moved && usable && GameUi.Selected != selectable.gameObject) GameUi.Select(selectable.gameObject);
+            if (click && usable)
+            {
+                GameUi.Select(selectable.gameObject);
+                ExecuteEvents.Execute(selectable.gameObject, data, ExecuteEvents.pointerClickHandler);
+            }
+            if (wheel != 0) ExecuteEvents.ExecuteHierarchy(hit, data, ExecuteEvents.scrollHandler);
         }
 
         private void Update()
         {
-            LogClick();
+            HandleMouse();
             if (_confirmation.Visible)
             {
                 if (Input.GetKeyDown(KeyCode.Escape)) _confirmation.Answer(false);
@@ -186,8 +222,11 @@ namespace InvectorModKit.Marketplace.Ui
             catch (Exception) { return false; }
         }
 
+        private void OnDestroy() => GiveMouseBack();
+
         private void Shut()
         {
+            GiveMouseBack();
             if (EventSystem.current) EventSystem.current.sendNavigationEvents = true;
             _instance = null;
             Destroy(gameObject);
