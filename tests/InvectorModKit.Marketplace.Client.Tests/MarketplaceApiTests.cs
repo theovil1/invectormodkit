@@ -60,6 +60,33 @@ public class MarketplaceApiTests
     }
 
     [Fact]
+    public async Task BrowserLogin_PollsUntilSignedIn()
+    {
+        var http = new FakeTransport()
+            .Reply(202, """{"pending":true}""")
+            .Reply(202, """{"pending":true}""")
+            .Reply(200, """{"token":"t0k3n","steamId":"7656","name":"Theo","role":"admin"}""");
+        var api = new MarketplaceApi("https://m.test", http);
+        var login = api.StartBrowserLogin();
+        Assert.Matches("^[0-9a-f]{64}$", login.Code);
+        Assert.Equal($"https://m.test/auth/steam/openid/start?code={login.Code}", login.Url);
+        Assert.NotEqual(login.Code, api.StartBrowserLogin().Code);
+
+        var session = await api.WaitForBrowserLoginAsync(login, TimeSpan.FromMilliseconds(1));
+        Assert.Equal(("Theo", "t0k3n"), (session.Name, api.Token));
+        Assert.All(http.Sent, s => Assert.Equal($"https://m.test/auth/steam/openid/poll?code={login.Code}", s.Url));
+        Assert.Equal(3, http.Sent.Count);
+    }
+
+    [Fact]
+    public async Task BrowserLogin_Expired_Throws()
+    {
+        var api = new MarketplaceApi("https://m.test", new FakeTransport().Reply(404, """{"error":"sign-in expired"}"""));
+        var e = await Assert.ThrowsAsync<MarketplaceException>(() => api.WaitForBrowserLoginAsync(api.StartBrowserLogin(), TimeSpan.FromMilliseconds(1)));
+        Assert.Equal(404, e.Status);
+    }
+
+    [Fact]
     public async Task Publish_SendsBearer()
     {
         var http = new FakeTransport().Reply(200, Summary);

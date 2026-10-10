@@ -49,6 +49,35 @@ namespace InvectorModKit.Marketplace.Client
             return session;
         }
 
+        /// <summary>
+        /// Starts a sign-in on Steam's own page: open <see cref="BrowserLogin.Url"/> in the player's browser,
+        /// then wait with <see cref="WaitForBrowserLoginAsync"/>. The code is a secret only this game knows.
+        /// </summary>
+        public BrowserLogin StartBrowserLogin()
+        {
+            var bytes = new byte[32];
+            using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create()) rng.GetBytes(bytes);
+            string code = string.Concat(bytes.Select(b => b.ToString("x2")));
+            return new BrowserLogin { Code = code, Url = $"{_base}/auth/steam/openid/start?code={code}" };
+        }
+
+        /// <summary>Polls until the player signed in on Steam's page (keeps the token), or throws when it expires.</summary>
+        public async Task<Session> WaitForBrowserLoginAsync(BrowserLogin login, TimeSpan pollEvery, System.Threading.CancellationToken cancel = default)
+        {
+            while (true)
+            {
+                cancel.ThrowIfCancellationRequested();
+                var o = (JObject)await SendAsync("GET", "/auth/steam/openid/poll?code=" + login.Code).ConfigureAwait(false);
+                if (o["token"] != null)
+                {
+                    var session = new Session { Token = (string)o["token"], SteamId = (string)o["steamId"], Name = (string)o["name"], Role = (string)o["role"] };
+                    Token = session.Token;
+                    return session;
+                }
+                await Task.Delay(pollEvery, cancel).ConfigureAwait(false);
+            }
+        }
+
         public async Task<List<ChartSummary>> MyChartsAsync()
         {
             var a = (JArray)await SendAsync("GET", "/me/charts").ConfigureAwait(false);

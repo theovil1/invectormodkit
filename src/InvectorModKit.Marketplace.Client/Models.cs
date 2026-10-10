@@ -39,6 +39,11 @@ namespace InvectorModKit.Marketplace.Client
         public string ChartJson, FingerprintJson;
     }
 
+    public sealed class BrowserLogin
+    {
+        public string Code, Url;
+    }
+
     public sealed class Session
     {
         public string Token, SteamId, Name, Role;
