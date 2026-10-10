@@ -1,0 +1,15 @@
+<Project>
+  <!-- Local overrides (e.g. a different GameDir) go in Directory.Build.user.props, which is git-ignored. -->
+  <Import Project="Directory.Build.user.props" Condition="Exists('Directory.Build.user.props')" />
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <GameDir Condition="'$(GameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Invector Rhythm Galaxy</GameDir>
+    <GameManaged>$(GameDir)\Invector Rhythm Galaxy_Data\Managed</GameManaged>
+    <BepInExCore>$(GameDir)\BepInEx\core</BepInExCore>
+    <PluginsDir>$(GameDir)\BepInEx\plugins</PluginsDir>
+  </PropertyGroup>
+</Project>

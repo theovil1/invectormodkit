@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/InvectorModKit.Charting/InvectorModKit.Charting.csproj" />
+    <Project Path="src/InvectorModKit.DevTools/InvectorModKit.DevTools.csproj" />
+    <Project Path="src/InvectorModKit/InvectorModKit.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/InvectorModKit.Charting.Tests/InvectorModKit.Charting.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/ChartLab/ChartLab.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\..\build\GameReferences.props" />
+
+  <PropertyGroup>
+    <AssemblyName>InvectorModKit</AssemblyName>
+    <RootNamespace>InvectorModKit</RootNamespace>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\InvectorModKit.Charting\InvectorModKit.Charting.csproj" />
+  </ItemGroup>
+
+  <!-- Copy the plugin and its own dependencies into BepInEx/plugins/InvectorModKit after each build. -->
+  <Target Name="DeployToGame" AfterTargets="Build" Condition="'$(DeployToGame)' != 'false' And Exists('$(PluginsDir)')">
+    <ItemGroup>
+      <DeployFile Include="$(OutDir)InvectorModKit.dll;$(OutDir)InvectorModKit.pdb;$(OutDir)InvectorModKit.Charting.dll;$(OutDir)InvectorModKit.Charting.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DeployFile)" DestinationFolder="$(PluginsDir)\InvectorModKit" SkipUnchangedFiles="true" />
+  </Target>
+</Project>
