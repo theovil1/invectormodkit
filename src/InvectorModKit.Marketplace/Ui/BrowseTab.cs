@@ -210,7 +210,7 @@ namespace InvectorModKit.Marketplace.Ui
         }
 
         private string Note(ChartSummary c) =>
-            _installed.Contains(c.Id) ? "INSTALLÉ" : MarketplacePlugin.Installs.IsDownloaded(c.Id) ? "EN ATTENTE" : "";
+            MarketplacePlugin.Session.IsPublishedByMe(c.Id) ? "TON CHART" : _installed.Contains(c.Id) ? "INSTALLÉ" : MarketplacePlugin.Installs.IsDownloaded(c.Id) ? "EN ATTENTE" : "";
 
         // ----- details and actions
 
@@ -235,9 +235,10 @@ namespace InvectorModKit.Marketplace.Ui
 
         private void UpdateActions(ChartSummary c)
         {
-            bool installed = _installed.Contains(c.Id), waiting = !installed && MarketplacePlugin.Installs.IsDownloaded(c.Id);
-            MarketplaceModal.SetLabel(_install, installed ? "INSTALLÉ" : waiting ? "EN ATTENTE DE L'AUDIO" : "INSTALLER");
-            _install.interactable = !installed && !waiting;
+            bool mine = MarketplacePlugin.Session.IsPublishedByMe(c.Id);
+            bool installed = _installed.Contains(c.Id), waiting = !mine && !installed && MarketplacePlugin.Installs.IsDownloaded(c.Id);
+            MarketplaceModal.SetLabel(_install, mine ? "TON CHART" : installed ? "INSTALLÉ" : waiting ? "EN ATTENTE DE L'AUDIO" : "INSTALLER");
+            _install.interactable = !mine && !installed && !waiting;
             if (waiting && string.IsNullOrEmpty(_status.text))
                 _status.text = "Récupère l'audio de la vidéo et dépose le fichier dans le dossier CustomSongs : le chart s'y calera tout seul.";
             if (installed && _status.text.StartsWith("Téléchargé")) _status.text = "Installé ! Il est dans la sélection, section Custom Songs.";
@@ -248,7 +249,7 @@ namespace InvectorModKit.Marketplace.Ui
         private void Primary(ChartSummary c)
         {
             if (c == null) return;
-            if (_installed.Contains(c.Id)) return;
+            if (_installed.Contains(c.Id) || MarketplacePlugin.Session.IsPublishedByMe(c.Id)) return;
             if (MarketplacePlugin.Installs.IsDownloaded(c.Id)) { Application.OpenURL(c.YoutubeUrl); return; }
             Install(c);
         }

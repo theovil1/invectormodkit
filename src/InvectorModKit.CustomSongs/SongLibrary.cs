@@ -298,6 +298,7 @@ namespace InvectorModKit.CustomSongs
         private void ApplyMarketplaceMetadata(CustomSong song, ChartSource source)
         {
             song.MarketplaceId = source?.MarketplaceId;
+            song.MarketplaceAuthor = source?.Author;
             if (source == null) return;
             string entry = Path.Combine(MarketplaceDir, source.MarketplaceId ?? "", InvectorModKit.Charting.Marketplace.PendingInstall.EntryFile);
             if (!File.Exists(entry)) return;

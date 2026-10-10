@@ -24,6 +24,8 @@ namespace InvectorModKit.CustomSongs
         public bool HasMetadata;
         /// <summary>Set when the chart was installed from the marketplace.</summary>
         public string MarketplaceId;
+        /// <summary>Who published that marketplace chart.</summary>
+        public string MarketplaceAuthor;
 
         public volatile SongState State = SongState.Pending;
         public string Error;

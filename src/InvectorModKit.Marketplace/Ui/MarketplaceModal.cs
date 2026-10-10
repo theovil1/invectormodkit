@@ -30,6 +30,7 @@ namespace InvectorModKit.Marketplace.Ui
         private ITab _current;
         private GameObject _previousSelection;
         private Confirmation _confirmation;
+        private TextPrompt _prompt;
 
         public static void Open(MonoBehaviour host)
         {
@@ -118,16 +119,18 @@ namespace InvectorModKit.Marketplace.Ui
             _browse = new BrowseTab(this);
             _mine = new MySongsTab(this);
             _confirmation = new Confirmation(this);
+            _prompt = new TextPrompt(this);
             _previousSelection = GameUi.Selected;
             _lastMouse = Input.mousePosition;
             TakeMouse();
+            HideShip();
             RefreshAccount();
             Show(_browse);
         }
 
         private void Show(ITab tab)
         {
-            if (_confirmation.Visible) return;
+            if (_confirmation.Visible || _prompt.Visible) return;
             _current?.Hide();
             _current = tab;
             tab.Show();
@@ -195,6 +198,11 @@ namespace InvectorModKit.Marketplace.Ui
         private void Update()
         {
             HandleMouse();
+            if (_prompt.Visible)
+            {
+                _prompt.Tick();
+                return;
+            }
             if (_confirmation.Visible)
             {
                 if (Input.GetKeyDown(KeyCode.Escape)) _confirmation.Answer(false);
@@ -217,11 +225,33 @@ namespace InvectorModKit.Marketplace.Ui
             catch (Exception) { return false; }
         }
 
-        private void OnDestroy() => GiveMouseBack();
+        // The ship selector's ship is a 3D model in front of the UI plane: it would show through the window.
+        private GameObject _ship;
+
+        private void HideShip()
+        {
+            var holder = GameUi.SongMenu?.shipSelector?.shipHolder3d;
+            if (holder == null || !holder.gameObject.activeSelf) return;
+            _ship = holder.gameObject;
+            _ship.SetActive(false);
+        }
+
+        private void ShowShip()
+        {
+            if (_ship) _ship.SetActive(true);
+            _ship = null;
+        }
+
+        private void OnDestroy()
+        {
+            GiveMouseBack();
+            ShowShip();
+        }
 
         private void Shut()
         {
             GiveMouseBack();
+            ShowShip();
             if (EventSystem.current) EventSystem.current.sendNavigationEvents = true;
             _instance = null;
             Destroy(gameObject);
@@ -261,6 +291,10 @@ namespace InvectorModKit.Marketplace.Ui
         private async void SignIn() => await EnsureSignedIn();
 
         public void Confirm(string question, Action onYes) => _confirmation.Ask(question, onYes);
+
+        /// <summary>Asks for one line of text; <paramref name="validate"/> returns why it is refused, or null.</summary>
+        public void Prompt(string question, string hint, string initial, Func<string, string> validate, Action<string> onOk) =>
+            _prompt.Ask(question, hint, initial, validate, onOk);
 
         // ----- shared builders (the game's own pieces)
 

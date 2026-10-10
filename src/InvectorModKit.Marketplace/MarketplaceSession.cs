@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using InvectorModKit.Marketplace.Client;
@@ -72,12 +73,23 @@ namespace InvectorModKit.Marketplace
         }
 
         /// <summary>The marketplace chart id this custom song was published as, or null.</summary>
-        public string PublishedChart(string songId) => (string)_state["published"]?[songId];
+        public string PublishedChart(string songId)
+        {
+            var record = _state["published"]?[songId];
+            return record is JObject o ? (string)o["chart"] : (string)record; // older records: just the id
+        }
 
-        public void RememberPublished(string songId, string chartId)
+        /// <summary>The video link this custom song was last published with, or null.</summary>
+        public string PublishedLink(string songId) => (string)(_state["published"]?[songId] as JObject)?["link"];
+
+        /// <summary>Is this marketplace chart one of mine (published from this game)?</summary>
+        public bool IsPublishedByMe(string chartId) =>
+            _state["published"] is JObject published && published.Properties().Any(p => (p.Value is JObject o ? (string)o["chart"] : (string)p.Value) == chartId);
+
+        public void RememberPublished(string songId, string chartId, string link)
         {
             if (!(_state["published"] is JObject published)) _state["published"] = published = new JObject();
-            published[songId] = chartId;
+            published[songId] = new JObject { ["chart"] = chartId, ["link"] = link };
             Save();
         }
 

@@ -9,6 +9,8 @@ namespace InvectorModKit.CustomSongs
         public string Id, Title, Artist, AudioPath, ChartPath;
         /// <summary>Set when its chart was installed from the marketplace.</summary>
         public string MarketplaceId;
+        /// <summary>Who published that marketplace chart.</summary>
+        public string MarketplaceAuthor;
         public double Duration;
         /// <summary>Song-select cover (null until the song is listed).</summary>
         public UnityEngine.Sprite Cover;
@@ -27,7 +29,7 @@ namespace InvectorModKit.CustomSongs
             CustomSongsPlugin.Library == null ? new List<LocalSong>() : CustomSongsPlugin.Library.Songs.Select(s => new LocalSong
             {
                 Id = s.Id, Title = s.Title, Artist = s.Artist, AudioPath = s.AudioPath, ChartPath = s.ChartPath,
-                MarketplaceId = s.MarketplaceId, Duration = s.Duration, Ready = s.State == SongState.Ready, Cover = s.Music != null ? s.Music.ArtistImage : null,
+                MarketplaceId = s.MarketplaceId, MarketplaceAuthor = s.MarketplaceAuthor, Duration = s.Duration, Ready = s.State == SongState.Ready, Cover = s.Music != null ? s.Music.ArtistImage : null,
             }).ToList();
 
         /// <summary>

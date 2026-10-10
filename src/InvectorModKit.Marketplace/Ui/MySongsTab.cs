@@ -38,7 +38,7 @@ namespace InvectorModKit.Marketplace.Ui
             rt.sizeDelta = Vector2.zero;
 
             var help = GameUi.Text(_root.transform, "Help", m.Regular, 24, TextAnchor.MiddleLeft, GameUi.Muted);
-            help.text = "Pour publier : copie le lien de la vidéo YouTube du morceau (Ctrl+C), puis « Publier ». Seul le chart est envoyé, jamais l'audio.";
+            help.text = "Pour publier : choisis un morceau, « Publier », puis donne le lien de sa vidéo YouTube. Seul le chart est envoyé, jamais l'audio.";
             GameUi.Place(help, 0, 205, 1380, 60);
             (_scroll, _content) = MarketplaceModal.MakeList(_root.transform, -310, -70, 780, 500);
             _empty = GameUi.Text(_scroll.transform, "Empty", m.Regular, 28, TextAnchor.MiddleCenter, GameUi.Muted);
@@ -104,7 +104,7 @@ namespace InvectorModKit.Marketplace.Ui
         }
 
         private static string Note(LocalSong s) =>
-            s.MarketplaceId != null ? "MARKETPLACE" : MarketplacePlugin.Session.PublishedChart(s.Id) != null ? "PUBLIÉ" : "";
+            !IsOwn(s) ? "MARKETPLACE" : MarketplacePlugin.Session.PublishedChart(s.Id) != null ? "PUBLIÉ" : "";
 
         private void ShowDetails(LocalSong s, bool keepStatus)
         {
@@ -118,53 +118,62 @@ namespace InvectorModKit.Marketplace.Ui
             _cover.sprite = s.Cover;
             _cover.color = s.Cover ? Color.white : new Color(1, 1, 1, 0.1f);
             string published = MarketplacePlugin.Session.PublishedChart(s.Id);
+            bool own = IsOwn(s);
             _info.text = $"{(int)s.Duration / 60}:{(int)s.Duration % 60:00}  ·  {Path.GetFileName(s.AudioPath)}\n" +
-                         (s.MarketplaceId != null ? "Chart installé depuis le marketplace." : published != null ? "Publié sur le marketplace." : "Pas encore publié.");
-            bool own = s.MarketplaceId == null;
+                         (!own ? $"Chart de {s.MarketplaceAuthor}, installé depuis le marketplace." : published != null ? "Publié sur le marketplace." : "Pas encore publié.");
             _publish.gameObject.SetActive(own);
             MarketplaceModal.SetLabel(_publish, published != null ? "METTRE À JOUR" : "PUBLIER");
             _publish.interactable = !_busy;
             _withdraw.gameObject.SetActive(own && published != null);
         }
 
+        /// <summary>Charted by me: auto-generated, hand-made, or my own chart reinstalled from the marketplace.</summary>
+        private static bool IsOwn(LocalSong s)
+        {
+            if (s.MarketplaceId == null) return true;
+            var me = MarketplacePlugin.Session.Current;
+            return MarketplacePlugin.Session.IsPublishedByMe(s.MarketplaceId) || (me != null && s.MarketplaceAuthor == me.Name);
+        }
+
         private async void Publish(LocalSong s)
         {
-            if (s == null || _busy || s.MarketplaceId != null) return;
-            string link = YoutubeLink.Normalize(GUIUtility.systemCopyBuffer);
-            if (link == null)
-            {
-                _status.text = "Copie d'abord le lien de la vidéo YouTube de ce morceau (Ctrl+C dans ton navigateur), puis recommence.";
-                return;
-            }
+            if (s == null || _busy || !IsOwn(s)) return;
             if (!await _m.EnsureSignedIn() || !_root) return;
-            _m.Confirm($"Publier « {s.Title} » de {s.Artist} ?\nVidéo : {link}\nSeul le chart est envoyé, pas l'audio.", async () =>
+            string initial = MarketplacePlugin.Session.PublishedLink(s.Id) ?? YoutubeLink.Normalize(GUIUtility.systemCopyBuffer) ?? "";
+            _m.Prompt($"Lien de la vidéo YouTube de « {s.Title} »",
+                "Tape ou colle (Ctrl+V) le lien de la vidéo du morceau. Seul le chart est envoyé, jamais l'audio.",
+                initial,
+                text => YoutubeLink.Normalize(text) == null ? "Ce n'est pas un lien de vidéo YouTube (youtube.com/watch?v=… ou youtu.be/…)." : null,
+                text => Send(s, YoutubeLink.Normalize(text)));
+        }
+
+        private async void Send(LocalSong s, string link)
+        {
+            _busy = true;
+            try
             {
-                _busy = true;
-                try
+                _status.text = "Analyse de l'audio (empreinte)…";
+                string fingerprint = await Task.Run(() => CustomSongsApi.FingerprintJson(s.Id));
+                string chart = File.ReadAllText(s.ChartPath);
+                _status.text = "Envoi…";
+                var published = await MarketplacePlugin.Api.PublishAsync(new PublishRequest
                 {
-                    _status.text = "Analyse de l'audio (empreinte)…";
-                    string fingerprint = await Task.Run(() => CustomSongsApi.FingerprintJson(s.Id));
-                    string chart = File.ReadAllText(s.ChartPath);
-                    _status.text = "Envoi…";
-                    var published = await MarketplacePlugin.Api.PublishAsync(new PublishRequest
-                    {
-                        Title = s.Title, Artist = s.Artist, YoutubeUrl = link, Duration = s.Duration, ChartJson = chart, FingerprintJson = fingerprint,
-                    });
-                    MarketplacePlugin.Session.RememberPublished(s.Id, published.Id);
-                    if (!_root) return;
-                    _status.text = published.Version > 1 ? $"Mis à jour (version {published.Version})." : "Publié ! Les autres joueurs peuvent maintenant l'installer.";
-                    RefreshNotes();
-                }
-                catch (Exception e)
-                {
-                    if (_root) _status.text = "Publication impossible : " + e.GetBaseException().Message;
-                }
-                finally
-                {
-                    _busy = false;
-                    if (_root) ShowDetails(s, keepStatus: true);
-                }
-            });
+                    Title = s.Title, Artist = s.Artist, YoutubeUrl = link, Duration = s.Duration, ChartJson = chart, FingerprintJson = fingerprint,
+                });
+                MarketplacePlugin.Session.RememberPublished(s.Id, published.Id, link);
+                if (!_root) return;
+                _status.text = published.Version > 1 ? $"Mis à jour (version {published.Version})." : "Publié ! Les autres joueurs peuvent maintenant l'installer.";
+                RefreshNotes();
+            }
+            catch (Exception e)
+            {
+                if (_root) _status.text = "Publication impossible : " + e.GetBaseException().Message;
+            }
+            finally
+            {
+                _busy = false;
+                if (_root) ShowDetails(s, keepStatus: true);
+            }
         }
 
         private void Withdraw(LocalSong s)
