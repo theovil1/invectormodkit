@@ -19,7 +19,7 @@ namespace InvectorModKit.Charting.Generation
     public static class ChartGenerator
     {
         /// <summary>Bump whenever generation changes, so cached auto-generated charts are rebuilt.</summary>
-        public const int Version = 3;
+        public const int Version = 4;
 
         /// <summary>Sections start this much before their bar line so notes snapped slightly early stay inside.</summary>
         private const double SectionLead = 0.05;

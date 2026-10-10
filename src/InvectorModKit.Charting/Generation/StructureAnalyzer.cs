@@ -23,7 +23,7 @@ namespace InvectorModKit.Charting.Generation
             int bars = lastBar - firstBar;
             double barSeconds = grid.SecondsPerBeat * 4;
 
-            var feat = BarFeatures(f, grid, firstBar, bars, out var loud);
+            var feat = SpectralBars(f, grid, firstBar, bars);
             var novelty = Novelty(feat);
 
             // Pick phrase boundaries (bar offsets from firstBar): strongest novelty, preferring 4/8-bar phrases.
@@ -63,76 +63,90 @@ namespace InvectorModKit.Charting.Generation
                 }
             }
 
-            // Freefly: the quietest segments below the loudness threshold (at most ~1 per 90 s).
-            var segs = new List<(int start, int len, double loud)>();
-            for (int i = 0; i + 1 < cuts.Count; i++)
+            // Freefly where the official charts put it: a per-bar model learned on them (quieter than the
+            // rest of the song, few drums, mostly around the bridge, ~2/3 in). Windows of 3 or 7 bars.
+            var bar = InvectorModKit.Charting.Generation.BarFeatures.Compute(f, grid, firstBar, bars);
+            var logit = bar.Select(x => x.Zip(FreeflyWeights, (a, b) => a * b).Sum()).ToArray();
+            var windows = ChooseFreeflyWindows(logit, barSeconds);
+            bool InFreefly(int b) => windows.Any(w => b >= w.start && b < w.start + w.len);
+
+            // Phrase segments alternate List/Bounce; Freefly windows are laid over them.
+            var bounds = new SortedSet<int>(cuts);
+            foreach (var w in windows) { bounds.Add(w.start); bounds.Add(w.start + w.len); }
+            var pieces = bounds.ToList();
+            var parts = new List<(int start, SectionMode mode)>();
+            var mode = rng.Chance(FreeflyFirstModeBounceChance) ? SectionMode.Bounce : SectionMode.List;
+            int lastSegment = -1;
+            for (int p = 0; p + 1 < pieces.Count; p++)
             {
-                int s = cuts[i], e = cuts[i + 1];
-                double l = 0;
-                for (int b = s; b < e; b++) l += loud[b];
-                segs.Add((s, e - s, l / Math.Max(1, e - s)));
+                int s = pieces[p], len = pieces[p + 1] - s;
+                if (InFreefly(s)) { parts.Add((s, SectionMode.Freefly)); continue; }
+                int segment = cuts.FindLastIndex(c => c <= s);
+                if (segment != lastSegment) { if (lastSegment >= 0) mode = Other(mode); lastSegment = segment; }
+                // A leftover too short to be a section joins the following track section (or the previous one).
+                bool nextIsTrack = p + 2 < pieces.Count && !InFreefly(pieces[p + 1]);
+                if (len < MinSectionBars && parts.Count > 0 && !nextIsTrack) continue;
+                parts.Add((s, len < MinSectionBars && nextIsTrack ? Other(mode) : mode));
             }
-            int maxFreefly = Math.Max(1, (int)Math.Round(bars * barSeconds / 70));
-            var freefly = new HashSet<int>(segs
-                .Select((s, i) => (s, i))
-                .Where(x => x.i > 0 && x.s.loud < FreeflyLoudness && x.s.len >= 3)
-                .OrderBy(x => x.s.loud)
-                .Take(maxFreefly)
-                .Select(x => x.i));
 
             var sections = new List<Section>();
-            var mode = rng.Chance(FreeflyFirstModeBounceChance) ? SectionMode.Bounce : SectionMode.List;
-            for (int i = 0; i < segs.Count; i++)
+            foreach (var (start, m) in parts)
             {
-                var (start, len, _) = segs[i];
-                double t = i == 0 ? 0.0 : grid.TimeOf((firstBar + start) * 16);
-                if (freefly.Contains(i))
-                {
-                    // Official Freefly sections last 3 or 7 bars; the rest of the phrase goes back to the track,
-                    // joined to the next phrase when it would be too short to be a section of its own.
-                    int ffLen = len >= 10 ? 7 : len >= 7 ? Math.Min(len, 7) : Math.Min(len, 3);
-                    sections.Add(new Section(t, SectionMode.Freefly));
-                    int rest = len - ffLen;
-                    if (rest >= MinSectionBars)
-                    {
-                        sections.Add(new Section(grid.TimeOf((firstBar + start + ffLen) * 16), mode));
-                        mode = Other(mode);
-                    }
-                    else if (rest > 0 && i + 1 < segs.Count)
-                        segs[i + 1] = (start + ffLen, segs[i + 1].len + rest, segs[i + 1].loud);
-                    continue;
-                }
-                sections.Add(new Section(t, mode));
-                mode = Other(mode);
+                if (sections.Count > 0 && sections[sections.Count - 1].Mode == m) continue;
+                sections.Add(new Section(sections.Count == 0 ? 0.0 : grid.TimeOf((firstBar + start) * 16), m));
             }
             return sections;
         }
 
+        /// <summary>Learned on the official charts with ChartLab "freefly" (BarFeatures layout).</summary>
+        private static readonly double[] FreeflyWeights = { -6.33, -1.42, -1.09, 0.42, 0.27, -0.30, 0.36, 0.08, 0.48, 13.44, -10.20, -0.02 };
+
+        /// <summary>
+        /// Official songs have ~1 Freefly per 145 s, 3 or 7 bars long (7 favoured), never in the first
+        /// 8 bars or the last 2. Picks the best-scoring non-overlapping windows, 8+ bars apart.
+        /// </summary>
+        public static List<(int start, int len)> ChooseFreeflyWindows(double[] logit, double barSeconds)
+        {
+            int bars = logit.Length;
+            int count = Math.Max(1, (int)Math.Round(bars * barSeconds / 145));
+            var options = new List<(int s, int len, double score)>();
+            foreach (int len in new[] { 7, 3 })
+                for (int s = 8; s + len + 2 <= bars; s++)
+                {
+                    double m = 0;
+                    for (int k = s; k < s + len; k++) m += logit[k];
+                    options.Add((s, len, m / len + (len == 7 ? 0.3 : 0)));
+                }
+            var chosen = new List<(int start, int len)>();
+            foreach (var o in options.OrderByDescending(o => o.score))
+            {
+                if (chosen.Count >= count) break;
+                if (chosen.All(c => o.s >= c.start + c.len + 8 || c.start >= o.s + o.len + 8)) chosen.Add((o.s, o.len));
+            }
+            chosen.Sort((a, b) => a.start.CompareTo(b.start));
+            return chosen;
+        }
+
         private static SectionMode Other(SectionMode m) => m == SectionMode.Bounce ? SectionMode.List : SectionMode.Bounce;
 
-        /// <summary>Per-bar mean band energies (z-scored per band) and per-bar loudness relative to the song median.</summary>
-        private static double[][] BarFeatures(AudioFeatures f, BeatGrid grid, int firstBar, int bars, out double[] loud)
+        /// <summary>Per-bar mean band energies, z-scored per band (for phrase boundaries).</summary>
+        private static double[][] SpectralBars(AudioFeatures f, BeatGrid grid, int firstBar, int bars)
         {
             int dims = f.BandCount;
             var feat = new double[bars][];
-            loud = new double[bars];
-            float median = BeatGrid.MedianLoudness(f);
             for (int b = 0; b < bars; b++)
             {
                 int a = Math.Max(0, f.FrameOf(grid.TimeOf((firstBar + b) * 16)));
                 int e = Math.Min(f.Frames, f.FrameOf(grid.TimeOf((firstBar + b + 1) * 16)));
                 var v = new double[dims];
-                double rms = 0;
                 int n = 0;
                 for (int t = a; t < e; t++, n++)
                 {
                     var bands = f.Bands[t];
                     for (int d = 0; d < dims; d++) v[d] += bands[d];
-                    rms += f.Rms[t];
                 }
                 if (n > 0) for (int d = 0; d < dims; d++) v[d] /= n;
                 feat[b] = v;
-                loud[b] = n > 0 ? rms / n / median : 0;
             }
             for (int d = 0; d < dims; d++)
             {
