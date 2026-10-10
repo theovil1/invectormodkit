@@ -39,24 +39,24 @@ namespace InvectorModKit.Marketplace.Ui
 
             var help = GameUi.Text(_root.transform, "Help", m.Regular, 24, TextAnchor.MiddleLeft, GameUi.Muted);
             help.text = "Pour publier : copie le lien de la vidéo YouTube du morceau (Ctrl+C), puis « Publier ». Seul le chart est envoyé, jamais l'audio.";
-            GameUi.Place(help, 0, 270, 1380, 60);
-            (_scroll, _content) = MarketplaceModal.MakeList(_root.transform, -310, -40, 780, 560);
+            GameUi.Place(help, 0, 205, 1380, 60);
+            (_scroll, _content) = MarketplaceModal.MakeList(_root.transform, -310, -70, 780, 500);
             _empty = GameUi.Text(_scroll.transform, "Empty", m.Regular, 28, TextAnchor.MiddleCenter, GameUi.Muted);
             GameUi.Place(_empty, 0, 0, 700, 200);
 
             _cover = GameUi.Image(_root.transform, "Cover", Color.white);
-            GameUi.Place(_cover, 250, 150, 200, 200);
+            GameUi.Place(_cover, 250, 120, 200, 200);
             _title = GameUi.Text(_root.transform, "Title", m.Bold, 34, TextAnchor.UpperLeft, Color.white);
-            GameUi.Place(_title, 535, 205, 330, 90);
+            GameUi.Place(_title, 535, 175, 330, 90);
             _artist = GameUi.Text(_root.transform, "Artist", m.Regular, 26, TextAnchor.UpperLeft, GameUi.Muted);
-            GameUi.Place(_artist, 535, 120, 330, 70);
+            GameUi.Place(_artist, 535, 90, 330, 70);
             _info = GameUi.Text(_root.transform, "Info", m.Regular, 24, TextAnchor.UpperLeft, GameUi.Muted);
-            GameUi.Place(_info, 415, -30, 550, 120);
+            GameUi.Place(_info, 415, -60, 550, 120);
             _status = GameUi.Text(_root.transform, "Status", m.Regular, 24, TextAnchor.UpperLeft, Color.white);
-            GameUi.Place(_status, 415, -140, 550, 100);
-            _publish = m.MakeButton(_root.transform, "PUBLIER", 280, -240, 270, 64, () => Publish(_selected));
-            _withdraw = m.MakeButton(_root.transform, "RETIRER LA PUBLICATION", 560, -240, 270, 64, () => Withdraw(_selected), 24);
-            _folder = m.MakeButton(_root.transform, "DOSSIER CUSTOMSONGS", 280, -315, 270, 56, BrowseTab.OpenFolder, 24);
+            GameUi.Place(_status, 415, -170, 550, 100);
+            _publish = m.MakeButton(_root.transform, "PUBLIER", 280, -255, 270, 64, () => Publish(_selected));
+            _withdraw = m.MakeButton(_root.transform, "RETIRER LA PUBLICATION", 560, -255, 270, 64, () => Withdraw(_selected), 24);
+            _folder = m.MakeButton(_root.transform, "DOSSIER CUSTOMSONGS", 280, -325, 270, 56, BrowseTab.OpenFolder, 24);
             _publish.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnRight = _withdraw, selectOnDown = _folder };
             _withdraw.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = _publish };
             _folder.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnUp = _publish };

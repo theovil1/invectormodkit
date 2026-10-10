@@ -76,15 +76,29 @@ namespace InvectorModKit.Marketplace.Ui
             if (button) button.onClick.AddListener(() => MarketplaceModal.Open(MarketplacePlugin.Instance));
         }
 
-        // While the window is open, the menu underneath must not react (difficulty, worlds, sorting, DLC…).
+        // While the window is open, the menu underneath must not react (difficulty, worlds, sorting, DLC…),
+        // but the base state update also shows the mouse cursor when the mouse moves: keep that part.
         [HarmonyPatch(typeof(StateMainMenu), nameof(StateMainMenu.Update)), HarmonyPrefix]
-        private static bool MainMenuUpdate() => !MarketplaceModal.IsOpen;
+        private static bool MainMenuUpdate(StateMainMenu __instance) => Pass(__instance);
 
         [HarmonyPatch(typeof(StateSelectSongSingleplayer), nameof(StateSelectSongSingleplayer.Update)), HarmonyPrefix]
-        private static bool SongSelectUpdate() => !MarketplaceModal.IsOpen;
+        private static bool SongSelectUpdate(StateSelectSongSingleplayer __instance) => Pass(__instance);
 
         [HarmonyPatch(typeof(StateSelectSongMultiplayer), nameof(StateSelectSongMultiplayer.Update)), HarmonyPrefix]
-        private static bool SongSelectMultiUpdate() => !MarketplaceModal.IsOpen;
+        private static bool SongSelectMultiUpdate(StateSelectSongMultiplayer __instance) => Pass(__instance);
+
+        private static bool Pass(HelloThere.Applications.ApplicationState state)
+        {
+            if (!MarketplaceModal.IsOpen) return true;
+            // Same as ApplicationState.Update: the cursor shows while the mouse is the last device used.
+            bool mouse = Rewired.ReInput.isReady && Rewired.ReInput.controllers.GetLastActiveControllerType() == Rewired.ControllerType.Mouse;
+            if (Cursor.visible != mouse)
+            {
+                Cursor.visible = mouse;
+                state.UpdatePointerHoverState();
+            }
+            return false;
+        }
 
         /// <summary>M opens the marketplace from the main menu and song select.</summary>
         public static bool CanOpenHere

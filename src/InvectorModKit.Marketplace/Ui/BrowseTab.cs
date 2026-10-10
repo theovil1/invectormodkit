@@ -41,27 +41,27 @@ namespace InvectorModKit.Marketplace.Ui
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.sizeDelta = Vector2.zero;
 
-            _search = m.MakeButton(_root.transform, "", -310, 270, 780, 60, StartTyping, 28);
-            _sort = m.MakeButton(_root.transform, "RÉCENTS", 255, 270, 230, 60, ToggleSort, 28);
-            (_scroll, _content) = MarketplaceModal.MakeList(_root.transform, -310, -40, 780, 560);
+            _search = m.MakeButton(_root.transform, "", -420, 205, 560, 58, StartTyping, 26);
+            _sort = m.MakeButton(_root.transform, "RÉCENTS", -20, 205, 200, 58, ToggleSort, 26);
+            (_scroll, _content) = MarketplaceModal.MakeList(_root.transform, -310, -70, 780, 500);
             _empty = GameUi.Text(_scroll.transform, "Empty", m.Regular, 28, TextAnchor.MiddleCenter, GameUi.Muted);
             GameUi.Place(_empty, 0, 0, 700, 200);
-            _more = m.MakeButton(_root.transform, "PLUS DE RÉSULTATS", -310, -360, 320, 52, () => Search(append: true), 24);
+            _more = m.MakeButton(_root.transform, "PLUS DE RÉSULTATS", -310, -350, 320, 44, () => Search(append: true), 24);
 
             _cover = GameUi.Image(_root.transform, "Cover", Color.white);
-            GameUi.Place(_cover, 250, 150, 200, 200);
+            GameUi.Place(_cover, 250, 120, 200, 200);
             _title = GameUi.Text(_root.transform, "Title", m.Bold, 34, TextAnchor.UpperLeft, Color.white);
-            GameUi.Place(_title, 535, 205, 330, 90);
+            GameUi.Place(_title, 535, 175, 330, 90);
             _artist = GameUi.Text(_root.transform, "Artist", m.Regular, 26, TextAnchor.UpperLeft, GameUi.Muted);
-            GameUi.Place(_artist, 535, 120, 330, 70);
+            GameUi.Place(_artist, 535, 90, 330, 70);
             _info = GameUi.Text(_root.transform, "Info", m.Regular, 24, TextAnchor.UpperLeft, GameUi.Muted);
-            GameUi.Place(_info, 415, -40, 550, 150);
+            GameUi.Place(_info, 415, -70, 550, 150);
             _status = GameUi.Text(_root.transform, "Status", m.Regular, 24, TextAnchor.UpperLeft, Color.white);
-            GameUi.Place(_status, 415, -150, 550, 80);
-            _install = m.MakeButton(_root.transform, "INSTALLER", 280, -240, 270, 64, () => Primary(_selected));
-            _youtube = m.MakeButton(_root.transform, "OUVRIR SUR YOUTUBE", 560, -240, 270, 64, () => { if (_selected != null) Application.OpenURL(_selected.YoutubeUrl); });
-            _folder = m.MakeButton(_root.transform, "DOSSIER CUSTOMSONGS", 280, -315, 270, 56, OpenFolder, 24);
-            _remove = m.MakeButton(_root.transform, "RETIRER", 560, -315, 270, 56, RemoveSelected, 24);
+            GameUi.Place(_status, 415, -175, 550, 80);
+            _install = m.MakeButton(_root.transform, "INSTALLER", 280, -255, 270, 64, () => Primary(_selected));
+            _youtube = m.MakeButton(_root.transform, "OUVRIR SUR YOUTUBE", 560, -255, 270, 64, () => { if (_selected != null) Application.OpenURL(_selected.YoutubeUrl); });
+            _folder = m.MakeButton(_root.transform, "DOSSIER CUSTOMSONGS", 280, -325, 270, 56, OpenFolder, 24);
+            _remove = m.MakeButton(_root.transform, "RETIRER", 560, -325, 270, 56, RemoveSelected, 24);
             var actions = new Selectable[] { _install, _youtube, _folder, _remove };
             for (int i = 0; i < actions.Length; i++)
                 actions[i].navigation = new Navigation

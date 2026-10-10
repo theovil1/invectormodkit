@@ -78,8 +78,16 @@ namespace InvectorModKit.Marketplace.Ui
             var group = GetComponent<CanvasGroup>();
             if (group) { group.alpha = 1; group.interactable = true; group.blocksRaycasts = true; }
 
+            var backdrop = GameUi.Find<Image>(gameObject, "Background");
+            if (backdrop) backdrop.color = new Color(0, 0, 0, 0.94f);
             Box = (RectTransform)transform.Find("QuestionBox");
             GameUi.Place(Box, 0, 0, Width, Height);
+            // A solid fill under the game's frame, so nothing shows through the window.
+            var fill = GameUi.Image(Box, "Fill", new Color32(0x0C, 0x09, 0x12, 0xF5));
+            var fillRt = (RectTransform)fill.transform;
+            fillRt.anchorMin = Vector2.zero; fillRt.anchorMax = Vector2.one;
+            fillRt.offsetMin = new Vector2(18, 12); fillRt.offsetMax = new Vector2(-18, -12);
+            fill.transform.SetAsFirstSibling();
             foreach (var name in new[] { "Answer Yes", "Answer No" })
             {
                 var old = Box.Find(name);
