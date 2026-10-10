@@ -68,6 +68,7 @@ namespace InvectorModKit.CustomSongs
 
         private static IEnumerator WithCustomAudio(StateGame state, IEnumerator original)
         {
+            _pendingPreview = null; // a game is starting: drop any preview still loading
             var song = ByLevel(state.gameSession?.levelDefinition);
             if (song != null)
             {
@@ -102,8 +103,9 @@ namespace InvectorModKit.CustomSongs
         [HarmonyPatch(typeof(MenuSceneRoot), nameof(MenuSceneRoot.PlayPreviewMusic), typeof(AssetReferenceT<AudioItem>), typeof(float)), HarmonyPrefix]
         private static bool PlayCustomPreview(MenuSceneRoot __instance, AssetReferenceT<AudioItem> audioRef, float fadeTime)
         {
+            _pendingPreview = audioRef; // the latest request wins, whatever the song
             var song = Built.FirstOrDefault(s => s.Music.PreviewAudio == audioRef);
-            if (song == null) { _pendingPreview = null; return true; }
+            if (song == null) return true;
             SongAudio.Register(song);
             if (SongAudio.HasClip(song.PreviewItem)) return true;
             _pendingPreview = audioRef;
@@ -114,9 +116,16 @@ namespace InvectorModKit.CustomSongs
         private static IEnumerator PreviewWhenLoaded(MenuSceneRoot menu, CustomSong song, AssetReferenceT<AudioItem> audioRef, float fadeTime)
         {
             yield return CustomSongsPlugin.WaitUntilPrepared(song);
-            if (song.State != SongState.Ready || _pendingPreview != audioRef) yield break;
+            if (song.State != SongState.Ready || !StillWanted(audioRef)) yield break;
             yield return SongAudio.EnsurePreview(song);
-            if (_pendingPreview == audioRef && SongAudio.HasClip(song.PreviewItem)) menu.PlayPreviewMusic(audioRef, fadeTime);
+            if (StillWanted(audioRef) && SongAudio.HasClip(song.PreviewItem)) menu.PlayPreviewMusic(audioRef, fadeTime);
+        }
+
+        /// <summary>Still the song the player is looking at, and still in song select (not playing).</summary>
+        private static bool StillWanted(AssetReferenceT<AudioItem> audioRef)
+        {
+            var state = ModKit.CurrentState;
+            return _pendingPreview == audioRef && (state is StateSelectSongSingleplayer || state is StateSelectSongMultiplayer);
         }
     }
 }

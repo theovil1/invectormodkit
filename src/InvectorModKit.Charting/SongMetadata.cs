@@ -3,29 +3,63 @@ using System.Text.RegularExpressions;
 
 namespace InvectorModKit.Charting
 {
+    /// <summary>Tidies artist/title taken from downloaded files and video titles.</summary>
     public static class SongMetadata
     {
-        private static readonly Regex VideoJunk = new Regex(
-            @"\s*[\(\[][^\)\]]*\b(official|video|audio|lyrics?|clip|visuali[sz]er|hd|hq|4k|remaster(ed)?|explicit|music)\b[^\)\]]*[\)\]]",
-            RegexOptions.IgnoreCase);
+        private const string Junk = @"official|music\s+video|lyric\s+video|lyrics?|video|audio|visuali[sz]er|4k|hd|hq|subtitled|subtitles|remaster(ed)?|explicit|clip(\s+officiel)?|mv";
+
+        // "(Official Video)", "[4K]"...
+        private static readonly Regex BracketedJunk = new Regex(@"\s*[\(\[][^\)\]]*\b(" + Junk + @")\b[^\)\]]*[\)\]]", RegexOptions.IgnoreCase);
+        // "... Official Music Video 4K Subtitled" at the end, with or without a separator before it.
+        private static readonly Regex TrailingJunk = new Regex(@"(\s*[-–—|:]?\s*\b(" + Junk + @")\b)+\s*$", RegexOptions.IgnoreCase);
+        private static readonly string[] Separators = { " — ", " – ", " - ", " | " };
 
         /// <summary>
-        /// Tidies titles taken from downloaded files: "Coldplay - Viva La Vida (Official Video)" by
-        /// "Coldplay" becomes "Viva La Vida". Returns the original if cleaning would leave nothing.
+        /// "Coldplay - Viva La Vida (Official Video)" by "Coldplay" → ("Coldplay", "Viva La Vida");
+        /// "GENER8ION Yung Lean — STORM II Official Music Video 4K Subtitled" by "GENER8ION"
+        /// → ("GENER8ION Yung Lean", "STORM II").
         /// </summary>
-        public static string CleanTitle(string title, string artist)
+        public static (string artist, string title) Normalize(string artist, string title)
         {
-            string t = VideoJunk.Replace(title ?? "", "").Trim();
-            if (!string.IsNullOrEmpty(artist) && t.StartsWith(artist + " - ", StringComparison.OrdinalIgnoreCase))
-                t = t.Substring(artist.Length + 3).Trim();
-            return string.IsNullOrEmpty(t) ? title : t;
+            string t = Clean(title ?? "");
+            string a = string.IsNullOrWhiteSpace(artist) ? null : artist.Trim();
+            foreach (string sep in Separators)
+            {
+                int i = t.IndexOf(sep, StringComparison.Ordinal);
+                if (i <= 0) continue;
+                string left = t.Substring(0, i).Trim(), right = t.Substring(i + sep.Length).Trim();
+                if (right.Length == 0) continue;
+                // "Artist - Title" inside the title: keep the longer, more complete artist name.
+                if (a == null || left.IndexOf(a, StringComparison.OrdinalIgnoreCase) >= 0 || a.IndexOf(left, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    a = a == null || left.Length > a.Length ? left : a;
+                    t = right;
+                }
+                break;
+            }
+            t = Clean(t);
+            return (a, string.IsNullOrEmpty(t) ? title : t);
         }
 
-        /// <summary>"Artist - Title" file names; null parts when the name has no " - ".</summary>
+        /// <summary>Title with video/download junk removed (returns the original if that would leave nothing).</summary>
+        public static string CleanTitle(string title, string artist) => Normalize(artist, title).title;
+
+        private static string Clean(string s)
+        {
+            string r = BracketedJunk.Replace(s, "");
+            r = TrailingJunk.Replace(r, "").Trim();
+            return r.Length == 0 ? s.Trim() : r;
+        }
+
+        /// <summary>"Artist - Title" file names (also – and —); null artist when there is no separator.</summary>
         public static (string artist, string title) SplitFileName(string baseName)
         {
-            int dash = baseName.IndexOf(" - ", StringComparison.Ordinal);
-            return dash > 0 ? (baseName.Substring(0, dash).Trim(), baseName.Substring(dash + 3).Trim()) : (null, baseName);
+            foreach (string sep in Separators)
+            {
+                int i = baseName.IndexOf(sep, StringComparison.Ordinal);
+                if (i > 0) return (baseName.Substring(0, i).Trim(), baseName.Substring(i + sep.Length).Trim());
+            }
+            return (null, baseName);
         }
     }
 }

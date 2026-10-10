@@ -27,6 +27,9 @@ namespace InvectorModKit
         /// <summary>Flags the session as modded at runtime (e.g. a dev tool enabling autoplay).</summary>
         public static void MarkModded(string reason) => Integrity.MarkModded(reason);
 
+        /// <summary>The game's current state (title, menus, song select, game, results...), null before boot.</summary>
+        public static HelloThere.Applications.ApplicationState CurrentState => LifecyclePatches.Current;
+
         /// <summary>Best result recorded for a level during modded sessions (a copy), or null.</summary>
         public static global::LevelScores GetModdedBest(string levelId, global::Difficulty difficulty) => ScoreStore.GetBest(levelId, difficulty);
 

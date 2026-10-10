@@ -163,8 +163,9 @@ namespace InvectorModKit.CustomSongs
             }
             var (fileArtist, fileTitle) = SongMetadata.SplitFileName(Path.GetFileNameWithoutExtension(song.AudioPath));
             if (string.IsNullOrEmpty(song.Title)) song.Title = fileTitle;
-            if (string.IsNullOrEmpty(song.Artist)) song.Artist = fileArtist ?? "Unknown artist";
-            song.Title = SongMetadata.CleanTitle(song.Title, song.Artist);
+            if (string.IsNullOrEmpty(song.Artist)) song.Artist = fileArtist;
+            (song.Artist, song.Title) = SongMetadata.Normalize(song.Artist, song.Title);
+            if (string.IsNullOrEmpty(song.Artist)) song.Artist = "Unknown artist";
 
             // song.json and cover images belong to a song's own folder, never to the shared root.
             if (string.Equals(Path.GetFullPath(song.Folder), Path.GetFullPath(Root), StringComparison.OrdinalIgnoreCase)) return;
