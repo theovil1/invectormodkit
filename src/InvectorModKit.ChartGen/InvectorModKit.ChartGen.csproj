@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Out-of-process chart generator started by the Custom Songs plugin. .NET Framework 4.7.2 ships with
+       Windows 10/11, so nothing extra to install; its JIT is several times faster than the game's Mono here. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>InvectorModKit.ChartGen</AssemblyName>
+    <RootNamespace>InvectorModKit.ChartGen</RootNamespace>
+    <NoWarn>$(NoWarn);NU1903</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\InvectorModKit.Charting\InvectorModKit.Charting.csproj" />
+  </ItemGroup>
+
+  <!-- The exe lives in BepInEx/plugins/InvectorModKit/chartgen and takes everything else from the parent folder
+       (deployed by the core plugin). Newtonsoft.Json comes along because the game keeps its own copy in Managed. -->
+  <Target Name="DeployToGame" AfterTargets="Build" Condition="'$(DeployToGame)' != 'false' And Exists('$(PluginsDir)')">
+    <ItemGroup>
+      <DeployFile Include="$(OutDir)InvectorModKit.ChartGen.exe;$(OutDir)InvectorModKit.ChartGen.exe.config;$(OutDir)InvectorModKit.ChartGen.pdb;$(OutDir)Newtonsoft.Json.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DeployFile)" DestinationFolder="$(PluginsDir)\InvectorModKit\chartgen" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

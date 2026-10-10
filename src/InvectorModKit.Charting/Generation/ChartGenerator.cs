@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using InvectorModKit.Charting.Audio;
 
 namespace InvectorModKit.Charting.Generation
@@ -38,9 +39,12 @@ namespace InvectorModKit.Charting.Generation
         /// <param name="vocals">When given, the singing is taken from a separated vocal track (much more reliable).</param>
         public static Chart Generate(DecodedAudio audio, string audioHash, GeneratorOptions options = null, VocalSeparator vocals = null)
         {
+            // The vocal separation and the mix analysis (tempo included) are independent: run them side by side.
+            var separation = vocals != null ? Task.Run(() => vocals.SeparateMono(audio)) : null;
             var f = AudioAnalyzer.Analyze(audio, estimateVocals: vocals == null);
-            if (vocals != null) VocalFeatures.Inject(f, vocals.SeparateMono(audio), audio.SampleRate);
-            return Generate(f, TempoEstimator.Estimate(f), audioHash, options);
+            var tempo = TempoEstimator.Estimate(f);
+            if (separation != null) VocalFeatures.Inject(f, separation.GetAwaiter().GetResult(), audio.SampleRate);
+            return Generate(f, tempo, audioHash, options);
         }
 
         public static Chart Generate(float[] mono, int sampleRate, string audioHash, GeneratorOptions options = null)

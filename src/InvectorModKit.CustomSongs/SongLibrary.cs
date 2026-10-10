@@ -29,8 +29,10 @@ namespace InvectorModKit.CustomSongs
         public readonly List<CustomSong> Songs = new List<CustomSong>();
         /// <summary>Spleeter vocal model; null or missing file = chart from the mix alone.</summary>
         public string VocalModelPath;
+        /// <summary>InvectorModKit.ChartGen.exe; null or missing = charts are generated in the game process.</summary>
+        public string GeneratorPath;
         private VocalSeparator _separator;
-        private bool _separatorFailed;
+        private bool _separatorFailed, _generatorFailed;
 
         public SongLibrary(string root)
         {
@@ -112,6 +114,8 @@ namespace InvectorModKit.CustomSongs
                         chart = null;
                     }
                 }
+                if (chart == null && GenerateOutOfProcess(song, hash, log))
+                    chart = ChartJson.Deserialize(File.ReadAllText(song.ChartPath));
                 if (chart == null)
                 {
                     var t0 = DateTime.UtcNow;
@@ -119,7 +123,7 @@ namespace InvectorModKit.CustomSongs
                     var t1 = DateTime.UtcNow;
                     var separator = GetSeparator(log);
                     chart = ChartGenerator.Generate(decoded, hash, null, separator);
-                    chart.Gain = Loudness.MatchOfficialGainDb(decoded);
+                    chart.Gain = Math.Round(Loudness.MatchOfficialGainDb(decoded), 2); // as stored in the file, so later sessions agree
                     File.WriteAllText(song.ChartPath, ChartJson.Serialize(chart));
                     log($"{song}: generated chart ({chart.Bpm:0.##} BPM, {chart[ChartDifficulty.Ultra].Count} Ultra notes, gain {chart.Gain:+0.0;-0.0} dB, vocals {(separator != null ? "separated" : "estimated from the mix")}; decode {(t1 - t0).TotalSeconds:0.0}s, analysis {(DateTime.UtcNow - t1).TotalSeconds:0.0}s)");
                 }
@@ -135,6 +139,13 @@ namespace InvectorModKit.CustomSongs
                     log($"{song}: playability warning: {issue}");
 
                 song.PreviewPath = Path.Combine(CacheDir, $"{song.Id}-{hash}-{chart.Gain.Value:0.0}dB.preview.wav");
+                string generatedPreview = PendingPreviewPath(song, hash);
+                if (!File.Exists(song.PreviewPath) && File.Exists(generatedPreview))
+                {
+                    foreach (var old in Directory.GetFiles(CacheDir, song.Id + "-*.preview.wav")) File.Delete(old);
+                    File.Move(generatedPreview, song.PreviewPath);
+                }
+                if (File.Exists(generatedPreview)) File.Delete(generatedPreview);
                 if (!File.Exists(song.PreviewPath))
                 {
                     decoded = decoded ?? AudioFile.Decode(song.AudioPath);
@@ -155,6 +166,54 @@ namespace InvectorModKit.CustomSongs
                 log($"{Path.GetFileName(song.AudioPath)}: FAILED - {e}");
             }
         }
+
+        private string PendingPreviewPath(CustomSong song, string hash) => Path.Combine(CacheDir, $"{song.Id}-{hash}.preview.tmp");
+
+        /// <summary>
+        /// Generates the chart (and preview) with the external generator: the .NET Framework that ships with
+        /// Windows runs it several times faster than the game's Mono, and none of its memory or CPU time
+        /// competes with the game. False (after logging why) when it cannot, so the caller generates in process.
+        /// </summary>
+        private bool GenerateOutOfProcess(CustomSong song, string hash, Action<string> log)
+        {
+            if (_generatorFailed || string.IsNullOrEmpty(GeneratorPath) || !File.Exists(GeneratorPath)) return false;
+            try
+            {
+                Directory.CreateDirectory(CacheDir);
+                var args = new List<string> { song.AudioPath, song.ChartPath, "--preview=" + PendingPreviewPath(song, hash), "--preview-seconds=" + PreviewSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    "--threads=" + Math.Max(1, Environment.ProcessorCount / 2), "--parent=" + System.Diagnostics.Process.GetCurrentProcess().Id };
+                if (!string.IsNullOrEmpty(VocalModelPath) && File.Exists(VocalModelPath)) args.Add("--vocals=" + VocalModelPath);
+                var start = new System.Diagnostics.ProcessStartInfo(GeneratorPath, string.Join(" ", args.Select(Quote)))
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    StandardOutputEncoding = Encoding.UTF8,
+                };
+                string result;
+                using (var process = System.Diagnostics.Process.Start(start))
+                {
+                    result = process.StandardOutput.ReadToEnd().Trim();
+                    process.WaitForExit();
+                }
+                if (result.StartsWith("ok ") && File.Exists(song.ChartPath))
+                {
+                    log($"{song}: generated chart ({result.Substring(3)})");
+                    return true;
+                }
+                log($"{song}: the external chart generator failed ({result}), generating in game instead");
+            }
+            catch (Exception e)
+            {
+                // Typically: the generator cannot start at all. Don't retry it for every song.
+                _generatorFailed = true;
+                log($"External chart generator unavailable ({e.GetBaseException().Message}), generating in game instead");
+            }
+            return false;
+        }
+
+        /// <summary>Command-line quoting for CreateProcess (paths with spaces; no trailing backslashes in ours).</summary>
+        private static string Quote(string arg) => "\"" + arg.Replace("\"", "\\\"") + "\"";
 
         /// <summary>Created on first use (worker thread); any failure falls back to charting from the mix alone.</summary>
         private VocalSeparator GetSeparator(Action<string> log)

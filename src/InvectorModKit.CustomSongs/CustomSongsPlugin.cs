@@ -36,6 +36,7 @@ namespace InvectorModKit.CustomSongs
             Library = new SongLibrary(root)
             {
                 VocalModelPath = Path.Combine(Path.GetDirectoryName(Info.Location), "vocals.fp16.onnx"),
+                GeneratorPath = Path.Combine(Paths.PluginPath, "InvectorModKit", "chartgen", "InvectorModKit.ChartGen.exe"),
             };
             Library.Scan();
             Logger.LogInfo($"{Library.Songs.Count} custom song(s) in {root}");
