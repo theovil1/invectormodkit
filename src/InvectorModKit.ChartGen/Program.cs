@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using InvectorModKit.Charting;
 using InvectorModKit.Charting.Audio;
 using InvectorModKit.Charting.Generation;
+using InvectorModKit.Charting.Marketplace;
 
 namespace InvectorModKit.ChartGen
 {
@@ -68,9 +69,16 @@ namespace InvectorModKit.ChartGen
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static string Run(string[] args)
         {
-            if (args.Length < 2) throw new ArgumentException("usage: <audio> <chart.json> [--vocals=<model.onnx>] [--threads=N] [--preview=<out.wav>] [--preview-seconds=25]");
+            if (args.Length == 3 && args[0] == "fingerprint")
+            {
+                // fingerprint <audio> <out.json>: what the marketplace publishes alongside a chart.
+                var audio = AudioFile.Decode(args[1]);
+                WriteWhole(args[2], Fingerprint.Of(audio).ToJson());
+                return string.Format(CultureInfo.InvariantCulture, "fingerprint {0:0.0}s", audio.Duration);
+            }
+            if (args.Length < 2) throw new ArgumentException("usage: <audio> <chart.json> [--vocals=<model.onnx>] [--threads=N] [--preview=<out.wav>] [--preview-seconds=25] [--match=<CustomSongs/.marketplace>] | fingerprint <audio> <out.json>");
             string Option(string name) => args.Skip(2).Where(a => a.StartsWith("--" + name + "=")).Select(a => a.Substring(name.Length + 3)).LastOrDefault();
-            string audioPath = args[0], chartPath = args[1], model = Option("vocals"), preview = Option("preview");
+            string audioPath = args[0], chartPath = args[1], model = Option("vocals"), preview = Option("preview"), marketplace = Option("match");
             int threads = int.TryParse(Option("threads"), out int t) ? t : Math.Max(1, Environment.ProcessorCount / 2);
             double previewSeconds = double.TryParse(Option("preview-seconds"), NumberStyles.Float, CultureInfo.InvariantCulture, out double s) ? s : 25;
 
@@ -80,33 +88,67 @@ namespace InvectorModKit.ChartGen
             double decode = clock.Elapsed.TotalSeconds;
             if (args.Contains("--profile")) return Profile(decoded, hash, model, threads, decode);
 
-            Chart chart;
-            string vocals = "estimated from the mix";
-            VocalSeparator separator = null;
-            try
+            // A chart installed from the marketplace and waiting for this very song comes first.
+            var (chart, install, match, nearMiss) = string.IsNullOrEmpty(marketplace) ? default : FindPending(decoded, marketplace);
+            string summary;
+            if (chart != null)
+                summary = string.Format(CultureInfo.InvariantCulture, "matched {0} offset {1:0.000}s score {2:0.00}", install.Id, match.Offset, match.Score);
+            else
             {
-                if (!string.IsNullOrEmpty(model))
+                string vocals = "estimated from the mix";
+                VocalSeparator separator = null;
+                try
                 {
-                    try { separator = new VocalSeparator(model, threads); vocals = "separated"; }
-                    catch (Exception e) { vocals = "estimated from the mix (separation unavailable: " + e.GetBaseException().Message + ")"; }
+                    if (!string.IsNullOrEmpty(model))
+                    {
+                        try { separator = new VocalSeparator(model, threads); vocals = "separated"; }
+                        catch (Exception e) { vocals = "estimated from the mix (separation unavailable: " + e.GetBaseException().Message + ")"; }
+                    }
+                    chart = ChartGenerator.Generate(decoded, hash, null, separator);
                 }
-                chart = ChartGenerator.Generate(decoded, hash, null, separator);
+                finally { separator?.Dispose(); }
+                summary = string.Format(CultureInfo.InvariantCulture, "{0:0.##} BPM, {1} Ultra notes, vocals {2}, vocal focus {3}{4}",
+                    chart.Bpm, chart[Difficulty.Ultra].Count, vocals, ChartGenerator.VocalFocusUsed, nearMiss != null ? $", nearmiss {nearMiss.Id}" : "");
             }
-            finally { separator?.Dispose(); }
-            chart.Gain = Math.Round(Loudness.MatchOfficialGainDb(decoded), 2); // as stored in the file
-            // Written whole or not at all: a half-written chart would fail to load next time.
-            File.WriteAllText(chartPath + ".tmp", ChartJson.Serialize(chart));
-            if (File.Exists(chartPath)) File.Delete(chartPath);
-            File.Move(chartPath + ".tmp", chartPath);
-            double generate = clock.Elapsed.TotalSeconds - decode;
+            chart.Gain = Math.Round(Loudness.MatchOfficialGainDb(decoded), 2); // this file's loudness; as stored in the file
+            WriteWhole(chartPath, ChartJson.Serialize(chart));
+            install?.MarkInstalled(audioPath, match.Offset);
+            double analysis = clock.Elapsed.TotalSeconds - decode;
 
             if (!string.IsNullOrEmpty(preview))
             {
                 Loudness.ApplyGainLimited(decoded, chart.Gain.Value);
                 AudioFile.WriteWavExcerpt(decoded, preview, chart.PreviewStart, previewSeconds);
             }
-            return string.Format(CultureInfo.InvariantCulture, "{0:0.##} BPM, {1} Ultra notes, gain {2:+0.0;-0.0} dB, vocals {3}, vocal focus {4}; decode {5:0.0}s, analysis {6:0.0}s, total {7:0.0}s",
-                chart.Bpm, chart[Difficulty.Ultra].Count, chart.Gain, vocals, ChartGenerator.VocalFocusUsed, decode, generate, clock.Elapsed.TotalSeconds);
+            return string.Format(CultureInfo.InvariantCulture, "{0}, gain {1:+0.0;-0.0} dB; decode {2:0.0}s, analysis {3:0.0}s, total {4:0.0}s",
+                summary, chart.Gain, decode, analysis, clock.Elapsed.TotalSeconds);
+        }
+
+        /// <summary>
+        /// The marketplace chart waiting for this audio, placed on it; otherwise, an install it resembles
+        /// without being the same version (the player is told rather than given a misplaced chart).
+        /// </summary>
+        private static (Chart chart, PendingInstall install, FingerprintMatch match, PendingInstall nearMiss) FindPending(DecodedAudio audio, string marketplaceDir)
+        {
+            var pending = PendingInstall.Load(marketplaceDir).ToList();
+            if (pending.Count == 0) return default;
+            var local = Fingerprint.Of(audio);
+            PendingInstall nearMiss = null;
+            foreach (var install in pending)
+            {
+                var m = Fingerprint.Match(install.Fingerprint, local);
+                if (m.IsMatch) return (install.ChartFor(m), install, m, null);
+                if (m.Score >= Fingerprint.MatchThreshold) nearMiss = install;
+            }
+            return (null, null, null, nearMiss);
+        }
+
+        /// <summary>Written whole or not at all: a half-written chart would fail to load next time.</summary>
+        private static void WriteWhole(string path, string text)
+        {
+            File.WriteAllText(path + ".tmp", text);
+            if (File.Exists(path)) File.Delete(path);
+            File.Move(path + ".tmp", path);
         }
 
         private static string Profile(DecodedAudio decoded, string hash, string model, int threads, double decode)
