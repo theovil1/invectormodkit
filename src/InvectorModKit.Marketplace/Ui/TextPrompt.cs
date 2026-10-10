@@ -43,7 +43,7 @@ namespace InvectorModKit.Marketplace.Ui
             fieldButton.interactable = false;
             var colors = fieldButton.colors;
             colors.disabledColor = new Color32(0x24, 0x20, 0x2A, 0xFF);
-            fieldButton.colors = colors;
+            fieldButton.colors = fieldButton.currentColorBlock = fieldButton.originalColors = colors;
             _field = fieldButton.GetComponentInChildren<Text>(true);
             _field.resizeTextForBestFit = true;
             _field.color = Color.white;

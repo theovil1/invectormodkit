@@ -142,8 +142,8 @@ namespace InvectorModKit.Marketplace.Ui
         {
             var colors = tab.colors;
             colors.normalColor = active ? new Color(1, 1, 1, 0.35f) : (Color)new Color32(0x18, 0x16, 0x19, 0xFF);
-            tab.colors = colors;
-            tab.originalColors = colors;
+            // ButtonWithEvents puts currentColorBlock back on every select / deselect: it must change too.
+            tab.colors = tab.currentColorBlock = tab.originalColors = colors;
         }
 
         // ----- mouse
