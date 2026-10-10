@@ -155,6 +155,9 @@ namespace InvectorModKit.CustomSongs
             song.LeadIn = chart.LeadIn(Math.Max(0.5, FirstNoteAt - chart.StartTime));
             double pad = song.LeadIn;
             song.Music.manualBpm = (float)chart.Bpm;
+            // A marketplace chart may rename the song (its download record has the proper title and artist).
+            song.Music.ArtistName = song.Artist;
+            song.Music.SongName = song.Title;
 
             var modes = song.Level.Modes;
             modes.ModesInTime = chart.Sections

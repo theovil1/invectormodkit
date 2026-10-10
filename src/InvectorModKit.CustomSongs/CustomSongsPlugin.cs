@@ -51,6 +51,9 @@ namespace InvectorModKit.CustomSongs
         private const float FolderCheckSeconds = 2f;
         private int _order;
         private bool _checkFolderNow;
+        private static volatile bool _matchRequested;
+
+        internal static void RequestMarketplaceMatch() => _matchRequested = true;
 
         private void OnApplicationFocus(bool focused)
         {
@@ -77,6 +80,11 @@ namespace InvectorModKit.CustomSongs
                     yield return CheckFolder();
                     nextCheck = Time.realtimeSinceStartup + FolderCheckSeconds;
                 }
+                if (_matchRequested)
+                {
+                    _matchRequested = false;
+                    yield return MatchMarketplace();
+                }
                 var next = Library.Songs.Where(s => s.State == SongState.Pending).OrderByDescending(s => s.Priority).FirstOrDefault();
                 if (next == null) { yield return new WaitForSecondsRealtime(0.25f); continue; }
                 var task = RunLowPriority(() => Library.Prepare(next, msg => _workerLog.Enqueue(msg)));
@@ -86,9 +94,34 @@ namespace InvectorModKit.CustomSongs
                 try
                 {
                     GameAssets.ApplyChart(next);
-                    Logger.LogInfo($"Ready: {next} ({next.Chart.Bpm:0.##} BPM, lead-in {next.LeadIn:0.00}s, gain {next.Chart.Gain:+0.0;-0.0} dB)");
+                    Logger.LogInfo($"Ready: {next} ({next.Chart.Bpm:0.##} BPM, lead-in {next.LeadIn:0.00}s, gain {next.Chart.Gain:+0.0;-0.0} dB{(next.MarketplaceId != null ? ", marketplace chart" : "")})");
+                    if (next.MarketplaceId != null) RefreshSongSelect(); // its name comes from the marketplace record
                 }
                 catch (System.Exception e) { Fail(next, "could not apply chart", e); }
+            }
+        }
+
+        /// <summary>
+        /// Songs already charted that match a marketplace chart waiting for its audio get that chart (ChartGen
+        /// writes it), then are prepared again by the main loop.
+        /// </summary>
+        private IEnumerator MatchMarketplace()
+        {
+            var candidates = Library.Songs.Where(s => s.State == SongState.Ready && s.MarketplaceId == null).ToList();
+            var matched = new List<CustomSong>();
+            var task = RunLowPriority(() =>
+            {
+                foreach (var song in candidates)
+                    if (Library.TryMatchMarketplace(song, msg => _workerLog.Enqueue(msg))) lock (matched) matched.Add(song);
+            });
+            while (!task.IsCompleted) { FlushWorkerLog(); yield return null; }
+            FlushWorkerLog();
+            if (task.IsFaulted) Logger.LogWarning("Marketplace check failed: " + task.Exception.GetBaseException().Message);
+            foreach (var song in matched)
+            {
+                song.Chart = null;
+                song.HasMetadata = false;
+                song.State = SongState.Pending;
             }
         }
 

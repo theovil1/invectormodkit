@@ -26,6 +26,8 @@ namespace InvectorModKit.CustomSongs
 
         public readonly string Root;
         public readonly string CacheDir;
+        /// <summary>Charts downloaded from the marketplace, waiting for (or installed on) the player's audio.</summary>
+        public string MarketplaceDir => Path.Combine(Root, ".marketplace");
         public readonly List<CustomSong> Songs = new List<CustomSong>();
         /// <summary>Spleeter vocal model; null or missing file = chart from the mix alone.</summary>
         public string VocalModelPath;
@@ -118,7 +120,12 @@ namespace InvectorModKit.CustomSongs
                 song.HasMetadata = true;
                 if (File.Exists(song.ChartPath))
                 {
-                    try { song.Duration = ChartJson.Deserialize(File.ReadAllText(song.ChartPath)).EndTime; }
+                    try
+                    {
+                        var chart = ChartJson.Deserialize(File.ReadAllText(song.ChartPath));
+                        song.Duration = chart.EndTime;
+                        ApplyMarketplaceMetadata(song, chart.Source);
+                    }
                     catch (Exception) { }
                 }
                 if (song.Duration <= 0) song.Duration = AudioFile.ProbeDuration(song.AudioPath);
@@ -165,6 +172,7 @@ namespace InvectorModKit.CustomSongs
                     File.WriteAllText(song.ChartPath, ChartJson.Serialize(chart));
                     log($"{song}: generated chart ({chart.Bpm:0.##} BPM, {chart[ChartDifficulty.Ultra].Count} Ultra notes, gain {chart.Gain:+0.0;-0.0} dB, vocals {(separator != null ? "separated" : "estimated from the mix")}; decode {(t1 - t0).TotalSeconds:0.0}s, analysis {(DateTime.UtcNow - t1).TotalSeconds:0.0}s)");
                 }
+                ApplyMarketplaceMetadata(song, chart.Source);
                 if (chart[ChartDifficulty.Casual].Count == 0 && chart[ChartDifficulty.Ultra].Count == 0)
                     throw new InvalidDataException("the chart has no notes");
                 if (!chart.Gain.HasValue)
@@ -214,29 +222,16 @@ namespace InvectorModKit.CustomSongs
         /// </summary>
         private bool GenerateOutOfProcess(CustomSong song, string hash, Action<string> log)
         {
-            if (_generatorFailed || string.IsNullOrEmpty(GeneratorPath) || !File.Exists(GeneratorPath)) return false;
+            if (!GeneratorAvailable) return false;
             try
             {
-                Directory.CreateDirectory(CacheDir);
                 var args = new List<string> { song.AudioPath, song.ChartPath, "--preview=" + PendingPreviewPath(song, hash), "--preview-seconds=" + PreviewSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    "--threads=" + Math.Max(1, Environment.ProcessorCount / 2), "--parent=" + System.Diagnostics.Process.GetCurrentProcess().Id };
+                    "--threads=" + Math.Max(1, Environment.ProcessorCount / 2), "--match=" + MarketplaceDir, "--fingerprint-cache=" + CacheDir };
                 if (!string.IsNullOrEmpty(VocalModelPath) && File.Exists(VocalModelPath)) args.Add("--vocals=" + VocalModelPath);
-                var start = new System.Diagnostics.ProcessStartInfo(GeneratorPath, string.Join(" ", args.Select(Quote)))
-                {
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    StandardOutputEncoding = Encoding.UTF8,
-                };
-                string result;
-                using (var process = System.Diagnostics.Process.Start(start))
-                {
-                    result = process.StandardOutput.ReadToEnd().Trim();
-                    process.WaitForExit();
-                }
+                string result = RunGenerator(args);
                 if (result.StartsWith("ok ") && File.Exists(song.ChartPath))
                 {
-                    log($"{song}: generated chart ({result.Substring(3)})");
+                    log(result.StartsWith("ok matched") ? $"{song}: installed the marketplace chart ({result.Substring(3)})" : $"{song}: generated chart ({result.Substring(3)})");
                     return true;
                 }
                 log($"{song}: the external chart generator failed ({result}), generating in game instead");
@@ -248,6 +243,67 @@ namespace InvectorModKit.CustomSongs
                 log($"External chart generator unavailable ({e.GetBaseException().Message}), generating in game instead");
             }
             return false;
+        }
+
+        private bool GeneratorAvailable => !_generatorFailed && !string.IsNullOrEmpty(GeneratorPath) && File.Exists(GeneratorPath);
+
+        /// <summary>Runs ChartGen.exe (worker thread) and returns its one-line answer ("ok …" or "error …").</summary>
+        private string RunGenerator(List<string> args)
+        {
+            Directory.CreateDirectory(CacheDir);
+            args.Add("--parent=" + System.Diagnostics.Process.GetCurrentProcess().Id);
+            var start = new System.Diagnostics.ProcessStartInfo(GeneratorPath, string.Join(" ", args.Select(Quote)))
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                StandardOutputEncoding = Encoding.UTF8,
+            };
+            using (var process = System.Diagnostics.Process.Start(start))
+            {
+                string result = process.StandardOutput.ReadToEnd().Trim();
+                process.WaitForExit();
+                return result;
+            }
+        }
+
+        /// <summary>
+        /// Worker thread: does this song (already charted) match a marketplace chart waiting for its audio?
+        /// If so the marketplace chart replaces its chart on disk; the caller then prepares the song again.
+        /// </summary>
+        public bool TryMatchMarketplace(CustomSong song, Action<string> log)
+        {
+            if (!GeneratorAvailable || !Directory.Exists(MarketplaceDir)) return false;
+            string hash = AudioFile.Hash(song.AudioPath);
+            string result = RunGenerator(new List<string> { song.AudioPath, song.ChartPath, "--match=" + MarketplaceDir, "--match-only",
+                "--fingerprint-cache=" + CacheDir, "--preview=" + PendingPreviewPath(song, hash) });
+            if (result.StartsWith("ok matched")) log($"{song}: installed the marketplace chart ({result.Substring(3)})");
+            else if (!result.StartsWith("ok ")) log($"{song}: marketplace check failed ({result})");
+            return result.StartsWith("ok matched");
+        }
+
+        /// <summary>Worker thread: the song's audio fingerprint (Fingerprint JSON), as published with its chart.</summary>
+        public string FingerprintJson(CustomSong song)
+        {
+            if (!GeneratorAvailable) throw new InvalidOperationException("the external chart generator is missing");
+            string output = Path.Combine(CacheDir, song.Id + ".publish.fp.json");
+            string result = RunGenerator(new List<string> { "fingerprint", song.AudioPath, output, "--fingerprint-cache=" + CacheDir });
+            if (!result.StartsWith("ok ")) throw new InvalidOperationException(result);
+            string json = File.ReadAllText(output);
+            File.Delete(output);
+            return json;
+        }
+
+        /// <summary>A marketplace chart names its song: title and artist come from its download record.</summary>
+        private void ApplyMarketplaceMetadata(CustomSong song, ChartSource source)
+        {
+            song.MarketplaceId = source?.MarketplaceId;
+            if (source == null) return;
+            string entry = Path.Combine(MarketplaceDir, source.MarketplaceId ?? "", InvectorModKit.Charting.Marketplace.PendingInstall.EntryFile);
+            if (!File.Exists(entry)) return;
+            var o = JObject.Parse(File.ReadAllText(entry));
+            song.Title = (string)o["title"] ?? song.Title;
+            song.Artist = (string)o["artist"] ?? song.Artist;
         }
 
         /// <summary>Command-line quoting for CreateProcess (paths with spaces; no trailing backslashes in ours).</summary>

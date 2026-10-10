@@ -22,6 +22,8 @@ namespace InvectorModKit.CustomSongs
         /// <summary>Higher = prepared sooner (set when the player selects or starts a song that is not ready).</summary>
         public long Priority;
         public bool HasMetadata;
+        /// <summary>Set when the chart was installed from the marketplace.</summary>
+        public string MarketplaceId;
 
         public volatile SongState State = SongState.Pending;
         public string Error;
