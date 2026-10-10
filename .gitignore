@@ -5,3 +5,7 @@ obj/
 Directory.Build.user.props
 /artifacts/
 /models/
+
+# Marketplace server
+server/node_modules/
+server/.wrangler/
