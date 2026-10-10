@@ -17,7 +17,7 @@
     <Reference Include="0Harmony"><HintPath>$(BepInExCore)\0Harmony.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Assembly-CSharp" Publicize="true"><HintPath>$(GameManaged)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="HelloThere.StoryTellers"><HintPath>$(GameManaged)\HelloThere.StoryTellers.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Unity.Addressables"><HintPath>$(GameManaged)\Unity.Addressables.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.Addressables" Publicize="true"><HintPath>$(GameManaged)\Unity.Addressables.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Unity.ResourceManager" Publicize="true"><HintPath>$(GameManaged)\Unity.ResourceManager.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Unity.TextMeshPro"><HintPath>$(GameManaged)\Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.UI"><HintPath>$(GameManaged)\UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
@@ -27,10 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <UnityModule Include="$(GameManaged)\UnityEngine.dll;$(GameManaged)\UnityEngine.*Module.dll" />
-    <Reference Include="@(UnityModule->'%(Filename)')">
-      <HintPath>%(UnityModule.FullPath)</HintPath>
-      <Private>false</Private>
-    </Reference>
+    <!-- UnityEngine.dll and every UnityEngine.*Module.dll, referenced by file path. -->
+    <Reference Include="$(GameManaged)\UnityEngine.dll;$(GameManaged)\UnityEngine.*Module.dll" Private="false" />
   </ItemGroup>
 </Project>

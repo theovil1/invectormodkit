@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/InvectorModKit.Charting/InvectorModKit.Charting.csproj" />
+    <Project Path="src/InvectorModKit.CustomSongs/InvectorModKit.CustomSongs.csproj" />
     <Project Path="src/InvectorModKit.DevTools/InvectorModKit.DevTools.csproj" />
     <Project Path="src/InvectorModKit/InvectorModKit.csproj" />
   </Folder>

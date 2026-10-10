@@ -75,6 +75,10 @@ namespace InvectorModKit.Charting
         /// <summary>Time from which notes may appear (the game shows its intro before that).</summary>
         public double StartTime;
         public double EndTime;
+        /// <summary>Volume change applied to the audio in game, in dB (matches the loudness of the official songs).</summary>
+        public double? Gain;
+        /// <summary>Start of the song-select preview excerpt (song seconds).</summary>
+        public double PreviewStart;
         public List<Section> Sections = new List<Section>();
         public Dictionary<Difficulty, List<Note>> Notes = new Dictionary<Difficulty, List<Note>>();
         /// <summary>Null for hand-made charts, which are never regenerated.</summary>

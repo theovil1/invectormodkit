@@ -4,24 +4,22 @@ using System.Collections.Generic;
 namespace InvectorModKit.Charting.Generation
 {
     /// <summary>
-    /// Turns chosen rhythms into playable notes: strums and holds, lanes, turns, colours and star sets,
-    /// following the statistics of the official charts. Attributes shared by all difficulties
-    /// (kind, hold, lane, turn) are decided once on the Ultra rhythm; colours depend on the
-    /// buttons each difficulty uses.
+    /// Turns chosen rhythms into playable notes, following the official charts:
+    /// <list type="bullet">
+    /// <item>Kinds: ~23% strums per difficulty, favouring bar lines and accents; a note keeps its kind in every difficulty. Holds are strums.</item>
+    /// <item>Lanes only change through turn pickups (the turn is the lane change), with enough time to move afterwards; Bounce turns never point off the road.</item>
+    /// <item>Colours: a per-difficulty Markov chain over the buttons that difficulty uses.</item>
+    /// <item>Freefly: rings only, one position per section.</item>
+    /// </list>
     /// </summary>
     internal sealed class PatternAssigner
     {
-        // Share of Ultra notes that are strums, by metric level (bar, beat, half, quarter).
+        // Share of notes that are strums, by metric level (bar, beat, half, quarter), before scaling to StrumShare.
         private static readonly double[] StrumByLevel = { 0.53, 0.30, 0.13, 0.09 };
         private const double StrumShare = 0.23;
-        private const double HoldShareOfStrums = 0.10;
-        private const double TurnShare = 0.28;
+        // Chance that an eligible pickup becomes a turn, by difficulty (tuned so ~21% of pickups are turns).
+        private static readonly double[] TurnChance = { 0.34, 0.33, 0.26, 0.24 };
         private const double TurnSameDirection = 0.42;
-
-        // P(lane stays the same) by mode and current lane.
-        private static readonly double[] StayList = { 0.75, 0.80, 0.73 };
-        private static readonly double[] StayBounce = { 0.61, 0.82, 0.62 };
-        private static readonly double[] StayFreefly = { 0.60, 0.95, 0.60 };
 
         // P(same colour as previous pickup) by difficulty and gap bucket (1q, 2q, 3-4q, >1 beat).
         private static readonly double[][] SameColour =
@@ -42,151 +40,132 @@ namespace InvectorModKit.Charting.Generation
         private readonly BeatGrid _grid;
         private readonly List<Section> _sections;
         private readonly Rng _rng;
+        private readonly Func<int, double> _timeOf;
+        private readonly int[] _freeflyLane;
+        private readonly Dictionary<int, NoteKind> _kind = new Dictionary<int, NoteKind>();
+        private readonly Dictionary<int, float> _holdLength = new Dictionary<int, float>();
 
-        /// <summary>Per grid index: attributes decided on the Ultra rhythm.</summary>
-        private readonly Dictionary<int, Shared> _shared = new Dictionary<int, Shared>();
-
-        private struct Shared
+        public PatternAssigner(BeatGrid grid, List<Section> sections, Rng rng, Func<int, double> timeOf)
         {
-            public NoteKind Kind;
-            public float Length;
-            public int Lane;
-            public int Turn; // 0 none, else NoteColor.TurnLeft / TurnRight
-            public SectionMode Mode;
-        }
-
-        public PatternAssigner(BeatGrid grid, List<Section> sections, Rng rng)
-        {
-            _grid = grid; _sections = sections; _rng = rng;
+            _grid = grid; _sections = sections; _rng = rng; _timeOf = timeOf;
+            _freeflyLane = new int[sections.Count];
+            for (int s = 0; s < sections.Count; s++)
+            {
+                double r = rng.NextDouble();
+                _freeflyLane[s] = r < 0.8 ? 1 : r < 0.9 ? 0 : 2;
+            }
         }
 
         /// <param name="rhythms">Grid indices per difficulty; each one a subset of the next (index 3 = Ultra).</param>
-        public void AssignShared(List<int>[] rhythms)
+        public void AssignKinds(List<int>[] rhythms, List<HoldRegion> holds, HashSet<int> rings)
         {
-            var ultra = rhythms[(int)Difficulty.Ultra];
-            var modes = new SectionMode[ultra.Count];
-            for (int k = 0; k < ultra.Count; k++) modes[k] = ModeAt(_grid.TimeOf(ultra[k]));
+            foreach (var h in holds)
+            {
+                _kind[h.Start] = NoteKind.Strum;
+                _holdLength[h.Start] = (float)(_grid.TimeOf(h.End) - _timeOf(h.Start));
+            }
+            foreach (int r in rings) _kind[r] = NoteKind.Pickup;
 
-            // Kinds, from Casual up so a note keeps its kind in every difficulty while each
-            // difficulty still gets the official ~23% strums. Strums favour bar lines and accents,
-            // and never go in Freefly (the game does not show them there).
-            var kindOf = new Dictionary<int, NoteKind>();
+            // From Casual up, so a note keeps its kind everywhere while each difficulty still gets ~23% strums.
             foreach (var notes in rhythms)
             {
-                int inheritedStrums = 0;
+                int strums = 0;
                 var fresh = new List<(int i, double w)>();
                 foreach (int i in notes)
                 {
-                    if (kindOf.TryGetValue(i, out var kind)) { if (kind == NoteKind.Strum) inheritedStrums++; continue; }
-                    bool freefly = ModeAt(_grid.TimeOf(i)) == SectionMode.Freefly;
-                    fresh.Add((i, freefly ? 0 : StrumByLevel[BeatGrid.Level(i)] * (0.6 + 0.8 * _grid.X[i][BeatGrid.FProminence])));
+                    if (_kind.TryGetValue(i, out var kind)) { if (kind == NoteKind.Strum) strums++; continue; }
+                    fresh.Add((i, StrumByLevel[BeatGrid.Level(i)] * (0.6 + 0.8 * _grid.X[i][BeatGrid.FProminence])));
                 }
-                double target = Math.Max(0, StrumShare * notes.Count - inheritedStrums);
-                double scale = ScaleToSum(fresh, target);
+                double scale = ScaleToSum(fresh, Math.Max(0, StrumShare * notes.Count - strums));
                 foreach (var (i, w) in fresh)
-                    kindOf[i] = _rng.Chance(Math.Min(1, w * scale)) ? NoteKind.Strum : NoteKind.Pickup;
-            }
-            var kinds = new NoteKind[ultra.Count];
-            for (int k = 0; k < ultra.Count; k++) kinds[k] = kindOf[ultra[k]];
-
-            // Holds: the most sustained strums followed by at least one beat without notes.
-            var lengths = new float[ultra.Count];
-            var holdCandidates = new List<(int k, double score, int quarters)>();
-            int strums = 0;
-            for (int k = 0; k < ultra.Count; k++)
-            {
-                if (kinds[k] != NoteKind.Strum) continue;
-                strums++;
-                if (k + 1 >= ultra.Count) continue;
-                int gap = ultra[k + 1] - ultra[k];
-                if (gap < 4) continue;
-                double sustain = 0, activity = 0;
-                for (int i = ultra[k] + 1; i < ultra[k + 1]; i++)
-                {
-                    sustain += _grid.Loudness[i];
-                    activity += _grid.X[i][BeatGrid.FOnset];
-                }
-                sustain /= gap - 1; activity /= gap - 1;
-                double score = sustain / Math.Max(0.05, _grid.Loudness[ultra[k]]) - activity;
-                int quarters = Math.Min(14, gap - (gap >= 8 ? 2 : 1));
-                if (quarters >= 3) holdCandidates.Add((k, score, quarters));
-            }
-            holdCandidates.Sort((a, b) => b.score.CompareTo(a.score));
-            int holds = (int)Math.Round(strums * HoldShareOfStrums);
-            for (int h = 0; h < Math.Min(holds, holdCandidates.Count); h++)
-            {
-                if (holdCandidates[h].score < 0.5) break;
-                lengths[holdCandidates[h].k] = (float)(holdCandidates[h].quarters * _grid.Quarter);
-            }
-
-            // Lanes and turns walk the pickups in order.
-            int lane = 1, lastTurnIndex = -1000, lastTurn = 0;
-            for (int k = 0; k < ultra.Count; k++)
-            {
-                int i = ultra[k];
-                var s = new Shared { Kind = kinds[k], Length = lengths[k], Lane = lane, Mode = modes[k] };
-                if (kinds[k] == NoteKind.Pickup)
-                {
-                    int level = BeatGrid.Level(i);
-                    bool canTurn = modes[k] != SectionMode.Freefly && i - lastTurnIndex >= 4;
-                    double prominence = _grid.X[i][BeatGrid.FProminence];
-                    if (canTurn && _rng.Chance(TurnShare * (1.4 - 0.8 * prominence)))
-                    {
-                        lastTurn = lastTurn == 0 ? (_rng.Chance(0.5) ? NoteColor.TurnLeft : NoteColor.TurnRight)
-                                 : _rng.Chance(TurnSameDirection) ? lastTurn
-                                 : lastTurn == NoteColor.TurnLeft ? NoteColor.TurnRight : NoteColor.TurnLeft;
-                        s.Turn = lastTurn;
-                        lastTurnIndex = i;
-                    }
-                    else
-                    {
-                        var stay = modes[k] == SectionMode.List ? StayList : modes[k] == SectionMode.Bounce ? StayBounce : StayFreefly;
-                        double pStay = stay[lane];
-                        // Lane changes land on stronger metric positions.
-                        if (level <= 1) pStay = 1 - (1 - pStay) * 1.3; else if (level == 3) pStay = 1 - (1 - pStay) * 0.6;
-                        if (!_rng.Chance(pStay))
-                        {
-                            int to = lane == 1 ? (_rng.Chance(0.5) ? 0 : 2) : (_rng.Chance(0.6) ? 1 : 2 - lane);
-                            lane = to;
-                        }
-                        s.Lane = lane;
-                    }
-                }
-                _shared[i] = s;
+                    _kind[i] = _rng.Chance(Math.Min(1, w * scale)) ? NoteKind.Strum : NoteKind.Pickup;
             }
         }
 
         public List<Note> Build(Difficulty d, List<int> rhythm)
         {
             var notes = new List<Note>(rhythm.Count);
-            int prevIndex = int.MinValue, colour = Buttons[(int)d][_rng.Next(Buttons[(int)d].Length)];
+            var index = new List<int>(rhythm.Count);
             foreach (int i in rhythm)
             {
-                var s = _shared[i];
-                var n = new Note(_grid.TimeOf(i), s.Kind, s.Lane, NoteColor.Down) { Length = s.Kind == NoteKind.Strum ? s.Length : 0f };
-                if (s.Kind == NoteKind.Pickup)
-                {
-                    if (s.Turn != 0) n.Color = s.Turn;
-                    else if (s.Mode == SectionMode.Freefly) n.Color = NoteColor.Down;
-                    else
-                    {
-                        int gap = i - prevIndex;
-                        int bucket = gap <= 1 ? 0 : gap == 2 ? 1 : gap <= 4 ? 2 : 3;
-                        var buttons = Buttons[(int)d];
-                        if (buttons.Length > 1 && !_rng.Chance(SameColour[(int)d][bucket]))
-                        {
-                            int c;
-                            do c = buttons[_rng.Next(buttons.Length)]; while (c == colour);
-                            colour = c;
-                        }
-                        n.Color = colour;
-                        prevIndex = i;
-                    }
-                }
-                notes.Add(n);
+                var kind = _kind[i];
+                notes.Add(new Note(_timeOf(i), kind, 1, NoteColor.Down) { Length = kind == NoteKind.Strum && _holdLength.TryGetValue(i, out var len) ? len : 0f });
+                index.Add(i);
             }
+            AssignLanesAndTurns(d, notes, index);
+            AssignColours(d, notes);
             AssignStarSets(notes);
             return notes;
+        }
+
+        private void AssignLanesAndTurns(Difficulty d, List<Note> notes, List<int> index)
+        {
+            // Pickups grouped by section (lanes reset at every section).
+            int lane = 1, section = -1, lastTurn = 0;
+            for (int k = 0; k < notes.Count; k++)
+            {
+                var n = notes[k];
+                int s = SectionAt(n.Time);
+                var mode = _sections.Count > 0 ? _sections[Math.Max(0, s)].Mode : SectionMode.List;
+                if (s != section)
+                {
+                    section = s;
+                    lane = mode == SectionMode.Freefly ? _freeflyLane[Math.Max(0, s)] : 1;
+                    lastTurn = 0;
+                }
+                n.Lane = lane;
+                if (n.Kind == NoteKind.Pickup && mode != SectionMode.Freefly)
+                {
+                    double prevGap = double.MaxValue, nextGap = -1;
+                    for (int j = k - 1; j >= 0; j--)
+                        if (notes[j].Kind == NoteKind.Pickup) { if (SectionAt(notes[j].Time) == s) prevGap = n.Time - notes[j].Time; break; }
+                    for (int j = k + 1; j < notes.Count; j++)
+                        if (notes[j].Kind == NoteKind.Pickup) { if (SectionAt(notes[j].Time) == s) nextGap = notes[j].Time - n.Time; break; }
+
+                    bool eligible = nextGap >= Playability.MinAfterTurn(mode, d) && prevGap >= Playability.MinBeforeTurn[(int)d];
+                    double prominence = _grid.X[index[k]][BeatGrid.FProminence];
+                    if (eligible && _rng.Chance(TurnChance[(int)d] * (1.25 - 0.5 * prominence)))
+                    {
+                        int preferred = lastTurn == 0 ? (_rng.Chance(0.5) ? NoteColor.TurnLeft : NoteColor.TurnRight)
+                                      : _rng.Chance(TurnSameDirection) ? lastTurn : Opposite(lastTurn);
+                        int dir = Playability.TurnAllowed(mode, lane, preferred) ? preferred
+                                : Playability.TurnAllowed(mode, lane, Opposite(preferred)) ? Opposite(preferred) : 0;
+                        if (dir != 0)
+                        {
+                            n.Color = dir;
+                            lane = Playability.LaneAfterTurn(mode, lane, dir);
+                            lastTurn = dir;
+                        }
+                    }
+                }
+                notes[k] = n;
+            }
+        }
+
+        private static int Opposite(int turn) => turn == NoteColor.TurnLeft ? NoteColor.TurnRight : NoteColor.TurnLeft;
+
+        private void AssignColours(Difficulty d, List<Note> notes)
+        {
+            var buttons = Buttons[(int)d];
+            int colour = buttons[_rng.Next(buttons.Length)];
+            double prevTime = double.MinValue;
+            for (int k = 0; k < notes.Count; k++)
+            {
+                var n = notes[k];
+                if (n.Kind != NoteKind.Pickup || NoteColor.IsTurn(n.Color)) continue;
+                if (ModeAt(n.Time) == SectionMode.Freefly) { n.Color = NoteColor.Down; notes[k] = n; continue; }
+                int gap = prevTime == double.MinValue ? 99 : (int)Math.Round((n.Time - prevTime) / _grid.Quarter);
+                int bucket = gap <= 1 ? 0 : gap == 2 ? 1 : gap <= 4 ? 2 : 3;
+                if (buttons.Length > 1 && !_rng.Chance(SameColour[(int)d][bucket]))
+                {
+                    int c;
+                    do c = buttons[_rng.Next(buttons.Length)]; while (c == colour);
+                    colour = c;
+                }
+                n.Color = colour;
+                notes[k] = n;
+                prevTime = n.Time;
+            }
         }
 
         /// <summary>About one set of 4 consecutive coloured pickups every ~30 s, spread over the song.</summary>
@@ -236,11 +215,17 @@ namespace InvectorModKit.Charting.Generation
             return (lo + hi) / 2;
         }
 
+        private int SectionAt(double t)
+        {
+            int s = -1;
+            for (int k = 0; k < _sections.Count; k++) if (t >= _sections[k].Start - 1e-6) s = k;
+            return s;
+        }
+
         private SectionMode ModeAt(double t)
         {
-            var m = _sections.Count > 0 ? _sections[0].Mode : SectionMode.List;
-            foreach (var s in _sections) if (t >= s.Start - 1e-6) m = s.Mode;
-            return m;
+            int s = SectionAt(t);
+            return s < 0 ? (_sections.Count > 0 ? _sections[0].Mode : SectionMode.List) : _sections[s].Mode;
         }
     }
 }

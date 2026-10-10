@@ -14,6 +14,7 @@ namespace InvectorModKit.Charting.Generation
         public static double SecondsPerSection = 30;
         public static double FreeflyLoudness = 0.9;
         public static double FreeflyFirstModeBounceChance = 0.55;
+        private const int MinSectionBars = 4;
 
         public static List<Section> Analyze(AudioFeatures f, BeatGrid grid, double songStart, double songEnd, Rng rng)
         {
@@ -38,6 +39,29 @@ namespace InvectorModKit.Charting.Generation
                 if (cuts.All(c => Math.Abs(c - k) >= minLen)) cuts.Add(k);
             }
             cuts.Sort();
+
+            // Novelty peaks can cluster and leave very long stretches; split those at their best inner boundary.
+            int maxLen = Math.Max(2 * minLen, (int)Math.Round(1.6 * SecondsPerSection / barSeconds));
+            for (bool split = true; split;)
+            {
+                split = false;
+                for (int c = 0; c + 1 < cuts.Count; c++)
+                {
+                    int a = cuts[c], b = cuts[c + 1];
+                    if (b - a <= maxLen) continue;
+                    int best = -1;
+                    double bestScore = double.MinValue;
+                    for (int k = a + minLen; k <= b - minLen; k++)
+                    {
+                        double s = novelty[k] + (k % 4 == 0 ? 0.35 : 0) + (k % 8 == 0 ? 0.2 : 0);
+                        if (s > bestScore) { bestScore = s; best = k; }
+                    }
+                    if (best < 0) continue;
+                    cuts.Insert(c + 1, best);
+                    split = true;
+                    break;
+                }
+            }
 
             // Freefly: the quietest segments below the loudness threshold (at most ~1 per 90 s).
             var segs = new List<(int start, int len, double loud)>();
@@ -64,14 +88,18 @@ namespace InvectorModKit.Charting.Generation
                 double t = i == 0 ? 0.0 : grid.TimeOf((firstBar + start) * 16);
                 if (freefly.Contains(i))
                 {
-                    // Official Freefly sections last 3 or 7 bars; the rest of the phrase goes back to the track.
+                    // Official Freefly sections last 3 or 7 bars; the rest of the phrase goes back to the track,
+                    // joined to the next phrase when it would be too short to be a section of its own.
                     int ffLen = len >= 10 ? 7 : len >= 7 ? Math.Min(len, 7) : Math.Min(len, 3);
                     sections.Add(new Section(t, SectionMode.Freefly));
-                    if (len - ffLen >= 1)
+                    int rest = len - ffLen;
+                    if (rest >= MinSectionBars)
                     {
                         sections.Add(new Section(grid.TimeOf((firstBar + start + ffLen) * 16), mode));
                         mode = Other(mode);
                     }
+                    else if (rest > 0 && i + 1 < segs.Count)
+                        segs[i + 1] = (start + ffLen, segs[i + 1].len + rest, segs[i + 1].loud);
                     continue;
                 }
                 sections.Add(new Section(t, mode));

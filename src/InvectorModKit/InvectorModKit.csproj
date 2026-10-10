@@ -14,7 +14,7 @@
   <!-- Copy the plugin and its own dependencies into BepInEx/plugins/InvectorModKit after each build. -->
   <Target Name="DeployToGame" AfterTargets="Build" Condition="'$(DeployToGame)' != 'false' And Exists('$(PluginsDir)')">
     <ItemGroup>
-      <DeployFile Include="$(OutDir)InvectorModKit.dll;$(OutDir)InvectorModKit.pdb;$(OutDir)InvectorModKit.Charting.dll;$(OutDir)InvectorModKit.Charting.pdb" />
+      <DeployFile Include="$(OutDir)InvectorModKit.dll;$(OutDir)InvectorModKit.pdb;$(OutDir)InvectorModKit.Charting.dll;$(OutDir)InvectorModKit.Charting.pdb;$(OutDir)NLayer.dll;$(OutDir)NVorbis.dll" />
     </ItemGroup>
     <Copy SourceFiles="@(DeployFile)" DestinationFolder="$(PluginsDir)\InvectorModKit" SkipUnchangedFiles="true" />
   </Target>

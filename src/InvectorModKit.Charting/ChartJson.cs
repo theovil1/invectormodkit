@@ -31,7 +31,9 @@ namespace InvectorModKit.Charting
                 ["firstBeat"] = Round(chart.FirstBeat, 4),
                 ["start"] = Round(chart.StartTime, 3),
                 ["end"] = Round(chart.EndTime, 3),
+                ["preview"] = Round(chart.PreviewStart, 3),
             };
+            if (chart.Gain.HasValue) root["gain"] = Round(chart.Gain.Value, 2);
             if (chart.Generator != null)
                 root["generator"] = new JObject { ["version"] = chart.Generator.Version, ["audioHash"] = chart.Generator.AudioHash };
 
@@ -75,6 +77,8 @@ namespace InvectorModKit.Charting
                 StartTime = (double?)root["start"] ?? 0.0,
                 EndTime = Required<double>(root, "end"),
             };
+            chart.PreviewStart = (double?)root["preview"] ?? chart.EndTime * 0.3;
+            chart.Gain = (double?)root["gain"];
             if (chart.Bpm <= 0) throw new FormatException("bpm must be > 0.");
 
             if (root["generator"] is JObject gen)
