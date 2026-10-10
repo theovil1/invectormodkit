@@ -41,28 +41,54 @@ namespace InvectorModKit.CustomSongs
             StartCoroutine(PrepareSongs());
         }
 
+        /// <summary>
+        /// 1) list every song right away (metadata and length only), 2) prepare charts and previews one by
+        /// one in the background, the song the player is waiting for first.
+        /// </summary>
         private IEnumerator PrepareSongs()
         {
+            var songs = Library.Songs.ToList();
+            var info = Task.Run(() => { foreach (var s in songs) Library.ReadInfo(s, msg => _workerLog.Enqueue(msg)); });
+            while (!info.IsCompleted) { FlushWorkerLog(); yield return null; }
+            FlushWorkerLog();
+
+            while (!GameAssets.Ready) yield return null;
             int order = 0;
-            foreach (var song in Library.Songs.ToList())
+            foreach (var song in songs.Where(s => s.State != SongState.Failed))
             {
-                var task = Task.Run(() => Library.Prepare(song, msg => _workerLog.Enqueue(msg)));
+                try { GameAssets.BuildShell(song, order++); }
+                catch (System.Exception e) { Fail(song, "could not build level", e); }
+            }
+
+            while (true)
+            {
+                var next = songs.Where(s => s.State == SongState.Pending).OrderByDescending(s => s.Priority).FirstOrDefault();
+                if (next == null) break;
+                var task = Task.Run(() => Library.Prepare(next, msg => _workerLog.Enqueue(msg)));
                 while (!task.IsCompleted) { FlushWorkerLog(); yield return null; }
                 FlushWorkerLog();
-                if (song.State != SongState.Ready) continue;
-                while (!GameAssets.Ready) yield return null;
+                if (next.State != SongState.Ready) continue;
                 try
                 {
-                    GameAssets.Build(song, order++);
-                    Logger.LogInfo($"Ready: {song} ({song.Chart.Bpm:0.##} BPM, lead-in {song.LeadIn:0.00}s)");
+                    GameAssets.ApplyChart(next);
+                    Logger.LogInfo($"Ready: {next} ({next.Chart.Bpm:0.##} BPM, lead-in {next.LeadIn:0.00}s, gain {next.Chart.Gain:+0.0;-0.0} dB)");
                 }
-                catch (System.Exception e)
-                {
-                    song.State = SongState.Failed;
-                    song.Error = e.Message;
-                    Logger.LogError($"{song}: could not build level: {e}");
-                }
+                catch (System.Exception e) { Fail(next, "could not apply chart", e); }
             }
+        }
+
+        private void Fail(CustomSong song, string what, System.Exception e)
+        {
+            song.State = SongState.Failed;
+            song.Error = e.Message;
+            Logger.LogError($"{song}: {what}: {e}");
+        }
+
+        /// <summary>Waits until a song is prepared, moving it to the front of the queue.</summary>
+        internal static IEnumerator WaitUntilPrepared(CustomSong song)
+        {
+            song.Priority = System.DateTime.UtcNow.Ticks;
+            while (song.State == SongState.Pending || song.State == SongState.Processing) yield return null;
         }
 
         private void FlushWorkerLog()

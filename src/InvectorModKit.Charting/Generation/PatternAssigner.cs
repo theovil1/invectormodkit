@@ -102,6 +102,7 @@ namespace InvectorModKit.Charting.Generation
         {
             // Pickups grouped by section (lanes reset at every section).
             int lane = 1, section = -1, lastTurn = 0;
+            double lastTurnTime = double.MinValue;
             for (int k = 0; k < notes.Count; k++)
             {
                 var n = notes[k];
@@ -112,6 +113,7 @@ namespace InvectorModKit.Charting.Generation
                     section = s;
                     lane = mode == SectionMode.Freefly ? _freeflyLane[Math.Max(0, s)] : 1;
                     lastTurn = 0;
+                    lastTurnTime = double.MinValue;
                 }
                 n.Lane = lane;
                 if (n.Kind == NoteKind.Pickup && mode != SectionMode.Freefly)
@@ -122,7 +124,8 @@ namespace InvectorModKit.Charting.Generation
                     for (int j = k + 1; j < notes.Count; j++)
                         if (notes[j].Kind == NoteKind.Pickup) { if (SectionAt(notes[j].Time) == s) nextGap = notes[j].Time - n.Time; break; }
 
-                    bool eligible = nextGap >= Playability.MinAfterTurn(mode, d) && prevGap >= Playability.MinBeforeTurn[(int)d];
+                    bool eligible = nextGap >= Playability.MinAfterTurn(mode, d) && prevGap >= Playability.MinBeforeTurn[(int)d]
+                                    && n.Time - lastTurnTime >= Playability.MinTurnGap;
                     double prominence = _grid.X[index[k]][BeatGrid.FProminence];
                     if (eligible && _rng.Chance(TurnChance[(int)d] * (1.25 - 0.5 * prominence)))
                     {
@@ -135,6 +138,7 @@ namespace InvectorModKit.Charting.Generation
                             n.Color = dir;
                             lane = Playability.LaneAfterTurn(mode, lane, dir);
                             lastTurn = dir;
+                            lastTurnTime = n.Time;
                         }
                     }
                 }

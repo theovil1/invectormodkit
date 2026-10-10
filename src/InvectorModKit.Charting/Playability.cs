@@ -18,6 +18,11 @@ namespace InvectorModKit.Charting
         public static readonly double[] MinAfterTurnBounce = { 0.29, 0.24, 0.15, 0.12 };
         public static readonly double[] MinBeforeTurn = { 0.16, 0.15, 0.12, 0.11 };
 
+        /// <summary>Closest two notes ever are in the official charts (1st percentile ~0.115-0.14 s).</summary>
+        public const double MinNoteGap = 0.115;
+        /// <summary>Closest two consecutive turns are in the official charts.</summary>
+        public const double MinTurnGap = 0.23;
+
         public const double FreeflyRingsPerSecond = 0.46;
         public const double FreeflyMinGap = 0.70;
         public const double FreeflyFirstRingDelay = 1.2;
@@ -53,6 +58,18 @@ namespace InvectorModKit.Charting
         {
             var issues = new List<string>();
             var notes = chart[d];
+            for (int k = 1; k < notes.Count; k++)
+            {
+                double gap = notes[k].Time - notes[k - 1].Time;
+                if (gap > 1e-4 && gap < MinNoteGap - 0.01) issues.Add($"{notes[k].Time:0.00}s: notes only {gap:0.000}s apart");
+            }
+            Note? prevTurn = null;
+            foreach (var n in notes)
+            {
+                if (n.Kind != NoteKind.Pickup || !NoteColor.IsTurn(n.Color)) continue;
+                if (prevTurn.HasValue && n.Time - prevTurn.Value.Time < MinTurnGap - 0.01) issues.Add($"{n.Time:0.00}s: turns only {n.Time - prevTurn.Value.Time:0.000}s apart");
+                prevTurn = n;
+            }
             Note? prev = null;
             SectionMode prevMode = SectionMode.List;
             foreach (var n in notes)

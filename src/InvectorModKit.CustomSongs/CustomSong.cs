@@ -17,6 +17,12 @@ namespace InvectorModKit.CustomSongs
         public string Artist;
         public byte[] Cover;
 
+        /// <summary>Length in seconds, known before the chart (from the chart file or the audio header).</summary>
+        public double Duration;
+        /// <summary>Higher = prepared sooner (set when the player selects or starts a song that is not ready).</summary>
+        public long Priority;
+        public bool HasMetadata;
+
         public volatile SongState State = SongState.Pending;
         public string Error;
         public Chart Chart;

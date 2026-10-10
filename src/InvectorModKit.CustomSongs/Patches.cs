@@ -23,7 +23,7 @@ namespace InvectorModKit.CustomSongs
         {
             if (__result == null) return;
             foreach (var song in Built)
-                if (!__result.Contains(song.Level)) __result.Add(song.Level);
+                if (song.State != SongState.Failed && !__result.Contains(song.Level)) __result.Add(song.Level);
         }
 
         /// <summary>Normally "is this DLC installed on Steam"; the custom package always is.</summary>
@@ -45,6 +45,23 @@ namespace InvectorModKit.CustomSongs
             return false;
         }
 
+        /// <summary>
+        /// Song select only shows a song's grade once its progression says "completed" (75%+ in any
+        /// difficulty). Custom songs never touch the game's progression, so answer from the modded scores.
+        /// </summary>
+        [HarmonyPatch(typeof(HelloThere.Modules.ProgressionModules.Progression), nameof(HelloThere.Modules.ProgressionModules.Progression.GetLevelProgress)), HarmonyPrefix]
+        private static bool DetachedProgress(string levelId, ref int __result)
+        {
+            if (levelId == null || !levelId.StartsWith("custom.")) return true;
+            __result = 0;
+            foreach (global::Difficulty d in System.Enum.GetValues(typeof(global::Difficulty)))
+            {
+                var best = ModKit.GetModdedBest(levelId, d);
+                if (best != null) __result = System.Math.Max(__result, best.progressPoint);
+            }
+            return false;
+        }
+
         /// <summary>Load the decoded song before the game looks for its audio.</summary>
         [HarmonyPatch(typeof(StateGame), nameof(StateGame.PreloadRoutine)), HarmonyPostfix]
         private static void LoadCustomAudio(StateGame __instance, ref IEnumerator __result) => __result = WithCustomAudio(__instance, __result);
@@ -52,7 +69,12 @@ namespace InvectorModKit.CustomSongs
         private static IEnumerator WithCustomAudio(StateGame state, IEnumerator original)
         {
             var song = ByLevel(state.gameSession?.levelDefinition);
-            if (song != null) yield return SongAudio.EnsureGameplay(song);
+            if (song != null)
+            {
+                yield return CustomSongsPlugin.WaitUntilPrepared(song); // chart still being generated
+                if (song.State == SongState.Ready) yield return SongAudio.EnsureGameplay(song);
+                else CustomSongsPlugin.Log.LogError($"{song} cannot be played: {song.Error}");
+            }
             while (original.MoveNext()) yield return original.Current;
         }
 
@@ -91,6 +113,8 @@ namespace InvectorModKit.CustomSongs
 
         private static IEnumerator PreviewWhenLoaded(MenuSceneRoot menu, CustomSong song, AssetReferenceT<AudioItem> audioRef, float fadeTime)
         {
+            yield return CustomSongsPlugin.WaitUntilPrepared(song);
+            if (song.State != SongState.Ready || _pendingPreview != audioRef) yield break;
             yield return SongAudio.EnsurePreview(song);
             if (_pendingPreview == audioRef && SongAudio.HasClip(song.PreviewItem)) menu.PlayPreviewMusic(audioRef, fadeTime);
         }

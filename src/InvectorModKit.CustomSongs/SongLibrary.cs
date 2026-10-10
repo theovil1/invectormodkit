@@ -62,13 +62,38 @@ namespace InvectorModKit.CustomSongs
             };
         }
 
+        /// <summary>
+        /// Fast pass (worker thread): title, artist, cover and length, so the song can be listed before
+        /// its chart is ready. Reads the cached chart for the length when there is one.
+        /// </summary>
+        public void ReadInfo(CustomSong song, Action<string> log)
+        {
+            try
+            {
+                ReadMetadata(song);
+                song.HasMetadata = true;
+                if (File.Exists(song.ChartPath))
+                {
+                    try { song.Duration = ChartJson.Deserialize(File.ReadAllText(song.ChartPath)).EndTime; }
+                    catch (Exception) { }
+                }
+                if (song.Duration <= 0) song.Duration = AudioFile.ProbeDuration(song.AudioPath);
+            }
+            catch (Exception e)
+            {
+                song.Error = e.Message;
+                song.State = SongState.Failed;
+                log($"{Path.GetFileName(song.AudioPath)}: FAILED - {e.Message}");
+            }
+        }
+
         /// <summary>Runs on a worker thread. Never touches Unity objects.</summary>
         public void Prepare(CustomSong song, Action<string> log)
         {
             song.State = SongState.Processing;
             try
             {
-                ReadMetadata(song);
+                if (!song.HasMetadata) ReadMetadata(song);
                 string hash = AudioFile.Hash(song.AudioPath);
                 DecodedAudio decoded = null;
 
@@ -115,6 +140,7 @@ namespace InvectorModKit.CustomSongs
                 }
 
                 song.Chart = chart;
+                song.Duration = chart.EndTime;
                 song.State = SongState.Ready;
             }
             catch (Exception e)
@@ -123,19 +149,6 @@ namespace InvectorModKit.CustomSongs
                 song.State = SongState.Failed;
                 log($"{Path.GetFileName(song.AudioPath)}: FAILED - {e}");
             }
-        }
-
-        private static readonly System.Text.RegularExpressions.Regex VideoJunk = new System.Text.RegularExpressions.Regex(
-            @"\s*[\(\[][^\)\]]*\b(official|video|audio|lyrics?|clip|visuali[sz]er|hd|hq|4k|remaster(ed)?|explicit|music)\b[^\)\]]*[\)\]]",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
-        /// <summary>"Coldplay - Viva La Vida (Official Video)" by "Coldplay" becomes "Viva La Vida".</summary>
-        internal static string CleanTitle(string title, string artist)
-        {
-            string t = VideoJunk.Replace(title ?? "", "").Trim();
-            if (!string.IsNullOrEmpty(artist) && t.StartsWith(artist + " - ", StringComparison.OrdinalIgnoreCase))
-                t = t.Substring(artist.Length + 3).Trim();
-            return string.IsNullOrEmpty(t) ? title : t;
         }
 
         private void ReadMetadata(CustomSong song)
@@ -148,11 +161,10 @@ namespace InvectorModKit.CustomSongs
                 song.Artist = tags.Artist;
                 song.Cover = tags.Cover;
             }
-            string baseName = Path.GetFileNameWithoutExtension(song.AudioPath);
-            int dash = baseName.IndexOf(" - ", StringComparison.Ordinal);
-            if (string.IsNullOrEmpty(song.Title)) song.Title = dash > 0 ? baseName.Substring(dash + 3).Trim() : baseName;
-            if (string.IsNullOrEmpty(song.Artist)) song.Artist = dash > 0 ? baseName.Substring(0, dash).Trim() : "Unknown artist";
-            song.Title = CleanTitle(song.Title, song.Artist);
+            var (fileArtist, fileTitle) = SongMetadata.SplitFileName(Path.GetFileNameWithoutExtension(song.AudioPath));
+            if (string.IsNullOrEmpty(song.Title)) song.Title = fileTitle;
+            if (string.IsNullOrEmpty(song.Artist)) song.Artist = fileArtist ?? "Unknown artist";
+            song.Title = SongMetadata.CleanTitle(song.Title, song.Artist);
 
             // song.json and cover images belong to a song's own folder, never to the shared root.
             if (string.Equals(Path.GetFullPath(song.Folder), Path.GetFullPath(Root), StringComparison.OrdinalIgnoreCase)) return;

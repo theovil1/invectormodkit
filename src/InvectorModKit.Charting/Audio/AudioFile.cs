@@ -49,6 +49,33 @@ namespace InvectorModKit.Charting.Audio
             }
         }
 
+        /// <summary>Length in seconds without decoding the whole file (0 if unknown).</summary>
+        public static double ProbeDuration(string path)
+        {
+            try
+            {
+                switch (Path.GetExtension(path).ToLowerInvariant())
+                {
+                    case ".mp3":
+                        using (var mp3 = new NLayer.MpegFile(path)) return mp3.Duration.TotalSeconds;
+                    case ".ogg":
+                        using (var vorbis = new NVorbis.VorbisReader(path)) return vorbis.TotalTime.TotalSeconds;
+                    case ".wav":
+                        using (var br = new BinaryReader(File.OpenRead(path)))
+                        {
+                            br.BaseStream.Seek(22, SeekOrigin.Begin);
+                            int channels = br.ReadInt16(), rate = br.ReadInt32();
+                            br.BaseStream.Seek(34, SeekOrigin.Begin);
+                            int bits = br.ReadInt16();
+                            long data = br.BaseStream.Length - 44;
+                            return data / (double)(rate * channels * Math.Max(1, bits / 8));
+                        }
+                }
+            }
+            catch (Exception) { }
+            return 0;
+        }
+
         /// <summary>Content hash of the file, used to know when a cached auto-chart is stale.</summary>
         public static string Hash(string path)
         {

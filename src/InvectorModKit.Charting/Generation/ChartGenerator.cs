@@ -19,7 +19,7 @@ namespace InvectorModKit.Charting.Generation
     public static class ChartGenerator
     {
         /// <summary>Bump whenever generation changes, so cached auto-generated charts are rebuilt.</summary>
-        public const int Version = 2;
+        public const int Version = 3;
 
         /// <summary>Sections start this much before their bar line so notes snapped slightly early stay inside.</summary>
         private const double SectionLead = 0.05;
@@ -62,6 +62,9 @@ namespace InvectorModKit.Charting.Generation
 
             // Ultra first, over every audible grid position outside Freefly; each easier difficulty keeps
             // a subset of the next harder one (as in the official charts, where 99% of notes are shared).
+            // Official charts never put two notes closer than ~0.115 s, whatever the tempo
+            // (at fast tempos that rules out runs of quarter beats).
+            int minGap = Math.Max(1, (int)Math.Ceiling(Playability.MinNoteGap / grid.Quarter - 1e-6));
             var rhythms = new List<int>[4];
             int[] candidates = Enumerable.Range(from, Math.Max(0, to - from + 1))
                 .Where(i => Audible(i) && !Freefly(i) && !blocked.Contains(i)).ToArray();
@@ -72,7 +75,7 @@ namespace InvectorModKit.Charting.Generation
                 for (int k = 0; k < candidates.Length; k++)
                     score[k] = holdStarts.Contains(candidates[k]) ? 30 : NoteModel.Logit(diff, BeatGrid.Level(candidates[k]), grid.X[candidates[k]]);
                 int target = (int)Math.Round(expected[d]) + holds.Count;
-                rhythms[d] = RhythmDecoder.Decode(candidates, score, NoteModel.GapLogPrior(diff), options.GapWeight, target);
+                rhythms[d] = RhythmDecoder.Decode(candidates, score, NoteModel.GapLogPrior(diff), options.GapWeight, target, minGap);
                 foreach (int h in holdStarts) if (!rhythms[d].Contains(h)) rhythms[d].Add(h);
                 rhythms[d].Sort();
                 candidates = rhythms[d].ToArray();
@@ -86,8 +89,16 @@ namespace InvectorModKit.Charting.Generation
                 rhythms[d].Sort();
             }
 
+            // Snap to attacks, but never closer than the minimum gap to the previous note.
             var times = new Dictionary<int, double>();
-            foreach (int i in rhythms[(int)Difficulty.Ultra]) times[i] = SnappedTime(f, grid, i, options.SnapToOnset);
+            double previous = double.MinValue;
+            foreach (int i in rhythms[(int)Difficulty.Ultra])
+            {
+                double t = SnappedTime(f, grid, i, options.SnapToOnset);
+                if (t - previous < Playability.MinNoteGap) t = Math.Max(grid.TimeOf(i), previous + Playability.MinNoteGap);
+                times[i] = t;
+                previous = t;
+            }
             double TimeOf(int i) => times.TryGetValue(i, out var t) ? t : grid.TimeOf(i);
 
             var patterns = new PatternAssigner(grid, sections, rng, TimeOf);

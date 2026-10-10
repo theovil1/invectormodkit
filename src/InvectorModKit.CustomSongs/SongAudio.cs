@@ -30,6 +30,7 @@ namespace InvectorModKit.CustomSongs
         /// </summary>
         public static void Register(CustomSong song)
         {
+            GameAssets.CopyRouting(song);
             var db = AudioModule.AudioManager?.audioItemCollection;
             if (db == null) return;
             foreach (var item in new[] { song.GameplayItem, song.PreviewItem })

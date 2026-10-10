@@ -12,6 +12,10 @@ namespace InvectorModKit.Charting.Audio
 
         /// <summary>Onset strength (spectral flux) over the whole spectrum and in three bands.</summary>
         public float[] Onset, OnsetLow, OnsetMid, OnsetHigh;
+        /// <summary>Onsets of the harmonic part in the singing range (syllables, melody notes) and of the percussive part.</summary>
+        public float[] OnsetHarmonic, OnsetPercussive;
+        /// <summary>0..1, how much of the singing-range energy is sustained (harmonic) rather than percussive.</summary>
+        public float[] HarmonicRatio;
         /// <summary>Linear RMS loudness per frame.</summary>
         public float[] Rms;
         /// <summary>Log-energy in <see cref="BandCount"/> log-spaced bands per frame (for structure and timbre).</summary>

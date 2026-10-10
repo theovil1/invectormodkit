@@ -14,17 +14,18 @@ namespace InvectorModKit.Charting.Generation
         /// <param name="score">Score (log-odds) of each candidate.</param>
         /// <param name="gapLog">Log-prior indexed by gap in quarter beats (1..MaxGap; MaxGap also covers longer).</param>
         /// <param name="gapWeight">How strongly the gap prior shapes the rhythm.</param>
-        public static List<int> Decode(int[] candidates, double[] score, double[] gapLog, double gapWeight, int targetCount)
+        /// <param name="minGap">Smallest allowed distance between two notes, in quarter beats.</param>
+        public static List<int> Decode(int[] candidates, double[] score, double[] gapLog, double gapWeight, int targetCount, int minGap = 1)
         {
             if (candidates.Length == 0 || targetCount <= 0) return new List<int>();
-            if (targetCount >= candidates.Length) return new List<int>(candidates);
+            if (targetCount >= candidates.Length && minGap <= 1) return new List<int>(candidates);
 
             double lo = -30, hi = 30;
             List<int> best = null;
             for (int it = 0; it < 40; it++)
             {
                 double bonus = (lo + hi) / 2;
-                var sel = Run(candidates, score, gapLog, gapWeight, bonus);
+                var sel = Run(candidates, score, gapLog, gapWeight, bonus, minGap);
                 if (best == null || Math.Abs(sel.Count - targetCount) < Math.Abs(best.Count - targetCount)) best = sel;
                 if (sel.Count == targetCount) break;
                 if (sel.Count < targetCount) lo = bonus; else hi = bonus;
@@ -32,7 +33,7 @@ namespace InvectorModKit.Charting.Generation
             return best;
         }
 
-        private static List<int> Run(int[] c, double[] score, double[] gapLog, double w, double bonus)
+        private static List<int> Run(int[] c, double[] score, double[] gapLog, double w, double bonus, int minGap)
         {
             int n = c.Length, maxGap = gapLog.Length - 1;
             var dp = new double[n];
@@ -59,7 +60,7 @@ namespace InvectorModKit.Charting.Generation
                 for (int j = farPtr; j < i; j++)
                 {
                     int gap = c[i] - c[j];
-                    if (gap <= 0) continue;
+                    if (gap < minGap) continue;
                     double v = dp[j] + w * gapLog[gap];
                     if (v > prev) { prev = v; arg = j; }
                 }

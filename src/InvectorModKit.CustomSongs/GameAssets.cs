@@ -77,17 +77,30 @@ namespace InvectorModKit.CustomSongs
             Addressables.Release(locations);
         }
 
+        /// <summary>
+        /// Same mixer routing as the official item it was cloned from, copied at play time: the game may
+        /// only resolve the official item's mixer group after our clones were made.
+        /// </summary>
+        public static void CopyRouting(CustomSong song)
+        {
+            if (song.GameplayItem != null && _templateGameplay != null && _templateGameplay.DefaultOutputGroup != null)
+                song.GameplayItem.DefaultOutputGroup = _templateGameplay.DefaultOutputGroup;
+            if (song.PreviewItem != null && _templatePreview != null && _templatePreview.DefaultOutputGroup != null)
+                song.PreviewItem.DefaultOutputGroup = _templatePreview.DefaultOutputGroup;
+        }
+
         private static LevelDefinition FindTemplate() =>
             LevelDefinition.levels.FirstOrDefault(l => l != null && l.InSongSelect && l.songPackage != null && l.MusicDefinition != null && l.Modes != null
                 && l.MusicDefinition.GameplayAudio != null && l.MusicDefinition.GameplayAudio.RuntimeKeyIsValid()
                 && l.MusicDefinition.PreviewAudio != null && l.MusicDefinition.PreviewAudio.RuntimeKeyIsValid());
 
-        public static void Build(CustomSong song, int order)
+        /// <summary>
+        /// Creates the song's level so it shows in song select straight away, before its chart exists
+        /// (an empty chart with the song's length). <see cref="ApplyChart"/> fills it in later.
+        /// </summary>
+        public static void BuildShell(CustomSong song, int order)
         {
-            var chart = song.Chart;
-            song.LeadIn = chart.LeadIn(Math.Max(0.5, FirstNoteAt - chart.StartTime));
-            double pad = song.LeadIn;
-
+            song.LeadIn = FirstNoteAt;
             song.GameplayItem = MakeItem(_templateGameplay, "CustomSong " + song.Id);
             song.PreviewItem = MakeItem(_templatePreview, "CustomSongPreview " + song.Id);
 
@@ -98,7 +111,7 @@ namespace InvectorModKit.CustomSongs
             music.SongName = song.Title;
             music.songId = song.LevelId;
             music.ArtistImage = Covers.Make(song);
-            music.manualBpm = (float)chart.Bpm;
+            music.manualBpm = 120f;
             music.PickupSfxDefinition = CopySfx(tm.PickupSfxDefinition);
             music.OverrideSpectogramSignalValue = tm.OverrideSpectogramSignalValue;
             music.SpectogramSignalValue = tm.SpectogramSignalValue;
@@ -112,6 +125,38 @@ namespace InvectorModKit.CustomSongs
             modes.name = "Modes - " + song;
             modes.TierMode = new ModeInTime { mode = new ModeSet { modeType = ModeType.List }, startTime = new TimeField(0) };
             modes.PickupSfxDefinition = CopySfx(_template.Modes.PickupSfxDefinition);
+            modes.ModesInTime = new List<ModeInTime> { new ModeInTime { mode = new ModeSet { modeType = ModeType.List }, startTime = new TimeField(0) } };
+            var empty = new StrumPattern();
+            empty.MakeEmpty();
+            modes.StrumPattern = empty;
+            modes.TransitionIntoSongAt = new TimeField(0);
+            modes.StartTime = GameStartTime;
+            modes.EndTime = song.Duration + FirstNoteAt;
+
+            var level = Keep(ScriptableObject.CreateInstance<LevelDefinition>());
+            level.name = "Level - " + song;
+            level.levelId = song.LevelId;
+            level.SaveName = song.LevelId;
+            level.difficulty = 1000 + order;
+            level.seed = 1000;
+            level.InSongSelect = true;
+            level.InitiallyLocked = false;
+            level.MusicDefinition = music;
+            level.Modes = modes;
+            level.highscoreTablePrefix = 0;
+            level.songPackage = Package;
+            song.Level = level;
+        }
+
+        /// <summary>Puts the song's chart into its level (times shifted by the lead-in silence the game needs).</summary>
+        public static void ApplyChart(CustomSong song)
+        {
+            var chart = song.Chart;
+            song.LeadIn = chart.LeadIn(Math.Max(0.5, FirstNoteAt - chart.StartTime));
+            double pad = song.LeadIn;
+            song.Music.manualBpm = (float)chart.Bpm;
+
+            var modes = song.Level.Modes;
             modes.ModesInTime = chart.Sections
                 .Select((s, i) => new ModeInTime { mode = new ModeSet { modeType = (ModeType)(int)s.Mode }, startTime = new TimeField(i == 0 ? 0 : s.Start + pad) })
                 .ToList();
@@ -128,23 +173,7 @@ namespace InvectorModKit.CustomSongs
                     starData = new StarPickupData(n.StarSet, n.LastInSet),
                 }).ToList());
             modes.StrumPattern = pattern;
-            modes.TransitionIntoSongAt = new TimeField(0);
-            modes.StartTime = GameStartTime;
             modes.EndTime = chart.EndTime + pad;
-
-            var level = Keep(ScriptableObject.CreateInstance<LevelDefinition>());
-            level.name = "Level - " + song;
-            level.levelId = song.LevelId;
-            level.SaveName = song.LevelId;
-            level.difficulty = 1000 + order;
-            level.seed = 1000;
-            level.InSongSelect = true;
-            level.InitiallyLocked = false;
-            level.MusicDefinition = music;
-            level.Modes = modes;
-            level.highscoreTablePrefix = 0;
-            level.songPackage = Package;
-            song.Level = level;
         }
 
         private static global::Difficulty ToGame(ChartDifficulty d) => (global::Difficulty)Enum.Parse(typeof(global::Difficulty), d.ToString());

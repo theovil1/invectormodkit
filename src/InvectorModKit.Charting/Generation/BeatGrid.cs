@@ -9,10 +9,12 @@ namespace InvectorModKit.Charting.Generation
     /// </summary>
     public sealed class BeatGrid
     {
-        public const int FeatureCount = 13;
+        public const int FeatureCount = 18;
         // Feature layout (see Build): bias, onset, low, mid, high, loudness, prominence, silence,
-        // onset at -1q, onset at +1q, onset ±1 bar, onset², onset ±2 bars.
+        // onset at -1q, onset at +1q, onset ±1 bar, onset², onset ±2 bars,
+        // harmonic (sung/melodic) onset, percussive onset, harmonic onset ±1 bar, sung activity ±1 beat, harmonic ratio.
         public const int FOnset = 1, FLow = 2, FMid = 3, FHigh = 4, FLoud = 5, FProminence = 6, FSilent = 7;
+        public const int FHarmonic = 13, FPercussive = 14, FHarmonicBar = 15, FSungActivity = 16, FHarmonicRatio = 17;
 
         public double Origin;
         public double SecondsPerBeat;
@@ -39,10 +41,12 @@ namespace InvectorModKit.Charting.Generation
 
             float median = MedianLoudness(f);
             var onset = new float[g.Count];
+            var harmonic = new float[g.Count];
             for (int i = 0; i < g.Count; i++)
             {
                 double t = g.TimeOf(i);
                 onset[i] = f.MaxAround(f.Onset, t, 2);
+                harmonic[i] = f.MaxAround(f.OnsetHarmonic, t, 2);
                 g.Loudness[i] = MeanRms(f, t - spb / 2, t + spb / 2) / median;
             }
 
@@ -71,9 +75,23 @@ namespace InvectorModKit.Charting.Generation
                     0.5f * (At(i - 16) + At(i + 16)),
                     onset[i] * onset[i],
                     0.5f * (At(i - 32) + At(i + 32)),
+                    harmonic[i],
+                    f.MaxAround(f.OnsetPercussive, t, 2),
+                    0.5f * ((i >= 16 ? harmonic[i - 16] : 0f) + (i + 16 < g.Count ? harmonic[i + 16] : 0f)),
+                    MeanOf(f.OnsetHarmonic, f, t - spb, t + spb),
+                    MeanOf(f.HarmonicRatio, f, t - spb / 2, t + spb / 2),
                 };
             }
             return g;
+        }
+
+        private static float MeanOf(float[] series, AudioFeatures f, double from, double to)
+        {
+            int a = Math.Max(0, f.FrameOf(from)), b = Math.Min(series.Length - 1, f.FrameOf(to));
+            if (b < a) return 0f;
+            double s = 0;
+            for (int i = a; i <= b; i++) s += series[i];
+            return (float)(s / (b - a + 1));
         }
 
         private static float MeanRms(AudioFeatures f, double from, double to)
