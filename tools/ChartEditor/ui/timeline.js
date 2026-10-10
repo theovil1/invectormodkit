@@ -329,7 +329,7 @@ export class Timeline {
 
   /**
    * A turn: a purple tile with a big double chevron pointing the way the ship goes (left or right), and the key
-   * that turns on PC beside it when the mod has told which one the player uses.
+   * that turns on PC on its corner when the mod has told which one the player uses.
    */
   drawTurn(n, x, y, size, selected) {
     const c = this.ctx, color = KEY_COLOR[n.color], dir = n.color === m.Color.TurnLeft ? -1 : 1, w = size * 1.3, h = size;
@@ -353,9 +353,9 @@ export class Timeline {
     c.lineCap = "butt";
     c.lineWidth = 1;
     const name = skin.keySprite(ACTION[n.color]), key = name ? skin.img(name) : null;
-    if (skin.ready(key)) { // the player's turn key, on the side the ship goes
-      const k = size * 0.95;
-      c.drawImage(key, x + dir * (w / 2 + 3) - (dir < 0 ? k : 0), y - k / 2, k, k);
+    if (skin.ready(key)) { // the player's turn key, as a badge on the tile's top corner (clear of the neighbours)
+      const k = Math.max(14, size * 0.66);
+      c.drawImage(key, x + w / 2 - k * 0.55, y - h / 2 - k * 0.5, k, k);
     }
     if (selected) {
       c.strokeStyle = "#FFFFFF";
