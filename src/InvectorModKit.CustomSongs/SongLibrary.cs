@@ -43,14 +43,52 @@ namespace InvectorModKit.CustomSongs
         public void Scan()
         {
             Songs.Clear();
-            if (!Directory.Exists(Root)) return;
+            foreach (var (audio, folder) in Enumerate()) Songs.Add(Create(audio, folder));
+        }
+
+        /// <summary>
+        /// Worker thread, while the game runs: songs whose audio appeared since <paramref name="known"/> was
+        /// listed (only once fully written), and known songs whose audio is gone.
+        /// </summary>
+        public (List<CustomSong> Added, List<CustomSong> Removed) FindChanges(IList<CustomSong> known)
+        {
+            var knownPaths = new HashSet<string>(known.Select(s => s.AudioPath), StringComparer.OrdinalIgnoreCase);
+            var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var added = new List<CustomSong>();
+            foreach (var (audio, folder) in Enumerate())
+            {
+                present.Add(audio);
+                if (!knownPaths.Contains(audio) && IsComplete(audio)) added.Add(Create(audio, folder));
+            }
+            return (added, known.Where(s => !present.Contains(s.AudioPath)).ToList());
+        }
+
+        /// <summary>Loose audio files in the root, then the first audio file of each song folder.</summary>
+        private IEnumerable<(string Audio, string Folder)> Enumerate()
+        {
+            if (!Directory.Exists(Root)) yield break;
             foreach (string file in Directory.GetFiles(Root).Where(AudioFile.IsSupported).OrderBy(f => f))
-                Songs.Add(Create(file, Root));
+                yield return (file, Root);
             foreach (string dir in Directory.GetDirectories(Root).Where(d => !Path.GetFileName(d).StartsWith(".")).OrderBy(d => d))
             {
                 string audio = Directory.GetFiles(dir).Where(AudioFile.IsSupported).OrderBy(f => f).FirstOrDefault();
-                if (audio != null) Songs.Add(Create(audio, dir));
+                if (audio != null) yield return (audio, dir);
             }
+        }
+
+        /// <summary>Not still being copied: the size holds still and nobody else is writing to it.</summary>
+        private static bool IsComplete(string path)
+        {
+            try
+            {
+                long size = new FileInfo(path).Length;
+                System.Threading.Thread.Sleep(300);
+                if (size == 0 || new FileInfo(path).Length != size) return false;
+                using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) { }
+                return true;
+            }
+            catch (IOException) { return false; }
+            catch (UnauthorizedAccessException) { return false; }
         }
 
         private CustomSong Create(string audioPath, string folder)

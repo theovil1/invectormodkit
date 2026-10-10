@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -46,32 +47,38 @@ namespace InvectorModKit.CustomSongs
             StartCoroutine(PrepareSongs());
         }
 
+        /// <summary>How often the songs folder is checked for added or deleted songs (and whenever the game gets focus back).</summary>
+        private const float FolderCheckSeconds = 2f;
+        private int _order;
+        private bool _checkFolderNow;
+
+        private void OnApplicationFocus(bool focused)
+        {
+            if (focused) _checkFolderNow = true; // typically back from dropping a file in Explorer
+        }
+
         /// <summary>
         /// 1) list every song right away (metadata and length only), 2) prepare charts and previews one by
-        /// one in the background, the song the player is waiting for first.
+        /// one in the background, the song the player is waiting for first, 3) keep watching the folder so
+        /// songs can be added or removed without restarting the game.
         /// </summary>
         private IEnumerator PrepareSongs()
         {
-            var songs = Library.Songs.ToList();
-            var info = RunLowPriority(() => { foreach (var s in songs) Library.ReadInfo(s, msg => _workerLog.Enqueue(msg)); });
-            while (!info.IsCompleted) { FlushWorkerLog(); yield return null; }
-            FlushWorkerLog();
-
-            while (!GameAssets.Ready) yield return null;
-            int order = 0;
-            foreach (var song in songs.Where(s => s.State != SongState.Failed))
-            {
-                try { GameAssets.BuildShell(song, order++); }
-                catch (System.Exception e) { Fail(song, "could not build level", e); }
-            }
-
+            yield return List(Library.Songs.ToList());
+            float nextCheck = Time.realtimeSinceStartup + FolderCheckSeconds;
             while (true)
             {
                 // Heavy analysis (and the garbage collections it causes) would make the game stutter
                 // mid-song, so nothing new starts while a song is being played.
                 while (InGame) yield return new WaitForSecondsRealtime(0.5f);
-                var next = songs.Where(s => s.State == SongState.Pending).OrderByDescending(s => s.Priority).FirstOrDefault();
-                if (next == null) break;
+                if (_checkFolderNow || Time.realtimeSinceStartup >= nextCheck)
+                {
+                    _checkFolderNow = false;
+                    yield return CheckFolder();
+                    nextCheck = Time.realtimeSinceStartup + FolderCheckSeconds;
+                }
+                var next = Library.Songs.Where(s => s.State == SongState.Pending).OrderByDescending(s => s.Priority).FirstOrDefault();
+                if (next == null) { yield return new WaitForSecondsRealtime(0.25f); continue; }
                 var task = RunLowPriority(() => Library.Prepare(next, msg => _workerLog.Enqueue(msg)));
                 while (!task.IsCompleted) { FlushWorkerLog(); yield return null; }
                 FlushWorkerLog();
@@ -83,6 +90,57 @@ namespace InvectorModKit.CustomSongs
                 }
                 catch (System.Exception e) { Fail(next, "could not apply chart", e); }
             }
+        }
+
+        /// <summary>Reads the songs' metadata and builds their (still chartless) levels, so song select can list them.</summary>
+        private IEnumerator List(List<CustomSong> songs)
+        {
+            var info = RunLowPriority(() => { foreach (var s in songs) Library.ReadInfo(s, msg => _workerLog.Enqueue(msg)); });
+            while (!info.IsCompleted) { FlushWorkerLog(); yield return null; }
+            FlushWorkerLog();
+
+            while (!GameAssets.Ready) yield return null;
+            foreach (var song in songs.Where(s => s.State != SongState.Failed))
+            {
+                try { GameAssets.BuildShell(song, _order++); }
+                catch (System.Exception e) { Fail(song, "could not build level", e); }
+            }
+        }
+
+        private IEnumerator CheckFolder()
+        {
+            var known = Library.Songs.ToList();
+            (List<CustomSong> Added, List<CustomSong> Removed) changes = default;
+            var scan = RunLowPriority(() => changes = Library.FindChanges(known));
+            while (!scan.IsCompleted) yield return null;
+            if (scan.IsFaulted)
+            {
+                Logger.LogWarning("Could not check the songs folder: " + scan.Exception.GetBaseException().Message);
+                yield break;
+            }
+            foreach (var song in changes.Removed)
+            {
+                Library.Songs.Remove(song);
+                Logger.LogInfo($"Removed: {song} (its file is gone)");
+            }
+            if (changes.Added.Count > 0)
+            {
+                yield return List(changes.Added);
+                Library.Songs.AddRange(changes.Added);
+                foreach (var song in changes.Added.Where(s => s.State != SongState.Failed))
+                    Logger.LogInfo($"New song: {song} ({(File.Exists(song.ChartPath) ? "has a chart" : "chart being generated")})");
+            }
+            if (changes.Added.Count > 0 || changes.Removed.Count > 0) RefreshSongSelect();
+        }
+
+        /// <summary>
+        /// Song select reads the song list when it opens: reopen it the way the game does when a DLC gets
+        /// installed. Not in multiplayer, where reopening would drop the joined players; the change shows
+        /// there the next time it opens.
+        /// </summary>
+        private static void RefreshSongSelect()
+        {
+            if (ModKit.CurrentState is HelloThere.Avicii.StateSelectSongSingleplayer select) select.OnDLCChanged();
         }
 
         private static bool InGame
@@ -138,27 +196,31 @@ namespace InvectorModKit.CustomSongs
 
         private static void WriteReadme(string root)
         {
+            const string header = "Invector ModKit - Custom Songs";
             string path = Path.Combine(root, "README.txt");
-            if (File.Exists(path)) return;
-            File.WriteAllText(path,
+            string text =
 @"Invector ModKit - Custom Songs
 ==============================
 
-Drop songs here (.mp3, .ogg or .wav), then start the game. They appear in song select
-under the 'Custom Songs' header.
+Drop songs here (.mp3, .ogg or .wav), even while the game is running: they appear in
+song select under the 'Custom Songs' header within a few seconds (in multiplayer, the
+next time song select opens). Deleting a song's file removes it the same way.
 
   * Loose file:   CustomSongs/Artist - Title.mp3
   * Own folder:   CustomSongs/Any Name/song.mp3 (+ optional cover.jpg / cover.png and
                   song.json: { ""title"": ""..."", ""artist"": ""..."" })
 
 The first time a song is seen, a chart is generated automatically for all four
-difficulties and saved next to the audio as <name>.chart.json. You can edit that file;
-remove its ""generator"" block so your edits are never overwritten.
+difficulties (about 20 seconds) and saved next to the audio as <name>.chart.json. You can
+edit that file; remove its ""generator"" block so your edits are never overwritten.
 
 Playing with custom songs installed is a 'modded' session: Steam leaderboards,
 achievements and stats are switched off, and results are kept in
 BepInEx/config/InvectorModKit/modded-scores.json instead of your save.
-");
+";
+            // Ours is kept up to date; a README.txt of the player's own is left alone.
+            if (File.Exists(path) && (!File.ReadAllText(path).StartsWith(header) || File.ReadAllText(path) == text)) return;
+            File.WriteAllText(path, text);
         }
     }
 }
