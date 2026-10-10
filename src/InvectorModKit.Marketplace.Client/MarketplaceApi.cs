@@ -78,6 +78,13 @@ namespace InvectorModKit.Marketplace.Client
             }
         }
 
+        /// <summary>The signed-in player (checks that <see cref="Token"/> is still valid; the token is not returned).</summary>
+        public async Task<Session> MeAsync()
+        {
+            var o = (JObject)await SendAsync("GET", "/me").ConfigureAwait(false);
+            return new Session { Token = Token, SteamId = (string)o["steamId"], Name = (string)o["name"], Role = (string)o["role"] };
+        }
+
         public async Task<List<ChartSummary>> MyChartsAsync()
         {
             var a = (JArray)await SendAsync("GET", "/me/charts").ConfigureAwait(false);
