@@ -3,7 +3,7 @@
 // pickups as the game's keys in their colour's glow, turns as purple rings, strums as the game's strum badge, and the
 // ship's path from pickup to pickup, bending at the turns.
 import * as m from "./model.js";
-import { MODE_COLOR, KEY_COLOR, KEY_GLYPH, KEY_SPRITE, STRUM_SPRITE, FONT } from "./look.js";
+import { MODE_COLOR, KEY_COLOR, KEY_GLYPH, ACTION, FONT } from "./look.js";
 import { skin } from "./skin.js";
 
 const LEFT = 104; // row labels
@@ -327,6 +327,44 @@ export class Timeline {
     c.globalAlpha /= alpha;
   }
 
+  /**
+   * A turn: a purple tile with a big double chevron pointing the way the ship goes (left or right), and the key
+   * that turns on PC beside it when the mod has told which one the player uses.
+   */
+  drawTurn(n, x, y, size, selected) {
+    const c = this.ctx, color = KEY_COLOR[n.color], dir = n.color === m.Color.TurnLeft ? -1 : 1, w = size * 1.3, h = size;
+    this.glow(x, y, size * 1.05, color);
+    c.fillStyle = color;
+    c.beginPath();
+    c.roundRect(x - w / 2, y - h / 2, w, h, 5);
+    c.fill();
+    c.strokeStyle = "#FFFFFF";
+    c.lineWidth = Math.max(2.5, size * 0.13);
+    c.lineCap = "round";
+    c.lineJoin = "round";
+    for (const off of [-0.2, 0.2]) {
+      const cx = x + off * w * 0.9, a = h * 0.28;
+      c.beginPath();
+      c.moveTo(cx - dir * a * 0.7, y - a);
+      c.lineTo(cx + dir * a * 0.7, y);
+      c.lineTo(cx - dir * a * 0.7, y + a);
+      c.stroke();
+    }
+    c.lineCap = "butt";
+    c.lineWidth = 1;
+    const name = skin.keySprite(ACTION[n.color]), key = name ? skin.img(name) : null;
+    if (skin.ready(key)) { // the player's turn key, on the side the ship goes
+      const k = size * 0.72;
+      c.drawImage(key, x + dir * (w / 2 + 2) - (dir < 0 ? k : 0), y - k / 2, k, k);
+    }
+    if (selected) {
+      c.strokeStyle = "#FFFFFF";
+      c.lineWidth = 2.5;
+      c.strokeRect(x - w / 2 - 4, y - h / 2 - 4, w + 8, h + 8);
+      c.lineWidth = 1;
+    }
+  }
+
   drawNote(n, selected, issue) {
     const c = this.ctx, x = this.x(n.t);
     const size = Math.max(18, Math.min(28, this.rows.lanes[0].h * 0.42)); // a key's size
@@ -341,51 +379,47 @@ export class Timeline {
         c.fillStyle = "#FFFFFF";
         c.fillRect(x1 - 2, y - 13, 4, 26);
       }
-      const ring = skin.img("PickupStrum Air Glow"), badge = skin.img(STRUM_SPRITE), back = skin.img("StrumBG");
+      // the key that strums on PC (Space, or the player's own), in the strum's ring
+      const ring = skin.img("PickupStrum Air Glow"), name = skin.keySprite("strum"), key = name ? skin.img(name) : null;
       if (skin.ready(ring)) c.drawImage(ring, x - 24, y - 24, 48, 48);
       else this.glow(x, y, 22, "#FFFFFF", 0.35);
-      if (skin.ready(badge)) {
-        if (skin.ready(back)) c.drawImage(back, x - 17, y - 13, 34, 26);
-        c.drawImage(badge, x - 15, y - 10, 30, 20);
-      } else {
+      const kw = 36, kh = skin.ready(key) ? (kw * key.naturalHeight) / key.naturalWidth : 22;
+      if (skin.ready(key)) c.drawImage(key, x - kw / 2, y - kh / 2, kw, kh);
+      else {
         c.fillStyle = "#FFFFFF";
         c.beginPath();
-        c.roundRect(x - 13, y - 10, 26, 20, 5);
+        c.roundRect(x - kw / 2, y - 9, kw, 18, 4);
         c.fill();
         c.fillStyle = "#0C0912";
-        c.font = `700 13px ${FONT.bold}`;
-        c.textAlign = "center";
-        c.fillText("R", x, y + 5);
-        c.textAlign = "left";
+        c.fillRect(x - 10, y + 2, 20, 2); // a space bar
       }
       if (selected) {
         c.strokeStyle = "#FFFFFF";
         c.lineWidth = 2.5;
-        c.strokeRect(x - 19, y - 16, 38, 32);
+        c.strokeRect(x - 21, y - 16, 42, 32);
         c.lineWidth = 1;
       }
+    } else if (m.isTurn(n.color)) {
+      this.drawTurn(n, x, this.laneY(n.lane), size, selected);
     } else {
       const y = this.laneY(n.lane), color = KEY_COLOR[n.color], half = size / 2;
       this.glow(x, y, size, color);
-      const key = KEY_SPRITE[n.color] ? skin.img(KEY_SPRITE[n.color]) : null;
+      const name = skin.keySprite(ACTION[n.color]), key = name ? skin.img(name) : null;
       if (skin.ready(key)) c.drawImage(key, x - half, y - half, size, size);
       else {
-        // turns (and arrows without the game's pictures): a ring in the button's colour with its arrow
-        c.fillStyle = m.isTurn(n.color) ? color : "#FFFFFF";
+        c.fillStyle = "#FFFFFF";
         c.beginPath();
-        if (m.isTurn(n.color)) c.arc(x, y, half, 0, Math.PI * 2);
-        else c.roundRect(x - half, y - half, size, size, 4);
+        c.roundRect(x - half, y - half, size, size, 4);
         c.fill();
-        c.fillStyle = m.isTurn(n.color) ? "#FFFFFF" : "#0C0912";
+        c.fillStyle = "#0C0912";
         c.font = `800 ${Math.round(size * 0.68)}px 'Segoe UI Symbol', sans-serif`;
         c.textAlign = "center";
         c.fillText(BUTTON_GLYPHS[n.color], x, y + size * 0.24);
         c.textAlign = "left";
       }
-      if (!m.isTurn(n.color)) { // the key's colour under it, as on the game's pickups
-        c.fillStyle = color;
-        c.fillRect(x - half + 2, y + half - 1, size - 4, 3);
-      }
+      // the key's colour under it, as on the game's pickups
+      c.fillStyle = color;
+      c.fillRect(x - half + 2, y + half - 1, size - 4, 3);
       if (selected) {
         c.strokeStyle = "#FFFFFF";
         c.lineWidth = 2.5;

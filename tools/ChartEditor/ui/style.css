@@ -151,6 +151,7 @@ h1, h2, h3 { font-family: var(--f-bold); text-transform: uppercase; letter-spaci
 .legend { display: flex; gap: 12px; align-items: center; text-transform: none; font-family: var(--f-regular); }
 .legend span { display: flex; gap: 5px; align-items: center; }
 .legend img { height: 18px; }
+.turn-chip { display: inline-grid; place-items: center; min-width: 22px; height: 18px; padding: 0 3px; background: #CB33FF; color: #fff; border-radius: 3px; font-family: var(--f-bold); font-size: 15px; line-height: 1; box-shadow: 0 0 8px rgba(203, 51, 255, .7); }
 .legend i { width: 12px; height: 12px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; display: inline-block; }
 
 /* ----- dialogs and menus */

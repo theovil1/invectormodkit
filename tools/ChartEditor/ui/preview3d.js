@@ -8,7 +8,7 @@ import { EffectComposer } from "./vendor/three/addons/postprocessing/EffectCompo
 import { RenderPass } from "./vendor/three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "./vendor/three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "./vendor/three/addons/postprocessing/OutputPass.js";
-import { MODE_COLOR, KEY_COLOR, KEY_SPRITE } from "./look.js";
+import { MODE_COLOR, KEY_COLOR, ACTION, keySprite } from "./look.js";
 
 /** World units per second of song: notes are laid along -z at this speed. */
 export const SPEED = 26;
@@ -75,6 +75,10 @@ const drawn = {
   // keyboard keys, as the game's keycaps
   Keyboard_LeftArrow: () => keycap("←"), Keyboard_RightArrow: () => keycap("→"),
   Keyboard_DownArrow: () => keycap("↓"), Keyboard_UpArrow: () => keycap("↑"),
+  Keyboard_Space: () => canvasTexture(96, 60, (g) => {
+    g.fillStyle = "#fff"; g.beginPath(); g.roundRect(4, 4, 88, 50, 8); g.fill();
+    g.fillStyle = "#000"; g.fillRect(28, 34, 40, 5);
+  }),
 };
 
 function keycap(glyph) {
@@ -103,13 +107,12 @@ function streaks(seed) {
 }
 
 function chevron(dir) {
-  return canvasTexture(256, 128, (g, w, h) => {
-    g.strokeStyle = "#fff"; g.lineWidth = 16; g.lineCap = "round"; g.lineJoin = "round";
-    for (const off of [0, 70]) {
-      g.beginPath();
-      if (dir < 0) { g.moveTo(140 - off + 40, 20); g.lineTo(100 - off + 40, 64); g.lineTo(140 - off + 40, 108); }
-      else { g.moveTo(76 + off, 20); g.lineTo(116 + off, 64); g.lineTo(76 + off, 108); }
-      g.stroke();
+  return canvasTexture(256, 192, (g, w, h) => {
+    g.fillStyle = "#CB33FF"; g.beginPath(); g.roundRect(8, 8, w - 16, h - 16, 22); g.fill();
+    g.strokeStyle = "#fff"; g.lineWidth = 20; g.lineCap = "round"; g.lineJoin = "round";
+    for (const off of [-46, 46]) {
+      const cx = w / 2 + off, a = 46;
+      g.beginPath(); g.moveTo(cx - dir * a * 0.7, h / 2 - a); g.lineTo(cx + dir * a * 0.7, h / 2); g.lineTo(cx - dir * a * 0.7, h / 2 + a); g.stroke();
     }
   });
 }
@@ -545,8 +548,15 @@ export class Preview3D {
     holder.add(halo);
     if (isTurn(note.color)) {
       const dir = note.color === 4 ? -1 : 1;
-      const arrow = this.plane(this.chevron(dir), 4.2, 2.1, hdr(color, 2.6));
+      const arrow = this.plane(this.chevron(dir), 3.0, 2.25, new THREE.Color(1.15, 1.15, 1.15), { additive: false });
+      arrow.userData.upright = 0;
       holder.add(arrow);
+      const turnKey = this.keyName(ACTION[note.color]); // the player's turn key, when the mod told us
+      if (turnKey) {
+        const key = this.plane(this.tex(turnKey), 1.1, 1.1, new THREE.Color(0.95, 0.95, 0.95), { additive: false });
+        key.position.set(dir * 2.2, 0, 0.02);
+        holder.add(key);
+      }
       // and a glowing band across the lane, where the turn happens
       const band = this.plane(this.tex("StrumHoldEndGlowline"), 6.5, 1.2, hdr(color, 1.4));
       band.rotation.x = -Math.PI / 2;
@@ -571,7 +581,7 @@ export class Preview3D {
         fill.position.z = -0.01;
         holder.add(fill);
       }
-      const keyName = KEY_SPRITE[note.color];
+      const keyName = this.keyName(ACTION[note.color]);
       if (keyName && !model) {
         const key = this.plane(this.tex(keyName), 0.86, 0.84, new THREE.Color(0.95, 0.95, 0.95), { additive: false });
         key.position.z = 0.02;
@@ -606,7 +616,7 @@ export class Preview3D {
       glow.position.y = 0.6;
       glow.rotation.z = Math.PI;
       holder.add(glow);
-      const badge = this.plane(this.tex("Strum R Generic"), 1.2, 0.8, hdr("#ffffff", 1.1), { additive: false });
+      const badge = this.plane(this.tex(this.keyName("strum") || "Keyboard_Space"), 1.5, 0.93, new THREE.Color(0.95, 0.95, 0.95), { additive: false });
       badge.position.set(0, 1.0, 0.05);
       holder.add(badge);
       if (note.len > 0) {
@@ -634,6 +644,12 @@ export class Preview3D {
     const star = this.plane(this.tex("BoostGlow"), 4.6, 4.6, hdr("#FFD86B", note.last ? 2.2 : 1.3));
     star.position.z = -0.05;
     parent.add(star);
+  }
+
+  /** The key picture for an action ("strum", "left"… "turnRight"): the player's own or the default, if we can show it. */
+  keyName(action) {
+    const name = keySprite(this.manifest, action);
+    return name && ((this.manifest.sprites && this.manifest.sprites[name]) || drawn[name.replace(/ /g, "_")]) ? name : null;
   }
 
   chevron(dir) {

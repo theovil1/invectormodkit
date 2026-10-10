@@ -6,7 +6,7 @@ import { Timeline, BUTTON_COLORS, BUTTON_GLYPHS, laneName } from "./timeline.js"
 import { call, on, inHost } from "./rpc.js";
 import { LANGUAGES, setLang, t, issueText, langCode } from "./i18n.js";
 import { skin } from "./skin.js";
-import { KEY_SPRITE, MODE_COLOR } from "./look.js";
+import { ACTION, MODE_COLOR } from "./look.js";
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, ...kids) => {
@@ -125,10 +125,10 @@ class App {
       const keys = e.dataset.keys.split(" ").map((k) => (skin.has(k) ? el("img", { src: skin.url(k), alt: short(k) }) : el("kbd", {}, short(k))));
       e.replaceChildren(...keys, el("span", { class: "label" }, t(e.dataset.label)));
     }
-    const key = (c) => (skin.has(KEY_SPRITE[c]) ? el("img", { src: skin.url(KEY_SPRITE[c]), alt: "" }) : el("kbd", {}, BUTTON_GLYPHS[c]));
+    const key = (c) => (skin.keySprite(ACTION[c]) ? el("img", { src: skin.url(skin.keySprite(ACTION[c])), alt: "" }) : el("kbd", {}, BUTTON_GLYPHS[c]));
     $("legend").replaceChildren(
       ...[0, 1, 3, 2].map((c) => el("span", { style: `color:${BUTTON_COLORS[c]}` }, key(c), el("span", { style: "color:var(--muted)" }, t("button" + c)))),
-      el("span", { style: `color:${BUTTON_COLORS[4]}` }, el("i"), el("span", { style: "color:var(--muted)" }, t("turn"))),
+      el("span", {}, el("b", { class: "turn-chip" }, "«"), el("b", { class: "turn-chip" }, "»"), el("span", { style: "color:var(--muted)" }, t("turn"))),
       el("span", { class: "muted" }, "━ " + t("shipPath")));
   }
 
@@ -471,7 +471,7 @@ class App {
       class: (notes.length ? notes.every((n) => !n.strum && n.color === c) : this.color === c) ? "on" : "",
       style: `border-color:${BUTTON_COLORS[c]};color:${BUTTON_COLORS[c]}`, title: t("button" + c) + ` (${c + 1})`,
       onclick: () => this.setColor(c),
-    }, KEY_SPRITE[c] && skin.has(KEY_SPRITE[c]) ? el("img", { src: skin.url(KEY_SPRITE[c]), alt: g }) : g))));
+    }, c < 4 && skin.keySprite(ACTION[c]) ? el("img", { src: skin.url(skin.keySprite(ACTION[c])), alt: g }) : m.isTurn(c) ? el("b", { class: "turn-chip" }, g) : g))));
     if (notes.length) {
       const ids = notes.map((n) => n.id);
       const allStrum = notes.every((n) => n.strum);

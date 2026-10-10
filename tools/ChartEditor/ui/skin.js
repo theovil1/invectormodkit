@@ -2,6 +2,8 @@
 // models/…, ships/…) and the game's fonts (skin/fonts/…, cut out of its bundles by the editor). Everything has a
 // drawn or CSS fallback, so the editor looks right without them too.
 
+import { keySprite } from "./look.js";
+
 const BASE = "skin/";
 const FONTS = [["Exo2BC", "Exo2-BoldCondensed.otf"], ["Exo2SC", "Exo2-SemiBoldCondensed.otf"], ["Exo2MC", "Exo2-MediumCondensed.otf"], ["Exo2RC", "Exo2-RegularCondensed.otf"]];
 
@@ -38,7 +40,9 @@ export const skin = {
     document.documentElement.classList.toggle("game-fonts", document.fonts.check("12px Exo2BC"));
   },
 
-  has(name) { return !!this.manifest.sprites[name]; },
+  has(name) { return !!(name && this.manifest.sprites[name]); },
+  /** The key picture for "strum", "left"… "turnRight" (the player's own when the mod exported them). */
+  keySprite(action) { const name = keySprite(this.manifest, action); return this.has(name) ? name : null; },
   url(name) { const s = this.manifest.sprites[name]; return s ? BASE + s.file : null; },
   hasModels() { return Object.keys(this.manifest.models || {}).length > 0; },
 

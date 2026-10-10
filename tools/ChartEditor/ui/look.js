@@ -4,10 +4,19 @@
 export const MODE_COLOR = { List: "#A040FF", Bounce: "#19C8E6", Freefly: "#FF8A2C" };
 /** Button colours: left, right, down, up, turn left, turn right. */
 export const KEY_COLOR = ["#3FB7FF", "#FF4F6D", "#5CFF8A", "#FFD23F", "#CB33FF", "#CB33FF"];
-export const KEY_GLYPH = ["←", "→", "↓", "↑", "↺", "↻"];
-/** The game's keyboard key pictures (exported by the mod) for the four arrows. */
-export const KEY_SPRITE = ["Keyboard_LeftArrow", "Keyboard_RightArrow", "Keyboard_DownArrow", "Keyboard_UpArrow"];
-export const STRUM_SPRITE = "Strum R Generic";
+export const KEY_GLYPH = ["←", "→", "↓", "↑", "«", "»"];
+/** What each note asks the player for (the mod exports the player's own keys under these names). */
+export const ACTION = ["left", "right", "down", "up", "turnLeft", "turnRight"];
+/** The game's default PC keys (pictures exported by the mod), until the mod says what this player uses. */
+export const DEFAULT_KEY_SPRITE = { left: "Keyboard_LeftArrow", right: "Keyboard_RightArrow", down: "Keyboard_DownArrow", up: "Keyboard_UpArrow", strum: "Keyboard_Space" };
+export const KEY_SPRITE = ACTION.slice(0, 4).map((a) => DEFAULT_KEY_SPRITE[a]);
+
+/** The picture of the key for an action: the player's own (from the mod's manifest), else the default; null if unknown. */
+export function keySprite(manifest, action) {
+  const own = manifest && manifest.keys && manifest.keys[action];
+  if (own && own.sprite && manifest.sprites && manifest.sprites[own.sprite]) return own.sprite;
+  return DEFAULT_KEY_SPRITE[action] || null;
+}
 
 /** The game's fonts (cut out of its bundles by the editor), then look-alikes Windows has. */
 export const FONT = {

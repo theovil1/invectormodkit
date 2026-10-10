@@ -72,6 +72,7 @@ namespace InvectorModKit.CustomSongs
                 .Where(s => sprites[s.name] == null && !_failed.Contains(s.name)).ToList();
             var readable = new Dictionary<Texture, Texture2D>();
             int done = 0;
+            bool keysChanged = false;
             try
             {
                 Directory.CreateDirectory(Path.Combine(Dir, "sprites"));
@@ -85,6 +86,7 @@ namespace InvectorModKit.CustomSongs
                     }
                     if (++done % 8 == 0) yield return null; // a few per frame: no stutter
                 }
+                keysChanged = ExportKeys(readable);
             }
             finally
             {
@@ -102,7 +104,7 @@ namespace InvectorModKit.CustomSongs
                 }
                 catch (Exception e) { CustomSongsPlugin.Log.LogDebug("Editor skin background: " + e.Message); }
             }
-            if (done > 0 || background != null)
+            if (done > 0 || background != null || keysChanged)
             {
                 SaveManifest();
                 if (done > 0) CustomSongsPlugin.Log.LogInfo($"Editor skin: {done} sprite(s) looked at for the chart editor");
