@@ -62,7 +62,11 @@ namespace InvectorModKit.Marketplace.Ui
                 var layer = root.AddComponent<Canvas>();
                 layer.overrideSorting = true;
                 layer.sortingOrder = 1000;
-                root.AddComponent<GraphicRaycaster>();
+                // The menus are drawn through the menu camera: raycasts must use it too, or clicks land elsewhere.
+                var menuCanvas = canvas.GetComponentInParent<Canvas>()?.rootCanvas;
+                if (menuCanvas && menuCanvas.worldCamera) layer.worldCamera = menuCanvas.worldCamera;
+                var raycaster = root.AddComponent<GraphicRaycaster>();
+                MarketplacePlugin.Log.LogInfo($"Marketplace window: {layer.renderMode}, camera {(layer.worldCamera ? layer.worldCamera.name : "none")}, raycaster camera {(raycaster.eventCamera ? raycaster.eventCamera.name : "none")}");
                 var modal = root.AddComponent<MarketplaceModal>();
                 modal.Build();
                 _instance = modal;
@@ -142,8 +146,24 @@ namespace InvectorModKit.Marketplace.Ui
             tab.originalColors = colors;
         }
 
+        private int _clicksLogged;
+
+        /// <summary>Diagnostics for the first clicks: what is under the cursor, front to back.</summary>
+        private void LogClick()
+        {
+            if (_clicksLogged >= 3 || !Input.GetMouseButtonDown(0) || EventSystem.current == null) return;
+            _clicksLogged++;
+            var data = new PointerEventData(EventSystem.current) { position = Input.mousePosition };
+            var hits = new List<RaycastResult>();
+            EventSystem.current.RaycastAll(data, hits);
+            var module = EventSystem.current.currentInputModule;
+            MarketplacePlugin.Log.LogInfo($"Marketplace click at {Input.mousePosition} (module {(module ? module.GetType().Name : "none")}, cursor {(Cursor.visible ? "visible" : "hidden")}): " +
+                (hits.Count == 0 ? "nothing under the cursor" : string.Join(" | ", hits.GetRange(0, Math.Min(5, hits.Count)).ConvertAll(h => $"{h.gameObject.name} ({h.module?.GetType().Name}, order {h.sortingOrder})"))));
+        }
+
         private void Update()
         {
+            LogClick();
             if (_confirmation.Visible)
             {
                 if (Input.GetKeyDown(KeyCode.Escape)) _confirmation.Answer(false);
