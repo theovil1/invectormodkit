@@ -9,12 +9,14 @@ namespace InvectorModKit.Charting.Generation
     /// </summary>
     public sealed class BeatGrid
     {
-        public const int FeatureCount = 18;
+        public const int FeatureCount = 20;
         // Feature layout (see Build): bias, onset, low, mid, high, loudness, prominence, silence,
         // onset at -1q, onset at +1q, onset ±1 bar, onset², onset ±2 bars,
         // harmonic (sung/melodic) onset, percussive onset, harmonic onset ±1 bar, sung activity ±1 beat, harmonic ratio.
         public const int FOnset = 1, FLow = 2, FMid = 3, FHigh = 4, FLoud = 5, FProminence = 6, FSilent = 7;
         public const int FHarmonic = 13, FPercussive = 14, FHarmonicBar = 15, FSungActivity = 16, FHarmonicRatio = 17;
+        // Estimated sung attack (stereo centre) and singing activity around the position.
+        public const int FVocal = 18, FVocalActivity = 19;
 
         public double Origin;
         public double SecondsPerBeat;
@@ -80,6 +82,8 @@ namespace InvectorModKit.Charting.Generation
                     0.5f * ((i >= 16 ? harmonic[i - 16] : 0f) + (i + 16 < g.Count ? harmonic[i + 16] : 0f)),
                     MeanOf(f.OnsetHarmonic, f, t - spb, t + spb),
                     MeanOf(f.HarmonicRatio, f, t - spb / 2, t + spb / 2),
+                    f.MaxAround(f.OnsetVocal, t, 2),
+                    MeanOf(f.VocalRatio, f, t - spb / 2, t + spb / 2),
                 };
             }
             return g;

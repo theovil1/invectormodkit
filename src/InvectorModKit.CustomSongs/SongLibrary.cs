@@ -27,6 +27,10 @@ namespace InvectorModKit.CustomSongs
         public readonly string Root;
         public readonly string CacheDir;
         public readonly List<CustomSong> Songs = new List<CustomSong>();
+        /// <summary>Spleeter vocal model; null or missing file = chart from the mix alone.</summary>
+        public string VocalModelPath;
+        private VocalSeparator _separator;
+        private bool _separatorFailed;
 
         public SongLibrary(string root)
         {
@@ -113,10 +117,11 @@ namespace InvectorModKit.CustomSongs
                     var t0 = DateTime.UtcNow;
                     decoded = AudioFile.Decode(song.AudioPath);
                     var t1 = DateTime.UtcNow;
-                    chart = ChartGenerator.Generate(decoded.ToMono(), decoded.SampleRate, hash);
+                    var separator = GetSeparator(log);
+                    chart = ChartGenerator.Generate(decoded, hash, null, separator);
                     chart.Gain = Loudness.MatchOfficialGainDb(decoded);
                     File.WriteAllText(song.ChartPath, ChartJson.Serialize(chart));
-                    log($"{song}: generated chart ({chart.Bpm:0.##} BPM, {chart[ChartDifficulty.Ultra].Count} Ultra notes, gain {chart.Gain:+0.0;-0.0} dB; decode {(t1 - t0).TotalSeconds:0.0}s, analysis {(DateTime.UtcNow - t1).TotalSeconds:0.0}s)");
+                    log($"{song}: generated chart ({chart.Bpm:0.##} BPM, {chart[ChartDifficulty.Ultra].Count} Ultra notes, gain {chart.Gain:+0.0;-0.0} dB, vocals {(separator != null ? "separated" : "estimated from the mix")}; decode {(t1 - t0).TotalSeconds:0.0}s, analysis {(DateTime.UtcNow - t1).TotalSeconds:0.0}s)");
                 }
                 if (chart[ChartDifficulty.Casual].Count == 0 && chart[ChartDifficulty.Ultra].Count == 0)
                     throw new InvalidDataException("the chart has no notes");
@@ -149,6 +154,23 @@ namespace InvectorModKit.CustomSongs
                 song.State = SongState.Failed;
                 log($"{Path.GetFileName(song.AudioPath)}: FAILED - {e}");
             }
+        }
+
+        /// <summary>Created on first use (worker thread); any failure falls back to charting from the mix alone.</summary>
+        private VocalSeparator GetSeparator(Action<string> log)
+        {
+            if (_separator != null || _separatorFailed) return _separator;
+            try
+            {
+                if (string.IsNullOrEmpty(VocalModelPath) || !File.Exists(VocalModelPath)) throw new FileNotFoundException("vocal model not found", VocalModelPath);
+                _separator = new VocalSeparator(VocalModelPath, Math.Max(1, Environment.ProcessorCount / 2));
+            }
+            catch (Exception e)
+            {
+                _separatorFailed = true;
+                log("Vocal separation unavailable, charts follow the mix only: " + e.GetBaseException().Message);
+            }
+            return _separator;
         }
 
         private void ReadMetadata(CustomSong song)

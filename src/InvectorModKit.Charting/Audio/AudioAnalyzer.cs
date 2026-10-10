@@ -14,9 +14,39 @@ namespace InvectorModKit.Charting.Audio
         /// <summary>Onsets are heard this fraction of half a window after the frame start (measured: 18.8 ms at 44.1 kHz).</summary>
         public static double OnsetLatency = 0.81;
 
-        /// <param name="mono">Mono samples in [-1, 1].</param>
-        public static AudioFeatures Analyze(float[] mono, int sampleRate)
+        /// <summary>
+        /// Stereo-aware analysis: besides everything <see cref="Analyze(float[], int)"/> computes, finds the
+        /// sound panned to the centre (where lead vocals almost always sit, unlike strings, pads and reverb)
+        /// to estimate sung attacks without a separation model.
+        /// </summary>
+        /// <param name="estimateVocals">False when a separated vocal track will provide the singing features.</param>
+        public static AudioFeatures Analyze(DecodedAudio audio, bool estimateVocals = true)
         {
+            if (audio.Channels < 2) return Analyze(audio.Samples, audio.SampleRate, null, null, true, estimateVocals);
+            int frames = audio.Frames, ch = audio.Channels;
+            var mono = new float[frames];
+            var left = new float[frames];
+            var right = new float[frames];
+            for (int i = 0, o = 0; i < frames; i++, o += ch)
+            {
+                left[i] = audio.Samples[o];
+                right[i] = audio.Samples[o + 1];
+                float s = 0;
+                for (int c = 0; c < ch; c++) s += audio.Samples[o + c];
+                mono[i] = s / ch;
+            }
+            return Analyze(mono, audio.SampleRate, left, right, true, estimateVocals);
+        }
+
+        /// <param name="mono">Mono samples in [-1, 1].</param>
+        public static AudioFeatures Analyze(float[] mono, int sampleRate) => Analyze(mono, sampleRate, null, null, true);
+
+        /// <summary>Onsets and loudness only (no harmonic/percussive or vocal estimates): for separated stems.</summary>
+        public static AudioFeatures AnalyzeOnsets(float[] mono, int sampleRate) => Analyze(mono, sampleRate, null, null, false);
+
+        private static AudioFeatures Analyze(float[] mono, int sampleRate, float[] left, float[] right, bool full = true, bool estimateVocals = true)
+        {
+            bool stereo = left != null && right != null;
             // ~11.6 ms hop (512 samples at 44.1 kHz), ~46 ms window.
             int hop = (int)Math.Round(sampleRate * 512.0 / 44100.0);
             int n = 2048;
@@ -48,7 +78,9 @@ namespace InvectorModKit.Charting.Audio
                 fineFrac[b] = centre * n / sampleRate;
             }
             var fine = new float[frames][];
+            var center = new float[frames][];
             var power = new double[bins];
+            var centerPower = new double[bins];
             var bandHz = new double[BandCount];
             for (int b = 0; b < BandCount; b++) bandHz[b] = Math.Exp(logMin + (b + 0.5) / BandCount * (logMax - logMin));
 
@@ -77,8 +109,9 @@ namespace InvectorModKit.Charting.Audio
                 {
                     double s = mono[off + i];
                     if (i >= (n - hop) / 2 && i < (n + hop) / 2) sumSq += s * s;
-                    re[i] = s * window[i];
-                    im[i] = 0;
+                    // Stereo: one complex FFT of left + i·right gives both channels' spectra.
+                    re[i] = (stereo ? left[off + i] : s) * window[i];
+                    im[i] = stereo ? right[off + i] * window[i] : 0;
                 }
                 f.Rms[t] = (float)Math.Sqrt(sumSq / hop);
                 fft.Transform(re, im);
@@ -87,30 +120,57 @@ namespace InvectorModKit.Charting.Audio
                 double magSum = 0, weighted = 0;
                 for (int k = 1; k < bins; k++)
                 {
+                    double p;
+                    if (stereo)
+                    {
+                        // L_k = (Z_k + conj Z_{n-k}) / 2,  R_k = (Z_k - conj Z_{n-k}) / 2i
+                        double zr = re[k], zi = im[k], cr = re[n - k], ci = -im[n - k];
+                        double lr = (zr + cr) / 2, li = (zi + ci) / 2;
+                        double rr = (zi - ci) / 2, ri = -(zr - cr) / 2;
+                        double mr = (lr + rr) / 2, mi = (li + ri) / 2;
+                        p = mr * mr + mi * mi;
+                        // Centre-ness: 1 when both channels carry the same thing, 0 when one side only or out of phase.
+                        double dl = Math.Sqrt(lr * lr + li * li), dr = Math.Sqrt(rr * rr + ri * ri);
+                        double diff = Math.Sqrt((lr - rr) * (lr - rr) + (li - ri) * (li - ri));
+                        double sim = 1 - diff / (dl + dr + 1e-12);
+                        centerPower[k] = p * sim * sim;
+                    }
+                    else
+                    {
+                        p = re[k] * re[k] + im[k] * im[k];
+                        centerPower[k] = p;
+                    }
+                    power[k] = p;
                     int b = binBand[k];
                     if (b < 0) continue;
-                    double p = re[k] * re[k] + im[k] * im[k];
-                    power[k] = p;
                     bandEnergy[b] += p;
                     double mag = Math.Sqrt(p);
                     magSum += mag;
                     weighted += mag * k * sampleRate / (double)n;
                 }
                 f.Centroid[t] = (float)(magSum > 1e-9 ? weighted / magSum : 0);
+                if (full)
+                {
                 var fineRow = new float[FineBands];
+                var centerRow = new float[FineBands];
                 for (int b = 0; b < FineBands; b++)
                 {
-                    double e = 0;
-                    if (fineTo[b] >= fineFrom[b]) for (int k = fineFrom[b]; k <= fineTo[b] && k < bins; k++) e += power[k];
+                    double e = 0, c = 0;
+                    if (fineTo[b] >= fineFrom[b])
+                        for (int k = fineFrom[b]; k <= fineTo[b] && k < bins; k++) { e += power[k]; c += centerPower[k]; }
                     else
                     {
-                        int k0 = (int)fineFrac[b];
+                        int k0 = Math.Min(bins - 2, (int)fineFrac[b]);
                         double w = fineFrac[b] - k0;
-                        e = power[Math.Min(bins - 1, k0)] * (1 - w) + power[Math.Min(bins - 1, k0 + 1)] * w;
+                        e = power[k0] * (1 - w) + power[k0 + 1] * w;
+                        c = centerPower[k0] * (1 - w) + centerPower[k0 + 1] * w;
                     }
                     fineRow[b] = (float)e;
+                    centerRow[b] = (float)c;
                 }
                 fine[t] = fineRow;
+                center[t] = centerRow;
+                }
                 var bands = new float[BandCount];
                 for (int b = 0; b < BandCount; b++) bands[b] = (float)Math.Log(1 + 1000 * bandEnergy[b]);
                 f.Bands[t] = bands;
@@ -136,8 +196,41 @@ namespace InvectorModKit.Charting.Audio
             }
 
             Normalize(f.Onset); Normalize(f.OnsetLow); Normalize(f.OnsetMid); Normalize(f.OnsetHigh);
+            if (!full) return f;
             SeparateHarmonicPercussive(f, fine);
+            if (estimateVocals) EstimateVocals(f, fine, center);
+            else { f.OnsetVocal = new float[frames]; f.VocalRatio = new float[frames]; }
             return f;
+        }
+
+        /// <summary>
+        /// Sung attacks ≈ onsets of the harmonic part of the centre channel in the singing range, and how
+        /// much of that range's energy is centred and sustained. For mono input this falls back to the
+        /// harmonic part of the whole mix.
+        /// </summary>
+        private static void EstimateVocals(AudioFeatures f, float[][] fine, float[][] center)
+        {
+            int frames = f.Frames, k = FineBands;
+            f.OnsetVocal = new float[frames];
+            f.VocalRatio = new float[frames];
+            var h = MedianAlongTime(center, k, 8);
+            var p = MedianAlongFrequency(center, k, 3);
+            var voc = new float[frames][];
+            for (int t = 0; t < frames; t++)
+            {
+                voc[t] = new float[k];
+                double vs = 0, all = 0;
+                for (int b = 0; b < k; b++)
+                {
+                    double hh = h[t][b], pp = p[t][b];
+                    double v = center[t][b] * (hh * hh / (hh * hh + pp * pp + 1e-18));
+                    voc[t][b] = (float)Math.Log(1 + 1e4 * v);
+                    vs += v; all += fine[t][b];
+                }
+                f.VocalRatio[t] = (float)(vs / (all + 1e-18));
+            }
+            Flux(voc, f.OnsetVocal);
+            Normalize(f.OnsetVocal);
         }
 
         /// <summary>
@@ -216,21 +309,42 @@ namespace InvectorModKit.Charting.Audio
             }
         }
 
+        /// <summary>Running median along time: a sorted window updated by one removal and one insertion per step.</summary>
         private static float[][] MedianAlongTime(float[][] spec, int bands, int radius)
         {
             int frames = spec.Length;
             var result = new float[frames][];
             for (int t = 0; t < frames; t++) result[t] = new float[bands];
-            var buf = new float[2 * radius + 1];
+            var win = new float[2 * radius + 2];
             for (int b = 0; b < bands; b++)
+            {
+                int count = 0;
+                for (int u = 0; u <= Math.Min(frames - 1, radius); u++) Insert(win, ref count, spec[u][b]);
                 for (int t = 0; t < frames; t++)
                 {
-                    int n = 0;
-                    for (int u = Math.Max(0, t - radius); u <= Math.Min(frames - 1, t + radius); u++) buf[n++] = spec[u][b];
-                    Array.Sort(buf, 0, n);
-                    result[t][b] = buf[n / 2];
+                    result[t][b] = win[count / 2];
+                    int outgoing = t - radius, incoming = t + radius + 1;
+                    if (outgoing >= 0) Remove(win, ref count, spec[outgoing][b]);
+                    if (incoming < frames) Insert(win, ref count, spec[incoming][b]);
                 }
+            }
             return result;
+        }
+
+        private static void Insert(float[] win, ref int count, float v)
+        {
+            int i = count++;
+            while (i > 0 && win[i - 1] > v) { win[i] = win[i - 1]; i--; }
+            win[i] = v;
+        }
+
+        private static void Remove(float[] win, ref int count, float v)
+        {
+            int i = 0;
+            while (i < count && win[i] != v) i++;
+            if (i == count) return;
+            for (; i < count - 1; i++) win[i] = win[i + 1];
+            count--;
         }
 
         private static float[][] MedianAlongFrequency(float[][] spec, int bands, int radius)
@@ -241,11 +355,11 @@ namespace InvectorModKit.Charting.Audio
             for (int t = 0; t < frames; t++)
             {
                 result[t] = new float[bands];
+                var row = spec[t];
                 for (int b = 0; b < bands; b++)
                 {
                     int n = 0;
-                    for (int c = Math.Max(0, b - radius); c <= Math.Min(bands - 1, b + radius); c++) buf[n++] = spec[t][c];
-                    Array.Sort(buf, 0, n);
+                    for (int c = Math.Max(0, b - radius); c <= Math.Min(bands - 1, b + radius); c++) Insert(buf, ref n, row[c]);
                     result[t][b] = buf[n / 2];
                 }
             }

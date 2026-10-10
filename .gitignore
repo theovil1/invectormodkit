@@ -4,3 +4,4 @@ obj/
 *.user
 Directory.Build.user.props
 /artifacts/
+/models/

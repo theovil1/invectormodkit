@@ -13,16 +13,35 @@ namespace InvectorModKit.Charting.Generation
         public double[] Density = { 1.0, 1.0, 1.0, 1.0 };
         /// <summary>Move notes onto the actual attack when one is within this many seconds of the grid (0 = off).</summary>
         public double SnapToOnset = 0.025;
+        /// <summary>
+        /// Extra pull towards sung attacks when choosing notes; changes which positions get notes, not how
+        /// many. Negative = automatic: with a separated vocal track, songs that follow the singing less than
+        /// the official charts usually do are pulled up to the official median. 0 = exactly as learned.
+        /// </summary>
+        public double VocalFocus = -1.0;
     }
 
     /// <summary>Builds a complete four-difficulty chart from decoded audio.</summary>
     public static class ChartGenerator
     {
         /// <summary>Bump whenever generation changes, so cached auto-generated charts are rebuilt.</summary>
-        public const int Version = 5;
+        public const int Version = 6;
+
+        /// <summary>Vocal focus the last generation actually used (diagnostics).</summary>
+        [ThreadStatic] public static double VocalFocusUsed;
+        [ThreadStatic] public static double VocalShareSeen;
 
         /// <summary>Sections start this much before their bar line so notes snapped slightly early stay inside.</summary>
         private const double SectionLead = 0.05;
+
+        /// <summary>Full analysis of decoded audio (uses the stereo image to find the singing when there is one).</summary>
+        /// <param name="vocals">When given, the singing is taken from a separated vocal track (much more reliable).</param>
+        public static Chart Generate(DecodedAudio audio, string audioHash, GeneratorOptions options = null, VocalSeparator vocals = null)
+        {
+            var f = AudioAnalyzer.Analyze(audio, estimateVocals: vocals == null);
+            if (vocals != null) VocalFeatures.Inject(f, vocals.SeparateMono(audio), audio.SampleRate);
+            return Generate(f, TempoEstimator.Estimate(f), audioHash, options);
+        }
 
         public static Chart Generate(float[] mono, int sampleRate, string audioHash, GeneratorOptions options = null)
         {
@@ -65,20 +84,50 @@ namespace InvectorModKit.Charting.Generation
             // Official charts never put two notes closer than ~0.115 s, whatever the tempo
             // (at fast tempos that rules out runs of quarter beats).
             int minGap = Math.Max(1, (int)Math.Ceiling(Playability.MinNoteGap / grid.Quarter - 1e-6));
-            var rhythms = new List<int>[4];
-            int[] candidates = Enumerable.Range(from, Math.Max(0, to - from + 1))
+            int[] allCandidates = Enumerable.Range(from, Math.Max(0, to - from + 1))
                 .Where(i => Audible(i) && !Freefly(i) && !blocked.Contains(i)).ToArray();
-            for (int d = (int)Difficulty.Ultra; d >= 0; d--)
+
+            List<int>[] DecodeAll(double focus)
             {
-                var diff = (Difficulty)d;
-                var score = new double[candidates.Length];
-                for (int k = 0; k < candidates.Length; k++)
-                    score[k] = holdStarts.Contains(candidates[k]) ? 30 : NoteModel.Logit(diff, BeatGrid.Level(candidates[k]), grid.X[candidates[k]]);
-                int target = (int)Math.Round(expected[d]) + holds.Count;
-                rhythms[d] = RhythmDecoder.Decode(candidates, score, NoteModel.GapLogPrior(diff), options.GapWeight, target, minGap);
-                foreach (int h in holdStarts) if (!rhythms[d].Contains(h)) rhythms[d].Add(h);
-                rhythms[d].Sort();
-                candidates = rhythms[d].ToArray();
+                var result = new List<int>[4];
+                int[] candidates = allCandidates;
+                for (int d = (int)Difficulty.Ultra; d >= 0; d--)
+                {
+                    var diff = (Difficulty)d;
+                    var score = new double[candidates.Length];
+                    for (int k = 0; k < candidates.Length; k++)
+                        score[k] = holdStarts.Contains(candidates[k]) ? 30 : NoteModel.Logit(diff, BeatGrid.Level(candidates[k]), grid.X[candidates[k]])
+                            + focus * VocalPull(grid.X[candidates[k]]);
+                    int target = (int)Math.Round(expected[d]) + holds.Count;
+                    result[d] = RhythmDecoder.Decode(candidates, score, NoteModel.GapLogPrior(diff), options.GapWeight, target, minGap);
+                    foreach (int h in holdStarts) if (!result[d].Contains(h)) result[d].Add(h);
+                    result[d].Sort();
+                    candidates = result[d].ToArray();
+                }
+                return result;
+            }
+
+            // With a separated vocal track, a song that follows the singing less than the official median
+            // is pulled towards the official upper quartile, with a bounded strength: the base game itself
+            // ranges widely here, and stronger pulls cost more fidelity than they bring.
+            var rhythms = DecodeAll(Math.Max(0, options.VocalFocus));
+            VocalFocusUsed = Math.Max(0, options.VocalFocus);
+            if (options.VocalFocus < 0 && f.HasSeparatedVocals)
+            {
+                const int reference = (int)Difficulty.Normal;
+                double share = VocalCalibration.Share(grid, f, rhythms[reference]);
+                VocalShareSeen = share;
+                if (share >= 0 && share < VocalCalibration.OfficialFloor[reference])
+                {
+                    foreach (double focus in new[] { 1.0, 2.0, 3.0, 4.0 })
+                    {
+                        var trial = DecodeAll(focus);
+                        double s = VocalCalibration.Share(grid, f, trial[reference]);
+                        rhythms = trial;
+                        VocalFocusUsed = focus;
+                        if (s >= VocalCalibration.OfficialShare[reference]) break;
+                    }
+                }
             }
 
             // Freefly: the same sparse rings in every difficulty.
@@ -167,6 +216,17 @@ namespace InvectorModKit.Charting.Generation
             for (int k = Math.Max(1, c - r); k <= Math.Min(f.Frames - 2, c + r); k++)
                 if (f.Onset[k] > bestV && f.Onset[k] >= f.Onset[k - 1] && f.Onset[k] >= f.Onset[k + 1]) { bestV = f.Onset[k]; best = k; }
             return best < 0 ? t : f.TimeOf(best);
+        }
+
+        /// <summary>
+        /// While someone sings: favour sung attacks and disfavour attacks that are only accompaniment
+        /// (strings, synths...), so the chart follows the voice without changing its density.
+        /// </summary>
+        private static double VocalPull(float[] x)
+        {
+            double sung = Math.Min(1.0, x[BeatGrid.FVocalActivity] / 0.25);
+            double accompaniment = Math.Max(0, x[BeatGrid.FOnset] - x[BeatGrid.FVocal]);
+            return sung * (x[BeatGrid.FVocal] - 0.7 * accompaniment);
         }
 
         /// <summary>Start of the loudest ~20 s between 20% and 75% of the song, snapped to a bar line.</summary>

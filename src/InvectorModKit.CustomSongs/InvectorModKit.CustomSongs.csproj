@@ -14,5 +14,7 @@
 
   <Target Name="DeployToGame" AfterTargets="Build" Condition="'$(DeployToGame)' != 'false' And Exists('$(PluginsDir)')">
     <Copy SourceFiles="$(OutDir)InvectorModKit.CustomSongs.dll;$(OutDir)InvectorModKit.CustomSongs.pdb" DestinationFolder="$(PluginsDir)\InvectorModKit.CustomSongs" SkipUnchangedFiles="true" />
+    <!-- Vocal separation model (tools/get-models.ps1 downloads it). Without it songs are still charted, from the mix alone. -->
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\..\models\vocals.fp16.onnx" DestinationFolder="$(PluginsDir)\InvectorModKit.CustomSongs" SkipUnchangedFiles="true" Condition="Exists('$(MSBuildThisFileDirectory)..\..\models\vocals.fp16.onnx')" />
   </Target>
 </Project>

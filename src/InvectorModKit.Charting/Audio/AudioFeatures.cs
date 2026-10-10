@@ -16,6 +16,14 @@ namespace InvectorModKit.Charting.Audio
         public float[] OnsetHarmonic, OnsetPercussive;
         /// <summary>0..1, how much of the singing-range energy is sustained (harmonic) rather than percussive.</summary>
         public float[] HarmonicRatio;
+        /// <summary>Estimated sung attacks (harmonic onsets of the stereo centre in the singing range).</summary>
+        public float[] OnsetVocal;
+        /// <summary>0..1, share of the singing range that is centred and sustained (a proxy for "someone is singing").</summary>
+        public float[] VocalRatio;
+        /// <summary>True when OnsetVocal/VocalRatio come from a separated vocal track rather than the stereo-centre estimate.</summary>
+        public bool HasSeparatedVocals;
+        /// <summary>Times (s) of clear sung attacks in the separated vocal track (adaptive-threshold peaks), sorted.</summary>
+        public double[] VocalPeakTimes;
         /// <summary>Linear RMS loudness per frame.</summary>
         public float[] Rms;
         /// <summary>Log-energy in <see cref="BandCount"/> log-spaced bands per frame (for structure and timbre).</summary>

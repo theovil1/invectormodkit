@@ -32,7 +32,11 @@ namespace InvectorModKit.CustomSongs
             Directory.CreateDirectory(root);
             WriteReadme(root);
 
-            Library = new SongLibrary(root);
+            PreloadNative(Path.Combine(Paths.PluginPath, "InvectorModKit", "onnxruntime.dll"));
+            Library = new SongLibrary(root)
+            {
+                VocalModelPath = Path.Combine(Path.GetDirectoryName(Info.Location), "vocals.fp16.onnx"),
+            };
             Library.Scan();
             Logger.LogInfo($"{Library.Songs.Count} custom song(s) in {root}");
 
@@ -100,6 +104,16 @@ namespace InvectorModKit.CustomSongs
             }) { IsBackground = true, Priority = System.Threading.ThreadPriority.BelowNormal, Name = "CustomSongs worker" };
             thread.Start();
             return done.Task;
+        }
+
+        [System.Runtime.InteropServices.DllImport("kernel32", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+        private static extern System.IntPtr LoadLibrary(string path);
+
+        /// <summary>Native DLLs next to a plugin are not on Windows' search path; loading it first lets P/Invoke find it.</summary>
+        private void PreloadNative(string path)
+        {
+            if (!File.Exists(path)) { Logger.LogWarning("Missing " + path + " (vocal separation disabled)"); return; }
+            if (LoadLibrary(path) == System.IntPtr.Zero) Logger.LogWarning($"Could not load {path} (error {System.Runtime.InteropServices.Marshal.GetLastWin32Error()})");
         }
 
         private void Fail(CustomSong song, string what, System.Exception e)
