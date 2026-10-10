@@ -45,6 +45,7 @@ namespace InvectorModKit.CustomSongs
             new Harmony(Guid).PatchAll(typeof(Patches));
             StartCoroutine(GameAssets.LoadTemplates(Logger));
             StartCoroutine(PrepareSongs());
+            gameObject.AddComponent<EditorSkin>();
         }
 
         /// <summary>How often the songs folder is checked for added or deleted songs (and whenever the game gets focus back).</summary>
