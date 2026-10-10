@@ -18,7 +18,8 @@ namespace InvectorModKit.Marketplace.Ui
         private readonly ScrollRect _scroll;
         private readonly RectTransform _content;
         private readonly Text _title, _artist, _info, _status, _empty;
-        private readonly Image _cover;
+        private readonly Image _cover, _audioPanel;
+        private readonly Text _video;
         private readonly List<SongRow> _rows = new List<SongRow>();
         private readonly List<ChartSummary> _items = new List<ChartSummary>();
 
@@ -49,19 +50,32 @@ namespace InvectorModKit.Marketplace.Ui
             _more = m.MakeButton(_root.transform, "PLUS DE RÉSULTATS", -310, -350, 320, 44, () => Search(append: true), 24);
 
             _cover = GameUi.Image(_root.transform, "Cover", Color.white);
-            GameUi.Place(_cover, 250, 120, 200, 200);
-            _title = GameUi.Text(_root.transform, "Title", m.Bold, 34, TextAnchor.UpperLeft, Color.white);
-            GameUi.Place(_title, 535, 175, 330, 90);
+            GameUi.Place(_cover, 225, 160, 160, 160);
+            _title = GameUi.Text(_root.transform, "Title", m.Bold, 32, TextAnchor.UpperLeft, Color.white);
+            GameUi.Place(_title, 505, 200, 350, 80);
             _artist = GameUi.Text(_root.transform, "Artist", m.Regular, 26, TextAnchor.UpperLeft, GameUi.Muted);
-            GameUi.Place(_artist, 535, 90, 330, 70);
-            _info = GameUi.Text(_root.transform, "Info", m.Regular, 24, TextAnchor.UpperLeft, GameUi.Muted);
-            GameUi.Place(_info, 415, -70, 550, 150);
-            _status = GameUi.Text(_root.transform, "Status", m.Regular, 24, TextAnchor.UpperLeft, Color.white);
-            GameUi.Place(_status, 415, -175, 550, 80);
-            _install = m.MakeButton(_root.transform, "INSTALLER", 280, -255, 270, 64, () => Primary(_selected));
-            _youtube = m.MakeButton(_root.transform, "OUVRIR SUR YOUTUBE", 560, -255, 270, 64, () => { if (_selected != null) Application.OpenURL(_selected.YoutubeUrl); });
-            _folder = m.MakeButton(_root.transform, "DOSSIER CUSTOMSONGS", 280, -325, 270, 56, OpenFolder, 24);
-            _remove = m.MakeButton(_root.transform, "RETIRER", 560, -325, 270, 56, RemoveSelected, 24);
+            GameUi.Place(_artist, 505, 125, 350, 60);
+            _info = GameUi.Text(_root.transform, "Info", m.Regular, 22, TextAnchor.UpperLeft, GameUi.Muted);
+            GameUi.Place(_info, 415, 25, 550, 90);
+
+            // Where the audio comes from: the chart is timed on the soundtrack of the attached video.
+            _audioPanel = GameUi.Image(_root.transform, "Audio", new Color(1, 1, 1, 0.06f));
+            GameUi.Place(_audioPanel, 415, -95, 560, 130);
+            var audioHeader = GameUi.Text(_audioPanel.transform, "Header", m.Bold, 22, TextAnchor.UpperLeft, Color.white);
+            audioHeader.text = "AUDIO : LA VIDÉO YOUTUBE LIÉE";
+            GameUi.Place(audioHeader, 0, 42, 520, 30);
+            _video = GameUi.Text(_audioPanel.transform, "Video", m.Regular, 22, TextAnchor.UpperLeft, Color.white);
+            GameUi.Place(_video, 0, 3, 520, 50);
+            var audioNote = GameUi.Text(_audioPanel.transform, "Note", m.Regular, 19, TextAnchor.UpperLeft, GameUi.Muted);
+            audioNote.text = "Le chart est calé sur la bande-son de cette vidéo : c'est cette version du morceau qu'il te faut.";
+            GameUi.Place(audioNote, 0, -42, 520, 44);
+
+            _status = GameUi.Text(_root.transform, "Status", m.Regular, 21, TextAnchor.UpperLeft, Color.white);
+            GameUi.Place(_status, 415, -190, 550, 56);
+            _install = m.MakeButton(_root.transform, "INSTALLER", 280, -258, 270, 58, () => Primary(_selected));
+            _youtube = m.MakeButton(_root.transform, "OUVRIR SUR YOUTUBE", 560, -258, 270, 58, () => { if (_selected != null) Application.OpenURL(_selected.YoutubeUrl); });
+            _folder = m.MakeButton(_root.transform, "DOSSIER CUSTOMSONGS", 280, -324, 270, 52, OpenFolder, 24);
+            _remove = m.MakeButton(_root.transform, "RETIRER", 560, -324, 270, 52, RemoveSelected, 24);
             var actions = new Selectable[] { _install, _youtube, _folder, _remove };
             for (int i = 0; i < actions.Length; i++)
                 actions[i].navigation = new Navigation
@@ -218,14 +232,19 @@ namespace InvectorModKit.Marketplace.Ui
         {
             _selected = c;
             bool any = c != null;
-            foreach (var go in new GameObject[] { _cover.gameObject, _title.gameObject, _artist.gameObject, _info.gameObject, _install.gameObject, _youtube.gameObject, _remove.gameObject })
+            foreach (var go in new GameObject[] { _cover.gameObject, _title.gameObject, _artist.gameObject, _info.gameObject, _audioPanel.gameObject, _install.gameObject, _youtube.gameObject, _remove.gameObject })
                 go.SetActive(any);
             if (!any) { _status.text = ""; return; }
             _title.text = c.Title;
             _artist.text = c.Artist;
-            _info.text = $"Chart de {c.Author}  ·  version {c.Version}\n{c.Bpm:0.#} BPM  ·  {(int)c.Duration / 60}:{(int)c.Duration % 60:00}\n" +
+            _info.text = $"Chart de {c.Author}  ·  version {c.Version}  ·  {c.Bpm:0.#} BPM  ·  {(int)c.Duration / 60}:{(int)c.Duration % 60:00}\n" +
                          $"Notes : Casual {c.Notes.Casual}  ·  Normal {c.Notes.Normal}  ·  Hard {c.Notes.Hard}  ·  Ultra {c.Notes.Ultra}\n" +
                          $"{c.Downloads} téléchargement{(c.Downloads > 1 ? "s" : "")}";
+            _video.text = "youtu.be/" + c.YoutubeId;
+            VideoInfo.Get(c.YoutubeId, (title, channel) =>
+            {
+                if (_selected == c && _video) _video.text = $"« {title} »" + (string.IsNullOrEmpty(channel) ? "" : $"  ·  {channel}");
+            });
             _cover.sprite = null;
             _cover.color = new Color(1, 1, 1, 0.1f);
             Thumbnails.Get(c.YoutubeId, sprite => { if (_selected == c && _cover) { _cover.sprite = sprite; _cover.color = Color.white; } });
@@ -240,7 +259,7 @@ namespace InvectorModKit.Marketplace.Ui
             MarketplaceModal.SetLabel(_install, mine ? "TON CHART" : installed ? "INSTALLÉ" : waiting ? "EN ATTENTE DE L'AUDIO" : "INSTALLER");
             _install.interactable = !mine && !installed && !waiting;
             if (waiting && string.IsNullOrEmpty(_status.text))
-                _status.text = "Récupère l'audio de la vidéo et dépose le fichier dans le dossier CustomSongs : le chart s'y calera tout seul.";
+                _status.text = "Dépose ce morceau (la version de la vidéo liée) dans le dossier CustomSongs : le chart s'y calera tout seul.";
             if (installed && _status.text.StartsWith("Téléchargé")) _status.text = "Installé ! Il est dans la sélection, section Custom Songs.";
             var session = MarketplacePlugin.Session.Current;
             _remove.gameObject.SetActive(session != null && (session.Role == "admin" || session.Name == c.Author));
@@ -263,7 +282,7 @@ namespace InvectorModKit.Marketplace.Ui
                 MarketplacePlugin.Installs.Install(download);
                 CustomSongsApi.RequestMarketplaceMatch();
                 if (!_root) return;
-                _status.text = "Téléchargé. Je cherche ce morceau parmi tes fichiers… S'il n'y est pas, récupère l'audio de la vidéo et dépose-le dans CustomSongs.";
+                _status.text = "Téléchargé. Je cherche ce morceau parmi tes fichiers… S'il n'y est pas, dépose-le (la version de la vidéo liée) dans CustomSongs.";
                 RefreshLocalState();
             }
             catch (Exception e)
