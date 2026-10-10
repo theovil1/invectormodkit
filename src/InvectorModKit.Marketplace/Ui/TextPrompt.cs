@@ -55,8 +55,8 @@ namespace InvectorModKit.Marketplace.Ui
             var cancel = GameUi.Find<ButtonWithEvents>(box.gameObject, "Answer No");
             GameUi.Place(_ok, -165, -130, 300, 84);
             GameUi.Place(cancel, 165, -130, 300, 84);
-            MarketplaceModal.StyleButton(_ok, "VALIDER", 34, Submit);
-            MarketplaceModal.StyleButton(cancel, "ANNULER", 34, Close);
+            MarketplaceModal.StyleButton(_ok, Loc.T("ok"), 34, Submit);
+            MarketplaceModal.StyleButton(cancel, Loc.T("cancel"), 34, Close);
             _ok.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnRight = cancel };
             cancel.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = _ok };
             _root.SetActive(false);

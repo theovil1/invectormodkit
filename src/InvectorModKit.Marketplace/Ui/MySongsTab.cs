@@ -41,7 +41,7 @@ namespace InvectorModKit.Marketplace.Ui
             rt.sizeDelta = Vector2.zero;
 
             var help = GameUi.Text(_root.transform, "Help", m.Regular, 22, TextAnchor.MiddleLeft, GameUi.Muted);
-            help.text = "Pour publier : choisis un morceau, « Publier », puis donne le lien de sa vidéo YouTube. Seul le chart est envoyé, jamais l'audio.";
+            help.text = Loc.T("mine_help");
             GameUi.Place(help, -310, 212, 780, 60);
             (_scroll, _content) = MarketplaceModal.MakeList(_root.transform, -310, -70, 780, 500);
             _empty = GameUi.Text(_scroll.transform, "Empty", m.Regular, 28, TextAnchor.MiddleCenter, GameUi.Muted);
@@ -57,9 +57,9 @@ namespace InvectorModKit.Marketplace.Ui
             GameUi.Place(_info, 415, -60, 550, 120);
             _status = GameUi.Text(_root.transform, "Status", m.Regular, 24, TextAnchor.UpperLeft, Color.white);
             GameUi.Place(_status, 415, -170, 550, 100);
-            _publish = m.MakeButton(_root.transform, "PUBLIER", 280, -255, 270, 64, () => Publish(_selected));
-            _withdraw = m.MakeButton(_root.transform, "RETIRER LA PUBLICATION", 560, -255, 270, 64, () => Withdraw(_selected), 24);
-            _folder = m.MakeButton(_root.transform, "DOSSIER CUSTOMSONGS", 280, -325, 270, 56, BrowseTab.OpenFolder, 24);
+            _publish = m.MakeButton(_root.transform, Loc.T("publish"), 280, -255, 270, 64, () => Publish(_selected));
+            _withdraw = m.MakeButton(_root.transform, Loc.T("withdraw"), 560, -255, 270, 64, () => Withdraw(_selected), 24);
+            _folder = m.MakeButton(_root.transform, Loc.T("open_folder"), 280, -325, 270, 56, BrowseTab.OpenFolder, 24);
             _publish.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnRight = _withdraw, selectOnDown = _folder };
             _withdraw.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = _publish };
             _folder.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnUp = _publish };
@@ -119,13 +119,13 @@ namespace InvectorModKit.Marketplace.Ui
                 _rows.Add(row);
             }
             MarketplaceModal.ChainNavigation(_rows.Select(r => (Selectable)r.Button).ToList(), _publish);
-            _empty.text = _songs.Count == 0 ? "Aucun morceau custom prêt. Dépose des mp3 dans le dossier CustomSongs." : "";
+            _empty.text = _songs.Count == 0 ? Loc.T("no_songs") : "";
             if (_rows.Count > 0) GameUi.Select(_rows[0].Root);
             else ShowDetails(null, false);
         }
 
         private static string Note(LocalSong s) =>
-            !IsOwn(s) ? "MARKETPLACE" : MarketplacePlugin.Session.PublishedChart(s.Id) != null ? "PUBLIÉ" : "";
+            !IsOwn(s) ? Loc.T("from_marketplace") : MarketplacePlugin.Session.PublishedChart(s.Id) != null ? Loc.T("published") : "";
 
         private void ShowDetails(LocalSong s, bool keepStatus)
         {
@@ -141,9 +141,9 @@ namespace InvectorModKit.Marketplace.Ui
             string published = MarketplacePlugin.Session.PublishedChart(s.Id);
             bool own = IsOwn(s);
             _info.text = $"{(int)s.Duration / 60}:{(int)s.Duration % 60:00}  ·  {Path.GetFileName(s.AudioPath)}\n" +
-                         (!own ? $"Chart de {s.MarketplaceAuthor}, installé depuis le marketplace." : published != null ? "Publié sur le marketplace." : "Pas encore publié.");
+                         (!own ? Loc.T("installed_from", s.MarketplaceAuthor) : published != null ? Loc.T("published_long") : Loc.T("not_published"));
             _publish.gameObject.SetActive(own);
-            MarketplaceModal.SetLabel(_publish, published != null ? "METTRE À JOUR" : "PUBLIER");
+            MarketplaceModal.SetLabel(_publish, published != null ? Loc.T("update") : Loc.T("publish"));
             _publish.interactable = !_busy;
             _withdraw.gameObject.SetActive(own && published != null);
         }
@@ -161,10 +161,10 @@ namespace InvectorModKit.Marketplace.Ui
             if (s == null || _busy || !IsOwn(s)) return;
             if (!await _m.EnsureSignedIn() || !_root) return;
             string initial = MarketplacePlugin.Session.PublishedLink(s.Id) ?? YoutubeLink.Normalize(GUIUtility.systemCopyBuffer) ?? "";
-            _m.Prompt($"Lien de la vidéo YouTube de « {s.Title} »",
-                "Tape ou colle (Ctrl+V) le lien de la vidéo du morceau. Seul le chart est envoyé, jamais l'audio.",
+            _m.Prompt(Loc.T("link_question", s.Title),
+                Loc.T("link_hint"),
                 initial,
-                text => YoutubeLink.Normalize(text) == null ? "Ce n'est pas un lien de vidéo YouTube (youtube.com/watch?v=… ou youtu.be/…)." : null,
+                text => YoutubeLink.Normalize(text) == null ? Loc.T("link_invalid") : null,
                 text => Send(s, YoutubeLink.Normalize(text)));
         }
 
@@ -173,22 +173,22 @@ namespace InvectorModKit.Marketplace.Ui
             _busy = true;
             try
             {
-                _status.text = "Analyse de l'audio (empreinte)…";
+                _status.text = Loc.T("fingerprinting");
                 string fingerprint = await Task.Run(() => CustomSongsApi.FingerprintJson(s.Id));
                 string chart = File.ReadAllText(s.ChartPath);
-                _status.text = "Envoi…";
+                _status.text = Loc.T("sending");
                 var published = await MarketplacePlugin.Api.PublishAsync(new PublishRequest
                 {
                     Title = s.Title, Artist = s.Artist, YoutubeUrl = link, Duration = s.Duration, ChartJson = chart, FingerprintJson = fingerprint,
                 });
                 MarketplacePlugin.Session.RememberPublished(s.Id, published.Id, link);
                 if (!_root) return;
-                _status.text = published.Version > 1 ? $"Mis à jour (version {published.Version})." : "Publié ! Les autres joueurs peuvent maintenant l'installer.";
+                _status.text = published.Version > 1 ? Loc.T("updated", published.Version) : Loc.T("published_done");
                 RefreshNotes();
             }
             catch (Exception e)
             {
-                if (_root) _status.text = "Publication impossible : " + e.GetBaseException().Message;
+                if (_root) _status.text = Loc.T("publish_failed", e.GetBaseException().Message);
             }
             finally
             {
@@ -201,7 +201,7 @@ namespace InvectorModKit.Marketplace.Ui
         {
             string chartId = s == null ? null : MarketplacePlugin.Session.PublishedChart(s.Id);
             if (chartId == null) return;
-            _m.Confirm($"Retirer « {s.Title} » du marketplace ?\nLes joueurs qui l'ont installé le gardent.", async () =>
+            _m.Confirm(Loc.T("withdraw_confirm", s.Title), async () =>
             {
                 try
                 {
@@ -210,12 +210,12 @@ namespace InvectorModKit.Marketplace.Ui
                 catch (MarketplaceException e) when (e.Status == 404) { }
                 catch (Exception e)
                 {
-                    if (_root) _status.text = "Impossible de retirer : " + e.GetBaseException().Message;
+                    if (_root) _status.text = Loc.T("remove_failed", e.GetBaseException().Message);
                     return;
                 }
                 MarketplacePlugin.Session.ForgetPublished(s.Id);
                 if (!_root) return;
-                _status.text = "Retiré du marketplace.";
+                _status.text = Loc.T("withdrawn");
                 RefreshNotes();
                 ShowDetails(s, keepStatus: true);
             });

@@ -97,7 +97,7 @@ namespace InvectorModKit.Marketplace.Ui
             Regular = title.font;
             Bold = GameUi.Font("Exo2-BoldCondensed", Regular);
             SemiBold = GameUi.Font("Exo2-SemiBoldCondensed", Regular);
-            title.text = "MARKETPLACE";
+            title.text = Loc.T("title");
             title.alignment = TextAnchor.MiddleLeft;
             title.resizeTextForBestFit = false;
             title.fontSize = 44;
@@ -106,14 +106,14 @@ namespace InvectorModKit.Marketplace.Ui
 
             _account = GameUi.Text(Box, "Account", Regular, 26, TextAnchor.MiddleRight, GameUi.Muted);
             GameUi.Place(_account, Width / 2 - 440, Height / 2 - 70, 380, 50);
-            _signIn = MakeButton(Box, "SE CONNECTER", Width / 2 - 230, Height / 2 - 70, 220, 56, SignIn, 26);
+            _signIn = MakeButton(Box, Loc.T("sign_in"), Width / 2 - 230, Height / 2 - 70, 220, 56, SignIn, 26);
             MakeButton(Box, "X", Width / 2 - 70, Height / 2 - 70, 64, 56, Shut, 30);
 
-            _browseTab = MakeButton(Box, "PARCOURIR", -Width / 2 + 190, Height / 2 - 150, 260, 60, () => Show(_browse));
-            _mineTab = MakeButton(Box, "MES MORCEAUX", -Width / 2 + 470, Height / 2 - 150, 260, 60, () => Show(_mine));
+            _browseTab = MakeButton(Box, Loc.T("tab_browse"), -Width / 2 + 190, Height / 2 - 150, 260, 60, () => Show(_browse));
+            _mineTab = MakeButton(Box, Loc.T("tab_mine"), -Width / 2 + 470, Height / 2 - 150, 260, 60, () => Show(_mine));
 
             var hints = GameUi.Text(Box, "Hints", Regular, 24, TextAnchor.MiddleCenter, GameUi.Muted);
-            hints.text = "ÉCHAP  Fermer      TAB  Changer d'onglet      F  Rechercher      ENTRÉE ou DOUBLE-CLIC  Action principale      ← →  Actions";
+            hints.text = Loc.T("hints");
             GameUi.Place(hints, 0, -Height / 2 + 40, Width - 120, 40);
 
             _browse = new BrowseTab(this);
@@ -300,8 +300,8 @@ namespace InvectorModKit.Marketplace.Ui
         private void RefreshAccount()
         {
             var session = MarketplacePlugin.Session;
-            _account.text = session.SignedIn ? $"Connecté : {session.Current.Name}{(session.Current.Role == "admin" ? " (admin)" : "")}"
-                          : session.SigningIn ? "Connexion dans ton navigateur…" : "";
+            _account.text = session.SignedIn ? Loc.T("signed_in", session.Current.Name + (session.Current.Role == "admin" ? Loc.T("admin_suffix") : ""))
+                          : session.SigningIn ? Loc.T("signing_in") : "";
             _signIn.gameObject.SetActive(!session.SignedIn && !session.SigningIn);
             var rt = (RectTransform)_account.transform;
             rt.anchoredPosition = new Vector2(session.SignedIn || session.SigningIn ? Width / 2 - 300 : Width / 2 - 540, rt.anchoredPosition.y);
@@ -320,7 +320,7 @@ namespace InvectorModKit.Marketplace.Ui
             }
             catch (Exception e)
             {
-                if (this) _current?.SetStatus("Connexion impossible : " + e.GetBaseException().Message);
+                if (this) _current?.SetStatus(Loc.T("sign_in_failed", e.GetBaseException().Message));
                 return false;
             }
         }
@@ -526,8 +526,8 @@ namespace InvectorModKit.Marketplace.Ui
             var no = GameUi.Find<ButtonWithEvents>(box.gameObject, "Answer No");
             GameUi.Place(_yes, -165, -115, 300, 84);
             GameUi.Place(no, 165, -115, 300, 84);
-            MarketplaceModal.StyleButton(_yes, "CONFIRMER", 34, () => Answer(true));
-            MarketplaceModal.StyleButton(no, "ANNULER", 34, () => Answer(false));
+            MarketplaceModal.StyleButton(_yes, Loc.T("confirm"), 34, () => Answer(true));
+            MarketplaceModal.StyleButton(no, Loc.T("cancel"), 34, () => Answer(false));
             _yes.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnRight = no };
             no.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = _yes };
             _root.SetActive(false);

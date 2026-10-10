@@ -1,7 +1,9 @@
 using System.Linq;
 using HarmonyLib;
 using HelloThere.Avicii;
+using HelloThere.Modules.AudioModules;
 using HelloThere.Modules.MenuModules;
+using HelloThere.Signals;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -18,37 +20,46 @@ namespace InvectorModKit.Marketplace.Ui
     {
         private const string Label = "Marketplace";
 
-        /// <summary>The main menu rebuilds its buttons every time it opens: add ours after "DLC" each time.</summary>
-        [HarmonyPatch(typeof(StateMainMenu), nameof(StateMainMenu.SetupButtons)), HarmonyPostfix]
-        private static void AddMenuButton(StateMainMenu __instance)
+        private static UIItemData _menuItem;
+        private static SignalObject _noSignal;
+
+        /// <summary>
+        /// The main menu builds its buttons from the list's content every time it opens: our entry goes into
+        /// that content, after "DLC", so the game builds it like the others (animations, navigation, sounds).
+        /// </summary>
+        [HarmonyPatch(typeof(StateMainMenu), nameof(StateMainMenu.SetupButtons)), HarmonyPrefix]
+        private static void AddMenuItem()
         {
-            var buttons = __instance.menuButtons;
-            if (buttons == null || buttons.Length == 0) return;
-            var list = buttons[0].transform.parent;
-            foreach (var old in list.GetComponentsInChildren<MarketplaceEntry>(true)) Object.Destroy(old.gameObject);
+            var content = View.Get(StateMenuModuleBase.menuSceneRoot.refStartMenu)?.listStart?.GetComponent<UIListContent>();
+            if (content?.Content == null) return;
+            if (_menuItem == null)
+                _menuItem = new UIItemData
+                {
+                    stringId = "",
+                    submit = () =>
+                    {
+                        AudioModule.AudioProvider.Play(AudioShortcut.SFX_MENU_CONFIRM);
+                        MarketplaceModal.Open(MarketplacePlugin.Instance);
+                    },
+                };
+            _menuItem.label = Loc.T("menu_label"); // follows the game's language
+            // The game re-resolves every entry's signal by name before building (and fails on a missing one);
+            // ours resolves to nothing, which is fine: the button then only runs `submit`.
+            if (!_noSignal)
+            {
+                _noSignal = ScriptableObject.CreateInstance<SignalObject>();
+                _noSignal.name = "InvectorModKit.Marketplace";
+                _noSignal.hideFlags = HideFlags.HideAndDontSave;
+            }
+            _menuItem.signal = _noSignal;
 
-            int after = System.Array.FindIndex(buttons, b => b.GetComponentInChildren<Text>(true)?.text.Trim().ToUpperInvariant() == "DLC");
-            if (after < 0) after = buttons.Length - 2; // before "Quit"
-            var template = buttons[Mathf.Max(0, after)];
-            var go = GameUi.Clone(template.gameObject, list, "button " + Label);
-            go.AddComponent<MarketplaceEntry>();
-            go.transform.SetSiblingIndex(template.transform.GetSiblingIndex() + 1);
-            go.GetComponentInChildren<Text>(true).text = Label;
-            var button = go.GetComponent<Button>();
-            button.onClick.AddListener(() => MarketplaceModal.Open(MarketplacePlugin.Instance));
-
-            // Navigation: template -> ours -> the next one.
-            var next = after + 1 < buttons.Length ? buttons[after + 1] : null;
-            SetVertical(template, template.navigation.selectOnUp, button);
-            SetVertical(button, template, next);
-            if (next) SetVertical(next, button, next.navigation.selectOnDown);
-            var all = buttons.ToList();
-            all.Insert(after + 1, button);
-            __instance.menuButtons = all.ToArray();
+            var items = content.Content.ToList();
+            if (items.Contains(_menuItem)) return;
+            int dlc = items.FindLastIndex(i => i.stringId != null && i.stringId.Contains("dlc"));
+            int options = items.FindIndex(i => i.stringId != null && i.stringId.Contains("option"));
+            items.Insert(dlc >= 0 ? dlc + 1 : options >= 0 ? options : Mathf.Max(0, items.Count - 1), _menuItem);
+            content.Content = items.ToArray();
         }
-
-        private static void SetVertical(Selectable s, Selectable up, Selectable down) =>
-            s.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnUp = up, selectOnDown = down };
 
         [HarmonyPatch(typeof(StateSelectSongSingleplayer), nameof(StateSelectSongSingleplayer.PopulateInputIndicators)), HarmonyPostfix]
         private static void AddHintSingle() => AddSongSelectHint();
@@ -67,11 +78,11 @@ namespace InvectorModKit.Marketplace.Ui
             var go = GameUi.Clone(template.gameObject, indicators.transform, Label);
             go.AddComponent<MarketplaceEntry>();
             var label = GameUi.Find<Text>(go, "label");
-            if (label) label.text = "MARKETPLACE";
+            if (label) label.text = Loc.T("title");
             var icon = GameUi.Find<Image>(go, "icon");
             var key = GameUi.KeySprite("Keyboard_M");
             if (icon && key) icon.sprite = key;
-            else if (label) label.text = "[M]  MARKETPLACE";
+            else if (label) label.text = "[M]  " + Loc.T("title");
             var button = go.GetComponent<Button>();
             if (button) button.onClick.AddListener(() => MarketplaceModal.Open(MarketplacePlugin.Instance));
         }

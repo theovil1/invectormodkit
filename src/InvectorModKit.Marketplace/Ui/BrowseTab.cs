@@ -30,6 +30,7 @@ namespace InvectorModKit.Marketplace.Ui
         private float _searchAt = -1, _nextRefresh;
         private ChartSummary _selected;
         private HashSet<string> _installed = new HashSet<string>();
+        private bool _justDownloaded;
 
         public bool Typing => _typing;
         public GameObject FirstItem => _rows.Count > 0 ? _rows[0].Root : _search.gameObject;
@@ -46,11 +47,11 @@ namespace InvectorModKit.Marketplace.Ui
             rt.sizeDelta = Vector2.zero;
 
             _search = m.MakeButton(_root.transform, "", -420, 205, 560, 58, StartTyping, 26);
-            _sort = m.MakeButton(_root.transform, "RÉCENTS", -20, 205, 200, 58, ToggleSort, 26);
+            _sort = m.MakeButton(_root.transform, Loc.T("sort_recent"), -20, 205, 200, 58, ToggleSort, 26);
             (_scroll, _content) = MarketplaceModal.MakeList(_root.transform, -310, -70, 780, 500);
             _empty = GameUi.Text(_scroll.transform, "Empty", m.Regular, 28, TextAnchor.MiddleCenter, GameUi.Muted);
             GameUi.Place(_empty, 0, 0, 700, 200);
-            _more = m.MakeButton(_root.transform, "PLUS DE RÉSULTATS", -310, -350, 320, 44, () => Search(append: true), 24);
+            _more = m.MakeButton(_root.transform, Loc.T("more_results"), -310, -350, 320, 44, () => Search(append: true), 24);
 
             _cover = GameUi.Image(_root.transform, "Cover", Color.white);
             GameUi.Place(_cover, 225, 160, 160, 160);
@@ -65,12 +66,12 @@ namespace InvectorModKit.Marketplace.Ui
             _audioPanel = GameUi.Image(_root.transform, "Audio", new Color(1, 1, 1, 0.06f));
             GameUi.Place(_audioPanel, 415, -100, 560, 150);
             var audioHeader = GameUi.Text(_audioPanel.transform, "Header", m.Bold, 22, TextAnchor.UpperLeft, Color.white);
-            audioHeader.text = "AUDIO : LA VIDÉO YOUTUBE LIÉE";
+            audioHeader.text = Loc.T("audio_header");
             GameUi.Place(audioHeader, 0, 52, 520, 30);
             _video = GameUi.Text(_audioPanel.transform, "Video", m.Regular, 22, TextAnchor.UpperLeft, Color.white);
             GameUi.Place(_video, 0, 8, 520, 56);
             var audioNote = GameUi.Text(_audioPanel.transform, "Note", m.Regular, 19, TextAnchor.UpperLeft, GameUi.Muted);
-            audioNote.text = "Le chart est calé sur la bande-son de cette vidéo : c'est cette version du morceau qu'il te faut.";
+            audioNote.text = Loc.T("audio_note");
             audioNote.resizeTextForBestFit = true;
             audioNote.resizeTextMinSize = 14;
             audioNote.resizeTextMaxSize = 19;
@@ -78,10 +79,10 @@ namespace InvectorModKit.Marketplace.Ui
 
             _status = GameUi.Text(_root.transform, "Status", m.Regular, 21, TextAnchor.UpperLeft, Color.white);
             GameUi.Place(_status, 415, -202, 550, 44);
-            _install = m.MakeButton(_root.transform, "INSTALLER", 280, -258, 270, 58, () => Primary(_selected));
-            _youtube = m.MakeButton(_root.transform, "OUVRIR SUR YOUTUBE", 560, -258, 270, 58, () => { if (_selected != null) Application.OpenURL(_selected.YoutubeUrl); });
-            _folder = m.MakeButton(_root.transform, "DOSSIER CUSTOMSONGS", 280, -324, 270, 52, OpenFolder, 24);
-            _remove = m.MakeButton(_root.transform, "RETIRER", 560, -324, 270, 52, RemoveSelected, 24);
+            _install = m.MakeButton(_root.transform, Loc.T("install"), 280, -258, 270, 58, () => Primary(_selected));
+            _youtube = m.MakeButton(_root.transform, Loc.T("open_youtube"), 560, -258, 270, 58, () => { if (_selected != null) Application.OpenURL(_selected.YoutubeUrl); });
+            _folder = m.MakeButton(_root.transform, Loc.T("open_folder"), 280, -324, 270, 52, OpenFolder, 24);
+            _remove = m.MakeButton(_root.transform, Loc.T("remove"), 560, -324, 270, 52, RemoveSelected, 24);
             var actions = new Selectable[] { _install, _youtube, _folder, _remove };
             for (int i = 0; i < actions.Length; i++)
                 actions[i].navigation = new Navigation
@@ -167,12 +168,12 @@ namespace InvectorModKit.Marketplace.Ui
         }
 
         private void UpdateSearchLabel() =>
-            MarketplaceModal.SetLabel(_search, _typing ? _query + "▌" : _query.Length > 0 ? "RECHERCHE : " + _query.ToUpperInvariant() : "F  RECHERCHER UN TITRE, UN ARTISTE, UN AUTEUR");
+            MarketplaceModal.SetLabel(_search, _typing ? _query + "▌" : _query.Length > 0 ? Loc.T("search_query", _query.ToUpperInvariant()) : Loc.T("search_hint"));
 
         private void ToggleSort()
         {
             _sortMode = _sortMode == ChartSort.Recent ? ChartSort.Popular : ChartSort.Recent;
-            MarketplaceModal.SetLabel(_sort, _sortMode == ChartSort.Recent ? "RÉCENTS" : "POPULAIRES");
+            MarketplaceModal.SetLabel(_sort, _sortMode == ChartSort.Recent ? Loc.T("sort_recent") : Loc.T("sort_popular"));
             Search();
         }
 
@@ -180,7 +181,7 @@ namespace InvectorModKit.Marketplace.Ui
         {
             int generation = ++_generation;
             int page = append ? _page + 1 : 0;
-            _empty.text = append ? "" : "Recherche…";
+            _empty.text = append ? "" : Loc.T("searching");
             try
             {
                 var result = await MarketplacePlugin.Api.SearchAsync(_query, _sortMode, page);
@@ -190,12 +191,12 @@ namespace InvectorModKit.Marketplace.Ui
                 _page = page;
                 _more.gameObject.SetActive(result.More);
                 Rebuild();
-                _empty.text = _items.Count == 0 ? (_query.Length > 0 ? "Aucun chart ne correspond." : "Aucun chart publié pour l'instant.") : "";
+                _empty.text = _items.Count == 0 ? (_query.Length > 0 ? Loc.T("no_match") : Loc.T("no_charts")) : "";
             }
             catch (Exception e)
             {
                 if (!_root || generation != _generation) return;
-                _empty.text = "Marketplace injoignable : " + e.GetBaseException().Message;
+                _empty.text = Loc.T("unreachable", e.GetBaseException().Message);
             }
         }
 
@@ -208,8 +209,8 @@ namespace InvectorModKit.Marketplace.Ui
                 var chart = item;
                 SongRow row = null;
                 row = _m.MakeRow(_content, () => Primary(chart), () => ShowDetails(chart));
-                row.Set(chart.Title, $"{chart.Artist}  ·  par {chart.Author}", Note(chart), chart.Duration, null);
-                Thumbnails.Get(chart.YoutubeId, sprite => { if (row.Root) row.Set(chart.Title, $"{chart.Artist}  ·  par {chart.Author}", Note(chart), chart.Duration, sprite); });
+                row.Set(chart.Title, Loc.T("by_author", chart.Artist, chart.Author), Note(chart), chart.Duration, null);
+                Thumbnails.Get(chart.YoutubeId, sprite => { if (row.Root) row.Set(chart.Title, Loc.T("by_author", chart.Artist, chart.Author), Note(chart), chart.Duration, sprite); });
                 _rows.Add(row);
             }
             MarketplaceModal.ChainNavigation(_rows.Select(r => (Selectable)r.Button).ToList(), _install);
@@ -232,7 +233,7 @@ namespace InvectorModKit.Marketplace.Ui
         }
 
         private string Note(ChartSummary c) =>
-            MarketplacePlugin.Session.IsPublishedByMe(c.Id) ? "TON CHART" : _installed.Contains(c.Id) ? "INSTALLÉ" : MarketplacePlugin.Installs.IsDownloaded(c.Id) ? "EN ATTENTE" : "";
+            MarketplacePlugin.Session.IsPublishedByMe(c.Id) ? Loc.T("mine") : _installed.Contains(c.Id) ? Loc.T("installed") : MarketplacePlugin.Installs.IsDownloaded(c.Id) ? Loc.T("waiting") : "";
 
         // ----- details and actions
 
@@ -245,18 +246,19 @@ namespace InvectorModKit.Marketplace.Ui
             if (!any) { _status.text = ""; return; }
             _title.text = c.Title;
             _artist.text = c.Artist;
-            _info.text = $"Chart de {c.Author}  ·  version {c.Version}  ·  {c.Bpm:0.#} BPM  ·  {(int)c.Duration / 60}:{(int)c.Duration % 60:00}\n" +
-                         $"Notes : Casual {c.Notes.Casual}  ·  Normal {c.Notes.Normal}  ·  Hard {c.Notes.Hard}  ·  Ultra {c.Notes.Ultra}\n" +
-                         $"{c.Downloads} téléchargement{(c.Downloads > 1 ? "s" : "")}";
+            _info.text = Loc.T("chart_by", c.Author, c.Version, c.Bpm.ToString("0.#"), $"{(int)c.Duration / 60}:{(int)c.Duration % 60:00}") + "\n" +
+                         Loc.T("notes_line", c.Notes.Casual, c.Notes.Normal, c.Notes.Hard, c.Notes.Ultra) + "\n" +
+                         Loc.Downloads(c.Downloads);
             _video.text = "youtu.be/" + c.YoutubeId;
             VideoInfo.Get(c.YoutubeId, (title, channel) =>
             {
-                if (_selected == c && _video) _video.text = $"« {title} »" + (string.IsNullOrEmpty(channel) ? "" : $"  ·  {channel}");
+                if (_selected == c && _video) _video.text = Loc.T("quoted", title) + (string.IsNullOrEmpty(channel) ? "" : $"  ·  {channel}");
             });
             _cover.sprite = null;
             _cover.color = new Color(1, 1, 1, 0.1f);
             Thumbnails.Get(c.YoutubeId, sprite => { if (_selected == c && _cover) { _cover.sprite = sprite; _cover.color = Color.white; } });
             _status.text = "";
+            _justDownloaded = false;
             UpdateActions(c);
         }
 
@@ -264,11 +266,11 @@ namespace InvectorModKit.Marketplace.Ui
         {
             bool mine = MarketplacePlugin.Session.IsPublishedByMe(c.Id);
             bool installed = _installed.Contains(c.Id), waiting = !mine && !installed && MarketplacePlugin.Installs.IsDownloaded(c.Id);
-            MarketplaceModal.SetLabel(_install, mine ? "TON CHART" : installed ? "INSTALLÉ" : waiting ? "EN ATTENTE DE L'AUDIO" : "INSTALLER");
+            MarketplaceModal.SetLabel(_install, mine ? Loc.T("mine") : installed ? Loc.T("installed") : waiting ? Loc.T("waiting_audio") : Loc.T("install"));
             _install.interactable = !mine && !installed && !waiting;
             if (waiting && string.IsNullOrEmpty(_status.text))
-                _status.text = "Dépose ce morceau (la version de la vidéo liée) dans le dossier CustomSongs : le chart s'y calera tout seul.";
-            if (installed && _status.text.StartsWith("Téléchargé")) _status.text = "Installé ! Il est dans la sélection, section Custom Songs.";
+                _status.text = Loc.T("drop_hint");
+            if (installed && _justDownloaded) { _status.text = Loc.T("installed_done"); _justDownloaded = false; }
             var session = MarketplacePlugin.Session.Current;
             _remove.gameObject.SetActive(session != null && (session.Role == "admin" || session.Name == c.Author));
         }
@@ -283,19 +285,20 @@ namespace InvectorModKit.Marketplace.Ui
 
         private async void Install(ChartSummary c)
         {
-            _status.text = "Téléchargement du chart…";
+            _status.text = Loc.T("downloading");
             try
             {
                 var download = await MarketplacePlugin.Api.DownloadAsync(c.Id);
                 MarketplacePlugin.Installs.Install(download);
                 CustomSongsApi.RequestMarketplaceMatch();
                 if (!_root) return;
-                _status.text = "Téléchargé. Je cherche ce morceau parmi tes fichiers… S'il n'y est pas, dépose-le (la version de la vidéo liée) dans CustomSongs.";
+                _status.text = Loc.T("downloaded");
+                _justDownloaded = true;
                 RefreshLocalState();
             }
             catch (Exception e)
             {
-                if (_root) _status.text = "Échec du téléchargement : " + e.GetBaseException().Message;
+                if (_root) _status.text = Loc.T("download_failed", e.GetBaseException().Message);
             }
         }
 
@@ -303,7 +306,7 @@ namespace InvectorModKit.Marketplace.Ui
         {
             var c = _selected;
             if (c == null) return;
-            _m.Confirm($"Retirer « {c.Title} » ({c.Artist}) du marketplace ?\nLes joueurs qui l'ont installé le gardent.", async () =>
+            _m.Confirm(Loc.T("remove_confirm", c.Title, c.Artist), async () =>
             {
                 try
                 {
@@ -313,7 +316,7 @@ namespace InvectorModKit.Marketplace.Ui
                 }
                 catch (Exception e)
                 {
-                    if (_root) _status.text = "Impossible de retirer : " + e.GetBaseException().Message;
+                    if (_root) _status.text = Loc.T("remove_failed", e.GetBaseException().Message);
                 }
             });
         }

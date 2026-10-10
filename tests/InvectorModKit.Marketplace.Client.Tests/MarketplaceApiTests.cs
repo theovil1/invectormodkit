@@ -79,6 +79,15 @@ public class MarketplaceApiTests
     }
 
     [Fact]
+    public async Task Me_KeepsToken()
+    {
+        var http = new FakeTransport().Reply(200, """{"steamId":"7656","name":"Teyko","role":"admin"}""");
+        var me = await new MarketplaceApi("https://m.test", http) { Token = "t0k3n" }.MeAsync();
+        Assert.Equal(("7656", "Teyko", "admin", "t0k3n"), (me.SteamId, me.Name, me.Role, me.Token));
+        Assert.Equal(("https://m.test/me", "t0k3n"), (http.Sent[0].Url, http.Sent[0].Bearer));
+    }
+
+    [Fact]
     public async Task BrowserLogin_Expired_Throws()
     {
         var api = new MarketplaceApi("https://m.test", new FakeTransport().Reply(404, """{"error":"sign-in expired"}"""));
