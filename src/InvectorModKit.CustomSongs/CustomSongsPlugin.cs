@@ -193,10 +193,16 @@ namespace InvectorModKit.CustomSongs
         /// installed. Not in multiplayer, where reopening would drop the joined players; the change shows
         /// there the next time it opens.
         /// </summary>
+        /// <summary>The song to select again once song select has been reopened by <see cref="RefreshSongSelect"/>.</summary>
+        internal static string ReselectLevelId;
+
         private static void RefreshSongSelect()
         {
             if (!(ModKit.CurrentState is HelloThere.Avicii.StateSelectSongSingleplayer select)) return;
-            // Stay on the song the player is looking at (the game would go back to the first one).
+            // Stay on the song the player is looking at (the game would go back to the first one): its place in the
+            // list for the game, and its level id for Patches.ReselectAfterRefresh, as its place may change.
+            if (select.selectedLevelButton != null && select.songMenuItems.TryGetValue(select.selectedLevelButton, out var shown) && shown.levelDefinition != null)
+                ReselectLevelId = shown.levelDefinition.levelId;
             int index = select.buttonsWithEvents == null ? -1 : System.Array.IndexOf(select.buttonsWithEvents, select.selectedLevelButton);
             if (index >= 0)
             {

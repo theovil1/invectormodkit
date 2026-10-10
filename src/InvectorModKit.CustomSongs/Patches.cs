@@ -4,6 +4,7 @@ using System.Linq;
 using GameSystems;
 using HarmonyLib;
 using HelloThere.Avicii;
+using HelloThere.InCommon;
 using HelloThere.Modules.AudioModules;
 using HelloThere.Modules.MenuModules;
 using UnityEngine.AddressableAssets;
@@ -119,6 +120,28 @@ namespace InvectorModKit.CustomSongs
             if (song.State != SongState.Ready || !StillWanted(audioRef)) yield break;
             yield return SongAudio.EnsurePreview(song);
             if (StillWanted(audioRef) && SongAudio.HasClip(song.PreviewItem)) menu.PlayPreviewMusic(audioRef, fadeTime);
+        }
+
+        /// <summary>
+        /// Song select reopened for a list change (a song added, removed, or its chart edited): the song the player
+        /// was on is selected again, found by its level id, since its place in the list may have moved.
+        /// </summary>
+        [HarmonyPatch(typeof(StateSelectSongSingleplayer), nameof(StateSelectSongSingleplayer.Begin)), HarmonyPostfix]
+        private static void ReselectAfterRefresh(StateSelectSongSingleplayer __instance)
+        {
+            string id = CustomSongsPlugin.ReselectLevelId;
+            CustomSongsPlugin.ReselectLevelId = null;
+            var buttons = __instance.buttonsWithEvents;
+            if (id == null || buttons == null) return;
+            for (int i = 0; i < buttons.Length; i++)
+            {
+                if (buttons[i] == null || !__instance.songMenuItems.TryGetValue(buttons[i], out var data) || data.levelDefinition == null || data.levelDefinition.levelId != id) continue;
+                if (buttons[i] == __instance.selectedLevelButton) return;
+                __instance.SelectLevelButton(i);
+                var list = View.Get(StateMenuModuleBase.menuSceneRoot.refSongMenu).songList.scrollableElement;
+                list.ScrollToChildIndex(__instance.FindScrollToIndex(list.buttonList, i));
+                return;
+            }
         }
 
         /// <summary>Still the song the player is looking at, and still in song select (not playing).</summary>

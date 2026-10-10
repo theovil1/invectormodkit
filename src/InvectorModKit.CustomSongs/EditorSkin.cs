@@ -49,7 +49,7 @@ namespace InvectorModKit.CustomSongs
             {
                 if (WantsPickups) StartCoroutine(ExportPickups());
             }
-            else if (state is StateMainMenu || state is StateSelectSongSingleplayer)
+            else if (state is StateMainMenu || state is StateSelectSongSingleplayer || state is StateTitleMenu)
             {
                 if (WantsShip(out var ship)) StartCoroutine(ExportShip(ship));
                 else StartCoroutine(Export(state));

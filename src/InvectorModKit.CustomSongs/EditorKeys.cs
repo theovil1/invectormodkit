@@ -36,6 +36,13 @@ namespace InvectorModKit.CustomSongs
                     var element = RewiredInputHelper.GetActionElementMap(action, pole, map);
                     if (element == null) continue;
                     var entry = new JObject { ["key"] = element.keyCode.ToString() };
+                    // what the game writes on its pickups for that key, in the player's keyboard layout (Q on AZERTY…)
+                    try
+                    {
+                        string label = RewiredInputHelper.GetKeyStringForDisplayOnPickups(element.keyCode);
+                        if (!string.IsNullOrEmpty(label)) entry["label"] = label;
+                    }
+                    catch (Exception) { }
                     var icons = ControllerIconMapCollection.Instance;
                     var sprite = icons?.GetIcon(element.elementIdentifierId, element.axisRange == AxisRange.Negative ? Pole.Negative : Pole.Positive, ControlType.Keyboard, forPickup: true);
                     if (sprite != null && sprite != icons.ErrorSprite && Wanted(sprite))

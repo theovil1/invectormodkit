@@ -354,8 +354,8 @@ export class Timeline {
     c.lineWidth = 1;
     const name = skin.keySprite(ACTION[n.color]), key = name ? skin.img(name) : null;
     if (skin.ready(key)) { // the player's turn key, on the side the ship goes
-      const k = size * 0.72;
-      c.drawImage(key, x + dir * (w / 2 + 2) - (dir < 0 ? k : 0), y - k / 2, k, k);
+      const k = size * 0.95;
+      c.drawImage(key, x + dir * (w / 2 + 3) - (dir < 0 ? k : 0), y - k / 2, k, k);
     }
     if (selected) {
       c.strokeStyle = "#FFFFFF";

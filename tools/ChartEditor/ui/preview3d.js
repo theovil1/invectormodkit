@@ -265,7 +265,8 @@ export class Preview3D {
         const p = this.photo(shots[mode + "-back"]);
         if (!p) continue;
         const scale = 3.6 / Math.max(p.w, 0.001); // the ship is about 3.6 units wide on screen
-        const mesh = this.plane(p.texture, p.w * scale, p.h * scale, new THREE.Color(1, 1, 1), { additive: false });
+        // below the glow threshold: the game's (often white) hull stays a hull, its lights still shine
+        const mesh = this.plane(p.texture, p.w * scale, p.h * scale, new THREE.Color(0.6, 0.6, 0.62), { additive: false });
         mesh.position.y = (p.h * scale) / 2 - 0.3;
         mesh.visible = false;
         ship.add(mesh);

@@ -13,8 +13,12 @@ export const KEY_SPRITE = ACTION.slice(0, 4).map((a) => DEFAULT_KEY_SPRITE[a]);
 
 /** The picture of the key for an action: the player's own (from the mod's manifest), else the default; null if unknown. */
 export function keySprite(manifest, action) {
-  const own = manifest && manifest.keys && manifest.keys[action];
-  if (own && own.sprite && manifest.sprites && manifest.sprites[own.sprite]) return own.sprite;
+  const own = manifest && manifest.keys && manifest.keys[action], sprites = (manifest && manifest.sprites) || {};
+  if (own) {
+    // the game's own picture for it, else the keyboard key it shows (Q on AZERTY), else the key's name (Alpha1…)
+    const names = [own.sprite, own.label && "Keyboard_" + own.label.toUpperCase(), own.key && "Keyboard_" + own.key];
+    for (const name of names) if (name && sprites[name]) return name;
+  }
   return DEFAULT_KEY_SPRITE[action] || null;
 }
 

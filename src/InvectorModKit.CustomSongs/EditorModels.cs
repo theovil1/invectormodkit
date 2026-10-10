@@ -31,17 +31,25 @@ namespace InvectorModKit.CustomSongs
             ("List", m => m.ShipList), ("Bounce", m => m.ShipThumper), ("Freefly", m => m.ShipFreefly),
         };
 
-        private bool _pickupsTried, _shipTried;
+        private bool _pickupsTried;
+        private readonly HashSet<string> _shipsTried = new HashSet<string>(); // by ship id, this session
 
         private bool WantsPickups => !_pickupsTried && ((JObject)_manifest["models"]).Count == 0;
 
         private bool WantsShip(out Ship ship)
         {
             ship = null;
-            if (_shipTried || !ShipHandler.IsLoaded) return false;
+            if (!ShipHandler.IsLoaded) return false;
             try { ship = ShipHandler.SelectedShip; }
             catch (Exception) { return false; }
-            return ship != null && ship.Mount != null && _manifest["ships"][ship.shipId] == null;
+            if (ship == null || ship.Mount == null) return false;
+            if (_manifest["ships"][ship.shipId] != null)
+            {
+                // taken before: the editor shows the ship the player flies now
+                if ((string)_manifest["ship"] != ship.shipId) { _manifest["ship"] = ship.shipId; SaveManifest(); }
+                return false;
+            }
+            return !_shipsTried.Contains(ship.shipId);
         }
 
         private IEnumerator ExportPickups()
@@ -123,7 +131,8 @@ namespace InvectorModKit.CustomSongs
 
         private IEnumerator ExportShip(Ship ship)
         {
-            _running = _shipTried = true;
+            _running = true;
+            _shipsTried.Add(ship.shipId);
             var entry = new JObject();
             Directory.CreateDirectory(Path.Combine(Dir, "ships"));
             ShipMount mount = null;
@@ -157,7 +166,7 @@ namespace InvectorModKit.CustomSongs
                         {
                             try
                             {
-                                var shot = studio.Shoot(variant.gameObject, pitch, yaw);
+                                var shot = studio.Shoot(variant.gameObject, pitch, yaw, 768);
                                 if (shot == null) continue;
                                 string file = $"ships/{Safe(ship.shipId)}-{mode}-{view}.png";
                                 shot.Save(Path.Combine(Dir, file));
@@ -253,7 +262,7 @@ namespace InvectorModKit.CustomSongs
             }
 
             /// <summary>From behind and above (pitch, in degrees) like the game's camera, turned by yaw.</summary>
-            public Shot Shoot(GameObject model, float pitch, float yaw = 0f)
+            public Shot Shoot(GameObject model, float pitch, float yaw = 0f, int size = ShotSize)
             {
                 var renderers = model.GetComponentsInChildren<Renderer>()
                     .Where(r => r.enabled && r.gameObject.activeInHierarchy && !(r is ParticleSystemRenderer) && !(r is TrailRenderer) && !(r is LineRenderer))
@@ -268,14 +277,14 @@ namespace InvectorModKit.CustomSongs
                 _camera.nearClipPlane = radius * 0.5f;
                 _camera.farClipPlane = radius * 6f;
 
-                var rt = RenderTexture.GetTemporary(ShotSize, ShotSize, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB, 4);
-                var onBlack = Take(rt, Color.black);
-                var onWhite = Take(rt, Color.white);
+                var rt = RenderTexture.GetTemporary(size, size, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB, 4);
+                var onBlack = Take(rt, Color.black, size);
+                var onWhite = Take(rt, Color.white, size);
                 RenderTexture.ReleaseTemporary(rt);
 
                 // alpha from how much the background shows through; colour un-premultiplied
                 var pixels = new Color32[onBlack.Length];
-                int minX = ShotSize, minY = ShotSize, maxX = -1, maxY = -1;
+                int minX = size, minY = size, maxX = -1, maxY = -1;
                 for (int i = 0; i < pixels.Length; i++)
                 {
                     Color32 b = onBlack[i], w = onWhite[i];
@@ -283,7 +292,7 @@ namespace InvectorModKit.CustomSongs
                     float a = Mathf.Clamp01(1f - through);
                     if (a < 0.01f) continue;
                     pixels[i] = new Color32((byte)Mathf.Min(255, b.r / a), (byte)Mathf.Min(255, b.g / a), (byte)Mathf.Min(255, b.b / a), (byte)(a * 255));
-                    int x = i % ShotSize, y = i / ShotSize;
+                    int x = i % size, y = i / size;
                     if (x < minX) minX = x;
                     if (x > maxX) maxX = x;
                     if (y < minY) minY = y;
@@ -291,10 +300,10 @@ namespace InvectorModKit.CustomSongs
                 }
                 if (maxX < 0) return null;
                 minX = Math.Max(0, minX - 2); minY = Math.Max(0, minY - 2);
-                maxX = Math.Min(ShotSize - 1, maxX + 2); maxY = Math.Min(ShotSize - 1, maxY + 2);
+                maxX = Math.Min(size - 1, maxX + 2); maxY = Math.Min(size - 1, maxY + 2);
                 int w2 = maxX - minX + 1, h2 = maxY - minY + 1;
                 var crop = new Color32[w2 * h2];
-                for (int y = 0; y < h2; y++) Array.Copy(pixels, (minY + y) * ShotSize + minX, crop, y * w2, w2);
+                for (int y = 0; y < h2; y++) Array.Copy(pixels, (minY + y) * size + minX, crop, y * w2, w2);
                 var image = new Texture2D(w2, h2, TextureFormat.RGBA32, false, false);
                 image.SetPixels32(crop);
                 image.Apply();
@@ -302,12 +311,12 @@ namespace InvectorModKit.CustomSongs
                 return new Shot
                 {
                     Image = image,
-                    UnitsPerPixel = 2f * _camera.orthographicSize / ShotSize,
-                    Pivot = new Vector2(origin.x * ShotSize - minX, h2 - (origin.y * ShotSize - minY)),
+                    UnitsPerPixel = 2f * _camera.orthographicSize / size,
+                    Pivot = new Vector2(origin.x * size - minX, h2 - (origin.y * size - minY)),
                 };
             }
 
-            private Color32[] Take(RenderTexture rt, Color background)
+            private Color32[] Take(RenderTexture rt, Color background, int size)
             {
                 _camera.backgroundColor = new Color(background.r, background.g, background.b, 0f);
                 _camera.targetTexture = rt;
@@ -320,8 +329,8 @@ namespace InvectorModKit.CustomSongs
                 }
                 var previous = RenderTexture.active;
                 RenderTexture.active = rt;
-                var read = new Texture2D(ShotSize, ShotSize, TextureFormat.RGBA32, false, false);
-                read.ReadPixels(new Rect(0, 0, ShotSize, ShotSize), 0, 0);
+                var read = new Texture2D(size, size, TextureFormat.RGBA32, false, false);
+                read.ReadPixels(new Rect(0, 0, size, size), 0, 0);
                 read.Apply();
                 RenderTexture.active = previous;
                 var pixels = read.GetPixels32();
