@@ -53,12 +53,13 @@ namespace InvectorModKit.Marketplace.Client
         /// Starts a sign-in on Steam's own page: open <see cref="BrowserLogin.Url"/> in the player's browser,
         /// then wait with <see cref="WaitForBrowserLoginAsync"/>. The code is a secret only this game knows.
         /// </summary>
-        public BrowserLogin StartBrowserLogin()
+        /// <param name="lang">The game's language (Loc code), so the page the player lands on speaks it.</param>
+        public BrowserLogin StartBrowserLogin(string lang = null)
         {
             var bytes = new byte[32];
             using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create()) rng.GetBytes(bytes);
             string code = string.Concat(bytes.Select(b => b.ToString("x2")));
-            return new BrowserLogin { Code = code, Url = $"{_base}/auth/steam/openid/start?code={code}" };
+            return new BrowserLogin { Code = code, Url = $"{_base}/auth/steam/openid/start?code={code}" + LangQuery(lang, "&") };
         }
 
         /// <summary>Polls until the player signed in on Steam's page (keeps the token), or throws when it expires.</summary>
@@ -102,10 +103,78 @@ namespace InvectorModKit.Marketplace.Client
                 ["chart"] = JToken.Parse(r.ChartJson),
                 ["fingerprint"] = JToken.Parse(r.FingerprintJson),
             };
+            if (r.AcceptRules) body["acceptRules"] = true;
             return Summary((JObject)await SendAsync("POST", "/charts", body).ConfigureAwait(false));
         }
 
         public Task DeleteAsync(string id) => SendAsync("DELETE", "/charts/" + Uri.EscapeDataString(id));
+
+        /// <summary>The publishing rules page, in the game's language.</summary>
+        public string RulesUrl(string lang = null) => _base + "/rules" + LangQuery(lang, "?");
+
+        private static string LangQuery(string lang, string separator) =>
+            string.IsNullOrEmpty(lang) ? "" : separator + "lang=" + Uri.EscapeDataString(lang);
+
+        /// <summary>The song starts: opens a play on that board; its id goes with the score.</summary>
+        public async Task<string> StartPlayAsync(string chartId, int version, int difficulty)
+        {
+            var o = (JObject)await SendAsync("POST", "/plays", new JObject { ["chartId"] = chartId, ["version"] = version, ["difficulty"] = difficulty }).ConfigureAwait(false);
+            return (string)o["playId"];
+        }
+
+        /// <summary>The song ended: the server checks the score against the chart and keeps the player's best.</summary>
+        public async Task<ScoreResult> SubmitScoreAsync(ScoreSubmission s)
+        {
+            var o = (JObject)await SendAsync("POST", "/scores", new JObject
+            {
+                ["playId"] = s.PlayId,
+                ["score"] = s.Score,
+                ["percent"] = s.Percent,
+                ["misses"] = s.Misses,
+                ["streak"] = s.Streak,
+                ["perfect"] = s.Perfect,
+                ["notes"] = s.Notes,
+            }).ConfigureAwait(false);
+            return new ScoreResult { Rank = (int)o["rank"], BestScore = (int)o["best"]["score"], BestPercent = (int)o["best"]["percent"], Total = (int)o["total"] };
+        }
+
+        /// <param name="version">null: the chart's latest version.</param>
+        public async Task<BoardList> ScoresAsync(string chartId, int? version, int difficulty, int start, int count)
+        {
+            string query = $"?difficulty={difficulty}&start={start}&count={count}" + (version.HasValue ? "&version=" + version.Value : "");
+            return Board((JObject)await SendAsync("GET", "/charts/" + Uri.EscapeDataString(chartId) + "/scores" + query).ConfigureAwait(false));
+        }
+
+        /// <summary>Entries of these Steam friends (and of the signed-in player), with their global rank.</summary>
+        public async Task<BoardList> FriendScoresAsync(string chartId, int version, int difficulty, IEnumerable<string> steamIds)
+        {
+            var body = new JObject { ["version"] = version, ["difficulty"] = difficulty, ["ids"] = new JArray(steamIds.Take(500).ToArray()) };
+            return Board((JObject)await SendAsync("POST", "/charts/" + Uri.EscapeDataString(chartId) + "/scores/friends", body).ConfigureAwait(false));
+        }
+
+        /// <summary>Reports a chart (5 to 300 characters); true when it got hidden by this report.</summary>
+        public async Task<bool> ReportAsync(string chartId, string reason)
+        {
+            var o = (JObject)await SendAsync("POST", "/charts/" + Uri.EscapeDataString(chartId) + "/report", new JObject { ["reason"] = reason }).ConfigureAwait(false);
+            return (bool?)o["hidden"] ?? false;
+        }
+
+        private static BoardList Board(JObject o) => new BoardList
+        {
+            Version = (int?)o["version"] ?? 1,
+            Total = (int?)o["total"] ?? 0,
+            Entries = ((JArray)o["entries"] ?? new JArray()).Select(e => Entry((JObject)e)).ToList(),
+            Me = o["me"] is JObject me ? Entry(me) : null,
+        };
+
+        private static BoardEntry Entry(JObject e) => new BoardEntry
+        {
+            Rank = (int?)e["rank"] ?? 0,
+            SteamId = (string)e["steamId"],
+            Name = (string)e["name"],
+            Score = (int?)e["score"] ?? 0,
+            Percent = (int?)e["percent"] ?? 0,
+        };
 
         private async Task<JToken> SendAsync(string method, string path, JObject body = null)
         {
@@ -146,6 +215,7 @@ namespace InvectorModKit.Marketplace.Client
                 Version = (int?)o["version"] ?? 1,
                 UpdatedAt = (long?)o["updatedAt"] ?? 0,
                 Downloads = (int?)o["downloads"] ?? 0,
+                Hidden = (bool?)o["hidden"] ?? false,
             };
         }
     }

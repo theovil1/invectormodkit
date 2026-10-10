@@ -21,7 +21,8 @@ namespace InvectorModKit.Internal
             harmony.Patch(AccessTools.Method(typeof(SteamLeaderboardService), nameof(SteamLeaderboardService.IsEnabled)),
                 postfix: new HarmonyMethod(typeof(OnlineGuard), nameof(DisableWhenModded)));
             PatchAll(harmony, typeof(SteamLeaderboardService), skip, "Submit");
-            PatchAll(harmony, typeof(HighScoreManager), skip, "SubmitScore");
+            // A board claimed by a ModKit leaderboard provider never reaches Steam (see LeaderboardRouter).
+            PatchAll(harmony, typeof(HighScoreManager), new HarmonyMethod(typeof(OnlineGuard), nameof(SubmitScorePrefix)), "SubmitScore");
 
             PatchAll(harmony, typeof(SteamAchievementService), skip, "Award", "Progress", "SubmitAchievement", "SetStat", "SetStatForAchievement", "Reset");
             harmony.Patch(AccessTools.Method(typeof(SteamAchievementService), "SaveChanges"),
@@ -47,6 +48,8 @@ namespace InvectorModKit.Internal
         }
 
         private static bool SkipWhenModded() => !Integrity.IsModded;
+
+        private static bool SubmitScorePrefix(LevelDefinition level) => !Integrity.IsModded || Leaderboards.Claims(level);
 
         private static void DisableWhenModded(ref bool __result)
         {

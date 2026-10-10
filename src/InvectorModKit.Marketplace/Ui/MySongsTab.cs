@@ -81,13 +81,49 @@ namespace InvectorModKit.Marketplace.Ui
             {
                 var live = await MarketplacePlugin.Api.MyChartsAsync();
                 if (!_root) return;
-                if (MarketplacePlugin.Session.KeepOnlyPublished(new HashSet<string>(live.Select(c => c.Id))))
-                {
-                    RefreshNotes();
-                    if (_selected != null) ShowDetails(_selected, keepStatus: true);
-                }
+                bool changed = MarketplacePlugin.Session.KeepOnlyPublished(new HashSet<string>(live.Select(c => c.Id)));
+                _hidden = new HashSet<string>(live.Where(c => c.Hidden).Select(c => c.Id));
+                changed |= PinPublished(live);
+                RefreshNotes();
+                if (changed && _selected != null) ShowDetails(_selected, keepStatus: true);
             }
             catch (Exception) { } // offline: keep what we know
+        }
+
+        private HashSet<string> _hidden = new HashSet<string>();
+
+        /// <summary>
+        /// Songs published before charts were pinned get their marketplace source now, when the local chart
+        /// still has the published note counts (so its leaderboard compares like with like).
+        /// </summary>
+        private bool PinPublished(List<ChartSummary> live)
+        {
+            bool any = false;
+            foreach (var s in _songs)
+            {
+                if (s.MarketplaceId != null) continue;
+                string id = MarketplacePlugin.Session.PublishedChart(s.Id);
+                var c = id == null ? null : live.FirstOrDefault(x => x.Id == id);
+                if (c == null || s.Notes.Length != 4) continue;
+                if (s.Notes[0] != c.Notes.Casual || s.Notes[1] != c.Notes.Normal || s.Notes[2] != c.Notes.Hard || s.Notes[3] != c.Notes.Ultra) continue;
+                try
+                {
+                    Pin(s, c.Id, c.Version, c.Author);
+                    any = true;
+                }
+                catch (Exception e) { MarketplacePlugin.Log.LogWarning($"Could not pin {s.Title}: {e.Message}"); }
+            }
+            return any;
+        }
+
+        /// <summary>The local chart becomes (or stops being, with a null id) the marketplace chart, with its leaderboard.</summary>
+        private static void Pin(LocalSong s, string chartId, int version, string author)
+        {
+            CustomSongsApi.SetMarketplaceSource(s.Id, chartId, version, author);
+            s.MarketplaceId = chartId;
+            s.MarketplaceVersion = chartId == null ? 0 : version;
+            s.MarketplaceAuthor = author;
+            Scores.MarketplaceLeaderboard.Instance.Forget();
         }
 
         public void Hide() => _root.SetActive(false);
@@ -124,8 +160,12 @@ namespace InvectorModKit.Marketplace.Ui
             else ShowDetails(null, false);
         }
 
-        private static string Note(LocalSong s) =>
-            !IsOwn(s) ? Loc.T("from_marketplace") : MarketplacePlugin.Session.PublishedChart(s.Id) != null ? Loc.T("published") : "";
+        private string Note(LocalSong s)
+        {
+            if (!IsOwn(s)) return Loc.T("from_marketplace");
+            string published = MarketplacePlugin.Session.PublishedChart(s.Id);
+            return published == null ? "" : _hidden.Contains(published) ? Loc.T("hidden_note") : Loc.T("published");
+        }
 
         private void ShowDetails(LocalSong s, bool keepStatus)
         {
@@ -168,7 +208,7 @@ namespace InvectorModKit.Marketplace.Ui
                 text => Send(s, YoutubeLink.Normalize(text)));
         }
 
-        private async void Send(LocalSong s, string link)
+        private async void Send(LocalSong s, string link, bool acceptRules = false)
         {
             _busy = true;
             try
@@ -180,11 +220,20 @@ namespace InvectorModKit.Marketplace.Ui
                 var published = await MarketplacePlugin.Api.PublishAsync(new PublishRequest
                 {
                     Title = s.Title, Artist = s.Artist, YoutubeUrl = link, Duration = s.Duration, ChartJson = chart, FingerprintJson = fingerprint,
+                    AcceptRules = acceptRules,
                 });
                 MarketplacePlugin.Session.RememberPublished(s.Id, published.Id, link);
+                try { Pin(s, published.Id, published.Version, published.Author); }
+                catch (Exception e) { MarketplacePlugin.Log.LogWarning($"Published, but the local chart could not be pinned: {e.Message}"); }
                 if (!_root) return;
                 _status.text = published.Version > 1 ? Loc.T("updated", published.Version) : Loc.T("published_done");
                 RefreshNotes();
+            }
+            catch (MarketplaceException e) when (e.Status == 428 && !acceptRules)
+            {
+                // First publication: the rules must be accepted once.
+                if (_root) _status.text = "";
+                _m.Confirm(Loc.T("rules_confirm"), () => Send(s, link, acceptRules: true));
             }
             catch (Exception e)
             {
@@ -214,6 +263,11 @@ namespace InvectorModKit.Marketplace.Ui
                     return;
                 }
                 MarketplacePlugin.Session.ForgetPublished(s.Id);
+                if (s.MarketplaceId == chartId)
+                {
+                    try { Pin(s, null, 0, null); }
+                    catch (Exception e) { MarketplacePlugin.Log.LogWarning($"Could not unpin {s.Title}: {e.Message}"); }
+                }
                 if (!_root) return;
                 _status.text = Loc.T("withdrawn");
                 RefreshNotes();

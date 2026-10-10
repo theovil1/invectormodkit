@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using InvectorModKit.CustomSongs;
 using InvectorModKit.Marketplace.Client;
+using InvectorModKit.Marketplace.Scores;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -14,12 +15,14 @@ namespace InvectorModKit.Marketplace.Ui
     {
         private readonly MarketplaceModal _m;
         private readonly GameObject _root;
-        private readonly ButtonWithEvents _search, _sort, _more, _install, _youtube, _folder, _remove;
+        private readonly ButtonWithEvents _search, _sort, _more, _install, _youtube, _folder, _remove, _report;
         private readonly ScrollRect _scroll;
         private readonly RectTransform _content;
         private readonly Text _title, _artist, _info, _status, _empty;
-        private readonly Image _cover, _audioPanel;
-        private readonly Text _video;
+        private readonly Image _cover, _audioPanel, _boardPanel;
+        private readonly Text _video, _board;
+        private string _boardKey;
+        private float _boardAt;
         private readonly List<SongRow> _rows = new List<SongRow>();
         private readonly List<ChartSummary> _items = new List<ChartSummary>();
 
@@ -77,12 +80,21 @@ namespace InvectorModKit.Marketplace.Ui
             audioNote.resizeTextMaxSize = 19;
             GameUi.Place(audioNote, 0, -46, 520, 50);
 
+            // Once the chart is installed (or is mine), its leaderboard takes the audio panel's place.
+            _boardPanel = GameUi.Image(_root.transform, "Leaderboard", new Color(1, 1, 1, 0.06f));
+            GameUi.Place(_boardPanel, 415, -100, 560, 150);
+            _board = GameUi.Text(_boardPanel.transform, "Lines", m.Regular, 21, TextAnchor.UpperLeft, Color.white);
+            _board.supportRichText = true;
+            _board.lineSpacing = 1.05f;
+            GameUi.Place(_board, 0, 0, 520, 136);
+
             _status = GameUi.Text(_root.transform, "Status", m.Regular, 21, TextAnchor.UpperLeft, Color.white);
             GameUi.Place(_status, 415, -202, 550, 44);
             _install = m.MakeButton(_root.transform, Loc.T("install"), 280, -258, 270, 58, () => Primary(_selected));
             _youtube = m.MakeButton(_root.transform, Loc.T("open_youtube"), 560, -258, 270, 58, () => { if (_selected != null) Application.OpenURL(_selected.YoutubeUrl); });
             _folder = m.MakeButton(_root.transform, Loc.T("open_folder"), 280, -324, 270, 52, OpenFolder, 24);
             _remove = m.MakeButton(_root.transform, Loc.T("remove"), 560, -324, 270, 52, RemoveSelected, 24);
+            _report = m.MakeButton(_root.transform, Loc.T("report"), 560, -324, 270, 52, ReportSelected, 24);
             var actions = new Selectable[] { _install, _youtube, _folder, _remove };
             for (int i = 0; i < actions.Length; i++)
                 actions[i].navigation = new Navigation
@@ -93,6 +105,7 @@ namespace InvectorModKit.Marketplace.Ui
                     selectOnDown = i + 2 < actions.Length ? actions[i + 2] : null,
                     selectOnUp = i >= 2 ? actions[i - 2] : null,
                 };
+            _report.navigation = _remove.navigation;
 
             ShowDetails(null);
             UpdateSearchLabel();
@@ -241,9 +254,15 @@ namespace InvectorModKit.Marketplace.Ui
         {
             _selected = c;
             bool any = c != null;
-            foreach (var go in new GameObject[] { _cover.gameObject, _title.gameObject, _artist.gameObject, _info.gameObject, _audioPanel.gameObject, _install.gameObject, _youtube.gameObject, _remove.gameObject })
+            foreach (var go in new GameObject[] { _cover.gameObject, _title.gameObject, _artist.gameObject, _info.gameObject, _install.gameObject, _youtube.gameObject })
                 go.SetActive(any);
-            if (!any) { _status.text = ""; return; }
+            _boardKey = null;
+            if (!any)
+            {
+                foreach (var go in new GameObject[] { _audioPanel.gameObject, _boardPanel.gameObject, _remove.gameObject, _report.gameObject }) go.SetActive(false);
+                _status.text = "";
+                return;
+            }
             _title.text = c.Title;
             _artist.text = c.Artist;
             _info.text = Loc.T("chart_by", c.Author, c.Version, c.Bpm.ToString("0.#"), $"{(int)c.Duration / 60}:{(int)c.Duration % 60:00}") + "\n" +
@@ -272,7 +291,71 @@ namespace InvectorModKit.Marketplace.Ui
                 _status.text = Loc.T("drop_hint");
             if (installed && _justDownloaded) { _status.text = Loc.T("installed_done"); _justDownloaded = false; }
             var session = MarketplacePlugin.Session.Current;
-            _remove.gameObject.SetActive(session != null && (session.Role == "admin" || session.Name == c.Author));
+            bool canRemove = session != null && (session.Role == "admin" || session.Name == c.Author);
+            _remove.gameObject.SetActive(canRemove);
+            _report.gameObject.SetActive(!canRemove && !mine);
+            var corner = canRemove ? _remove : _report.gameObject.activeSelf ? _report : null;
+            var nav = _folder.navigation; nav.selectOnRight = corner; _folder.navigation = nav;
+            nav = _youtube.navigation; nav.selectOnDown = corner; _youtube.navigation = nav;
+
+            bool showBoard = mine || installed;
+            _audioPanel.gameObject.SetActive(!showBoard);
+            _boardPanel.gameObject.SetActive(showBoard);
+            if (showBoard) LoadBoard(c);
+        }
+
+        /// <summary>Top 3 of the difficulty chosen in the game, for the installed version (else the latest), and my rank.</summary>
+        private async void LoadBoard(ChartSummary c)
+        {
+            var difficulty = ApplicationSession.OnlineUserData != null ? ApplicationSession.OnlineUserData.difficulty : global::Difficulty.Hard;
+            var local = CustomSongsApi.Songs().FirstOrDefault(s => s.MarketplaceId == c.Id && s.MarketplaceVersion > 0);
+            int? version = local?.MarketplaceVersion;
+            string key = c.Id + "|" + version + "|" + difficulty;
+            if (key == _boardKey && Time.unscaledTime - _boardAt < 30f) return;
+            _boardKey = key;
+            _boardAt = Time.unscaledTime;
+            string header = "<b>" + Loc.T("leaderboard", difficulty.ToString().ToUpperInvariant()) + "</b>";
+            _board.text = header + "\n…";
+            try
+            {
+                var board = await MarketplaceLeaderboard.Top(c.Id, version, difficulty, 3);
+                if (!_root || _boardKey != key) return;
+                var lines = new List<string> { header };
+                if (board.Entries.Count == 0) lines.Add(Loc.T("board_empty"));
+                foreach (var e in board.Entries)
+                {
+                    string line = Loc.T("board_line", e.Rank, e.Name, e.Score, e.Percent);
+                    lines.Add(board.Me != null && e.SteamId == board.Me.SteamId ? "<color=#CB33FF>" + line + "</color>" : line);
+                }
+                if (board.Me != null && board.Entries.All(e => e.SteamId != board.Me.SteamId))
+                    lines.Add("<color=#CB33FF>" + Loc.T("board_me", board.Me.Rank, board.Me.Score) + "</color>");
+                _board.text = string.Join("\n", lines);
+            }
+            catch (Exception e)
+            {
+                if (_root && _boardKey == key) _board.text = header + "\n" + Loc.T("unreachable", e.GetBaseException().Message);
+            }
+        }
+
+        private async void ReportSelected()
+        {
+            var c = _selected;
+            if (c == null) return;
+            if (!await _m.EnsureSignedIn() || !_root) return;
+            _m.Prompt(Loc.T("report_question", c.Title), Loc.T("report_hint"), "",
+                text => text.Trim().Length < 5 || text.Trim().Length > 300 ? Loc.T("report_invalid") : null,
+                async text =>
+                {
+                    try
+                    {
+                        bool hidden = await MarketplacePlugin.Api.ReportAsync(c.Id, text.Trim());
+                        if (_root) _status.text = Loc.T(hidden ? "reported_hidden" : "reported");
+                    }
+                    catch (Exception e)
+                    {
+                        if (_root) _status.text = Loc.T("report_failed", e.GetBaseException().Message);
+                    }
+                });
         }
 
         private void Primary(ChartSummary c)

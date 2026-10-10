@@ -26,6 +26,8 @@ namespace InvectorModKit.CustomSongs
         public string MarketplaceId;
         /// <summary>Who published that marketplace chart.</summary>
         public string MarketplaceAuthor;
+        /// <summary>Version of that marketplace chart (its leaderboard is per version).</summary>
+        public int MarketplaceVersion;
 
         public volatile SongState State = SongState.Pending;
         public string Error;

@@ -31,6 +31,7 @@ namespace InvectorModKit
 
             var harmony = new Harmony(ModKit.Guid);
             Try("online guard", () => OnlineGuard.Apply(harmony));
+            Try("leaderboards", () => LeaderboardRouter.Apply(harmony));
             Try("score store", () => ScoreStore.Apply(harmony));
             Try("strings", () => StringOverrides.Apply(harmony));
             Try("lifecycle", () => LifecyclePatches.Apply(harmony));

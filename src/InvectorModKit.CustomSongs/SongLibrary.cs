@@ -294,11 +294,32 @@ namespace InvectorModKit.CustomSongs
             return json;
         }
 
+        /// <summary>
+        /// Main thread: marks the song's chart as the marketplace chart (id, version, author) after its own
+        /// publication, or clears that mark (null). A chart with a source is never regenerated, so the player
+        /// keeps playing exactly what was published, which its leaderboard needs.
+        /// </summary>
+        public void SetSource(CustomSong song, ChartSource source)
+        {
+            if (song.Chart == null || !File.Exists(song.ChartPath)) throw new InvalidOperationException(song + " has no chart yet");
+            var onDisk = ChartJson.Deserialize(File.ReadAllText(song.ChartPath));
+            onDisk.Source = source;
+            string tmp = song.ChartPath + ".tmp";
+            File.WriteAllText(tmp, ChartJson.Serialize(onDisk));
+            File.Copy(tmp, song.ChartPath, true);
+            File.Delete(tmp);
+            song.Chart.Source = source;
+            song.MarketplaceId = source?.MarketplaceId;
+            song.MarketplaceAuthor = source?.Author;
+            song.MarketplaceVersion = source?.Version ?? 0;
+        }
+
         /// <summary>A marketplace chart names its song: title and artist come from its download record.</summary>
         private void ApplyMarketplaceMetadata(CustomSong song, ChartSource source)
         {
             song.MarketplaceId = source?.MarketplaceId;
             song.MarketplaceAuthor = source?.Author;
+            song.MarketplaceVersion = source?.Version ?? 0;
             if (source == null) return;
             string entry = Path.Combine(MarketplaceDir, source.MarketplaceId ?? "", InvectorModKit.Charting.Marketplace.PendingInstall.EntryFile);
             if (!File.Exists(entry)) return;

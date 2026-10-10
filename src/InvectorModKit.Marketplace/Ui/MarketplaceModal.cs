@@ -111,6 +111,7 @@ namespace InvectorModKit.Marketplace.Ui
 
             _browseTab = MakeButton(Box, Loc.T("tab_browse"), -Width / 2 + 190, Height / 2 - 150, 260, 60, () => Show(_browse));
             _mineTab = MakeButton(Box, Loc.T("tab_mine"), -Width / 2 + 470, Height / 2 - 150, 260, 60, () => Show(_mine));
+            MakeButton(Box, Loc.T("rules"), Width / 2 - 160, Height / 2 - 150, 220, 60, () => Application.OpenURL(MarketplacePlugin.Api.RulesUrl(Loc.Code)), 26);
 
             var hints = GameUi.Text(Box, "Hints", Regular, 24, TextAnchor.MiddleCenter, GameUi.Muted);
             hints.text = Loc.T("hints");

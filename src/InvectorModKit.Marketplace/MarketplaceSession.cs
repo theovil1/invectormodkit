@@ -58,7 +58,7 @@ namespace InvectorModKit.Marketplace
             SigningIn = true;
             try
             {
-                var login = _api.StartBrowserLogin();
+                var login = _api.StartBrowserLogin(Loc.Code);
                 Application.OpenURL(login.Url);
                 using (var giveUp = new CancellationTokenSource(TimeSpan.FromMinutes(10)))
                     Current = await _api.WaitForBrowserLoginAsync(login, TimeSpan.FromSeconds(2), giveUp.Token);

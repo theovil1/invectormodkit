@@ -148,6 +148,25 @@ namespace InvectorModKit.CustomSongs
             song.Level = level;
         }
 
+        private static readonly Dictionary<string, int> BoardPrefixes = new Dictionary<string, int>();
+
+        /// <summary>
+        /// Marketplace charts get a highscore table prefix of their own (100000 and up, far from the official
+        /// songs'), which the marketplace's leaderboard provider recognises; other custom songs have none (0).
+        /// </summary>
+        public static void ApplyBoard(CustomSong song)
+        {
+            if (song.Level == null) return;
+            if (song.MarketplaceId == null)
+            {
+                song.Level.highscoreTablePrefix = 0;
+                return;
+            }
+            if (!BoardPrefixes.TryGetValue(song.Id, out int prefix))
+                BoardPrefixes[song.Id] = prefix = 100000 + BoardPrefixes.Count;
+            song.Level.highscoreTablePrefix = prefix;
+        }
+
         /// <summary>Puts the song's chart into its level (times shifted by the lead-in silence the game needs).</summary>
         public static void ApplyChart(CustomSong song)
         {
@@ -158,6 +177,7 @@ namespace InvectorModKit.CustomSongs
             // A marketplace chart may rename the song (its download record has the proper title and artist).
             song.Music.ArtistName = song.Artist;
             song.Music.SongName = song.Title;
+            ApplyBoard(song);
 
             var modes = song.Level.Modes;
             modes.ModesInTime = chart.Sections

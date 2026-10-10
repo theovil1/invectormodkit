@@ -17,6 +17,8 @@ namespace InvectorModKit.Marketplace.Client
         public double Duration, Bpm;
         public NoteCounts Notes = new NoteCounts();
         public int Version, Downloads;
+        /// <summary>Hidden by reports or an admin (only the author still sees it).</summary>
+        public bool Hidden;
         /// <summary>Unix time in milliseconds.</summary>
         public long UpdatedAt;
 
@@ -58,6 +60,35 @@ namespace InvectorModKit.Marketplace.Client
         public string ChartJson;
         /// <summary>Fingerprint.ToJson() of the audio the chart was made on.</summary>
         public string FingerprintJson;
+        /// <summary>The player accepted the publishing rules (needed once; the server answers 428 "rules" otherwise).</summary>
+        public bool AcceptRules;
+    }
+
+    public sealed class ScoreSubmission
+    {
+        public string PlayId;
+        public int Score, Percent, Misses, Streak, Perfect;
+        /// <summary>Notes in the chart that was played, for this difficulty.</summary>
+        public int Notes;
+    }
+
+    public sealed class ScoreResult
+    {
+        public int Rank, BestScore, BestPercent, Total;
+    }
+
+    public sealed class BoardEntry
+    {
+        public int Rank, Score, Percent;
+        public string SteamId, Name;
+    }
+
+    public sealed class BoardList
+    {
+        public int Version, Total;
+        public List<BoardEntry> Entries = new List<BoardEntry>();
+        /// <summary>The signed-in player's entry, wherever it ranks; null when not signed in or not on the board.</summary>
+        public BoardEntry Me;
     }
 
     public sealed class MarketplaceException : Exception

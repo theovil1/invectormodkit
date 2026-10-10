@@ -37,6 +37,8 @@ namespace InvectorModKit.Marketplace
             Session = new MarketplaceSession(Api, Path.Combine(Paths.ConfigPath, "InvectorModKit"));
             Installs = new InstallStore(CustomSongsApi.SongsFolder);
             new HarmonyLib.Harmony(Guid).PatchAll(typeof(Ui.EntryPoints));
+            new HarmonyLib.Harmony(Guid).PatchAll(typeof(Scores.MarketplaceLeaderboard));
+            Leaderboards.Register(Scores.MarketplaceLeaderboard.Instance);
             Startup();
         }
 
