@@ -19,15 +19,19 @@ namespace InvectorModKit.Charting.Generation
         private const double StrumShare = 0.23;
         // Chance that an eligible pickup becomes a turn, by difficulty (tuned so ~21% of pickups are turns).
         private static readonly double[] TurnChance = { 0.34, 0.33, 0.26, 0.24 };
+        // A pickup too close after an arrow for a second arrow: the official charts make it a turn (their
+        // most common fast pair, ~half of all gaps under 0.16 s in Ultra).
+        private const double FastTurnChance = 0.85;
         private const double TurnSameDirection = 0.42;
 
-        // P(same colour as previous pickup) by difficulty and gap bucket (1q, 2q, 3-4q, >1 beat).
+        // P(same colour as the previous plain pickup) by difficulty and gap in seconds (official charts).
+        private static readonly double[] SameColourGaps = { 0.16, 0.22, 0.30, 0.45, 0.70 };
         private static readonly double[][] SameColour =
         {
-            new[] { 1.0, 1.0, 1.0, 1.0 },
-            new[] { 0.83, 0.54, 0.32, 0.43 },
-            new[] { 0.46, 0.23, 0.20, 0.34 },
-            new[] { 0.23, 0.12, 0.14, 0.29 },
+            new[] { 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 },
+            new[] { 0.99, 0.76, 0.53, 0.36, 0.38, 0.38 },
+            new[] { 0.73, 0.28, 0.26, 0.38, 0.29, 0.23 },
+            new[] { 0.35, 0.15, 0.21, 0.28, 0.19, 0.16 },
         };
         private static readonly int[][] Buttons =
         {
@@ -94,9 +98,33 @@ namespace InvectorModKit.Charting.Generation
             }
             AssignLanesAndTurns(d, notes, index);
             AssignColours(d, notes);
+            DropTooClose(d, notes);
             AssignStarSets(notes);
             return notes;
         }
+
+        /// <summary>
+        /// Last resort for pairs still closer than the official charts ever play them (typically two
+        /// arrows a quarter beat apart at a fast tempo): the plain pickup goes (else the plain strum), never
+        /// a turn (lanes depend on it) and preferably not a hold.
+        /// </summary>
+        private void DropTooClose(Difficulty d, List<Note> notes)
+        {
+            for (int k = 1; k < notes.Count; k++)
+            {
+                Note a = notes[k - 1], b = notes[k];
+                if (ModeAt(a.Time) == SectionMode.Freefly || ModeAt(b.Time) == SectionMode.Freefly) continue;
+                if (b.Time - a.Time >= Playability.MinPairGap(d, a, b) - 1e-3) continue;
+                int victim = IsPlainPickup(b) ? k : IsPlainPickup(a) ? k - 1
+                           : IsPlainStrum(b) ? k : IsPlainStrum(a) ? k - 1
+                           : NoteColor.IsTurn(b.Color) && b.Kind == NoteKind.Pickup ? k - 1 : k;
+                notes.RemoveAt(victim);
+                k = Math.Max(0, victim - 1); // re-check the new neighbours
+            }
+        }
+
+        private static bool IsPlainPickup(Note n) => n.Kind == NoteKind.Pickup && !NoteColor.IsTurn(n.Color);
+        private static bool IsPlainStrum(Note n) => n.Kind == NoteKind.Strum && n.Length <= 0;
 
         private void AssignLanesAndTurns(Difficulty d, List<Note> notes, List<int> index)
         {
@@ -127,7 +155,11 @@ namespace InvectorModKit.Charting.Generation
                     bool eligible = nextGap >= Playability.MinAfterTurn(mode, d) && prevGap >= Playability.MinBeforeTurn[(int)d]
                                     && n.Time - lastTurnTime >= Playability.MinTurnGap;
                     double prominence = _grid.X[index[k]][BeatGrid.FProminence];
-                    if (eligible && _rng.Chance(TurnChance[(int)d] * (1.25 - 0.5 * prominence)))
+                    var before = k > 0 ? notes[k - 1] : default;
+                    bool rightAfterArrow = k > 0 && SectionAt(before.Time) == s && before.Kind == NoteKind.Pickup && !NoteColor.IsTurn(before.Color)
+                                           && n.Time - before.Time < Playability.MinPairGap(d, Playability.Pair.DifferentArrows);
+                    double chance = rightAfterArrow ? FastTurnChance : TurnChance[(int)d] * (1.25 - 0.5 * prominence);
+                    if (eligible && _rng.Chance(chance))
                     {
                         int preferred = lastTurn == 0 ? (_rng.Chance(0.5) ? NoteColor.TurnLeft : NoteColor.TurnRight)
                                       : _rng.Chance(TurnSameDirection) ? lastTurn : Opposite(lastTurn);
@@ -158,9 +190,12 @@ namespace InvectorModKit.Charting.Generation
                 var n = notes[k];
                 if (n.Kind != NoteKind.Pickup || NoteColor.IsTurn(n.Color)) continue;
                 if (ModeAt(n.Time) == SectionMode.Freefly) { n.Color = NoteColor.Down; notes[k] = n; continue; }
-                int gap = prevTime == double.MinValue ? 99 : (int)Math.Round((n.Time - prevTime) / _grid.Quarter);
-                int bucket = gap <= 1 ? 0 : gap == 2 ? 1 : gap <= 4 ? 2 : 3;
-                if (buttons.Length > 1 && !_rng.Chance(SameColour[(int)d][bucket]))
+                double gap = prevTime == double.MinValue ? double.MaxValue : n.Time - prevTime;
+                int bucket = 0;
+                while (bucket < SameColourGaps.Length && gap >= SameColourGaps[bucket]) bucket++;
+                // Too close to change arrow: the official charts keep it.
+                bool canChange = gap >= Playability.MinPairGap(d, Playability.Pair.DifferentArrows);
+                if (buttons.Length > 1 && canChange && !_rng.Chance(SameColour[(int)d][bucket]))
                 {
                     int c;
                     do c = buttons[_rng.Next(buttons.Length)]; while (c == colour);

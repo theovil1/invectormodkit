@@ -26,7 +26,7 @@ namespace InvectorModKit.Charting.Generation
     public static class ChartGenerator
     {
         /// <summary>Bump whenever generation changes, so cached auto-generated charts are rebuilt.</summary>
-        public const int Version = 6;
+        public const int Version = 7;
 
         /// <summary>Vocal focus the last generation actually used (diagnostics).</summary>
         [ThreadStatic] public static double VocalFocusUsed;
@@ -87,7 +87,7 @@ namespace InvectorModKit.Charting.Generation
             // a subset of the next harder one (as in the official charts, where 99% of notes are shared).
             // Official charts never put two notes closer than ~0.115 s, whatever the tempo
             // (at fast tempos that rules out runs of quarter beats).
-            int minGap = Math.Max(1, (int)Math.Ceiling(Playability.MinNoteGap / grid.Quarter - 1e-6));
+            int MinGap(Difficulty d) => Math.Max(1, (int)Math.Ceiling(Playability.MinNoteGapFor(d) / grid.Quarter - 1e-6));
             int[] allCandidates = Enumerable.Range(from, Math.Max(0, to - from + 1))
                 .Where(i => Audible(i) && !Freefly(i) && !blocked.Contains(i)).ToArray();
 
@@ -103,9 +103,22 @@ namespace InvectorModKit.Charting.Generation
                         score[k] = holdStarts.Contains(candidates[k]) ? 30 : NoteModel.Logit(diff, BeatGrid.Level(candidates[k]), grid.X[candidates[k]])
                             + focus * VocalPull(grid.X[candidates[k]]);
                     int target = (int)Math.Round(expected[d]) + holds.Count;
-                    result[d] = RhythmDecoder.Decode(candidates, score, NoteModel.GapLogPrior(diff), options.GapWeight, target, minGap);
-                    foreach (int h in holdStarts) if (!result[d].Contains(h)) result[d].Add(h);
-                    result[d].Sort();
+                    // Songs full of fast attacks (hi-hats in 16ths...) would get far more fast notes than any
+                    // official chart: rhythms with fewer of them are favoured until within the official limits,
+                    // keeping the same note count.
+                    var gapLog = NoteModel.GapLogPrior(diff);
+                    var penalty = new double[gapLog.Length];
+                    for (double p = 0; ; p = p == 0 ? 0.5 : p * 2)
+                    {
+                        for (int g = 1; g < penalty.Length; g++) penalty[g] = g * grid.Quarter < Playability.FastGap ? -p : 0;
+                        result[d] = RhythmDecoder.Decode(candidates, score, gapLog, options.GapWeight, target, MinGap(diff), penalty);
+                        foreach (int h in holdStarts) if (!result[d].Contains(h)) result[d].Add(h);
+                        result[d].Sort();
+                        if (p >= 8 || WithinFastLimits(result[d], diff, grid)) break;
+                    }
+                    var scoreOf = new Dictionary<int, double>(candidates.Length);
+                    for (int k = 0; k < candidates.Length; k++) scoreOf[candidates[k]] = score[k];
+                    LimitFastRuns(result[d], diff, grid, i => scoreOf.TryGetValue(i, out var s) ? s : 0, holdStarts);
                     candidates = result[d].ToArray();
                 }
                 return result;
@@ -168,6 +181,63 @@ namespace InvectorModKit.Charting.Generation
             };
             for (int d = 0; d < 4; d++) chart.Notes[(Difficulty)d] = patterns.Build((Difficulty)d, rhythms[d]);
             return chart;
+        }
+
+        private static bool WithinFastLimits(List<int> notes, Difficulty d, BeatGrid grid)
+        {
+            if (notes.Count < 2) return true;
+            int fast = 0, run = 0, longest = 0;
+            for (int k = 1; k < notes.Count; k++)
+            {
+                if (grid.TimeOf(notes[k]) - grid.TimeOf(notes[k - 1]) < Playability.FastGap) { fast++; longest = Math.Max(longest, ++run); }
+                else run = 0;
+            }
+            double minutes = (grid.TimeOf(notes[notes.Count - 1]) - grid.TimeOf(notes[0])) / 60;
+            return longest <= Playability.MaxFastRun[(int)d] && fast <= Playability.MaxFastPerMinute[(int)d] * minutes;
+        }
+
+        /// <summary>
+        /// The official charts keep runs of fast notes (closer than <see cref="Playability.FastGap"/>) short,
+        /// shorter still in the easier difficulties: longer runs lose their weakest inner notes (never a hold).
+        /// </summary>
+        private static void LimitFastRuns(List<int> notes, Difficulty d, BeatGrid grid, Func<int, double> score, HashSet<int> keep)
+        {
+            int cap = Playability.MaxFastRun[(int)d];
+            for (bool changed = true; changed;)
+            {
+                changed = false;
+                int start = 0;
+                for (int k = 1; k <= notes.Count && !changed; k++)
+                {
+                    if (k < notes.Count && grid.TimeOf(notes[k]) - grid.TimeOf(notes[k - 1]) < Playability.FastGap) continue;
+                    if (k - 1 - start > cap) // notes[start..k-1] hold k-1-start fast gaps
+                    {
+                        int victim = -1;
+                        for (int j = start + 1; j < k - 1; j++)
+                            if (!keep.Contains(notes[j]) && (victim < 0 || score(notes[j]) < score(notes[victim]))) victim = j;
+                        if (victim >= 0) { notes.RemoveAt(victim); changed = true; }
+                    }
+                    start = k;
+                }
+            }
+
+            // Then not more fast pairs per minute than the busiest official charts of that difficulty.
+            if (notes.Count < 2) return;
+            double minutes = (grid.TimeOf(notes[notes.Count - 1]) - grid.TimeOf(notes[0])) / 60;
+            int allowed = (int)(Playability.MaxFastPerMinute[(int)d] * minutes);
+            while (true)
+            {
+                int fast = 0, victim = -1;
+                for (int k = 1; k < notes.Count; k++)
+                {
+                    if (grid.TimeOf(notes[k]) - grid.TimeOf(notes[k - 1]) >= Playability.FastGap) continue;
+                    fast++;
+                    foreach (int j in new[] { k - 1, k })
+                        if (!keep.Contains(notes[j]) && (victim < 0 || score(notes[j]) < score(notes[victim]))) victim = j;
+                }
+                if (fast <= allowed || victim < 0) break;
+                notes.RemoveAt(victim);
+            }
         }
 
         private static SectionMode ModeAt(List<Section> sections, double t)

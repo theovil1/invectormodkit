@@ -23,6 +23,63 @@ namespace InvectorModKit.Charting
         /// <summary>Closest two consecutive turns are in the official charts.</summary>
         public const double MinTurnGap = 0.23;
 
+        /// <summary>Notes closer than this are a "fast" pair.</summary>
+        public const double FastGap = 0.16;
+        /// <summary>
+        /// Longest run of consecutive fast gaps allowed, by difficulty: about the longest runs of the official
+        /// charts at mid tempos (~120 BPM: Casual 1, Normal 3, Hard 6, Ultra 10), kept on the short side.
+        /// </summary>
+        public static readonly int[] MaxFastRun = { 1, 2, 4, 6 };
+        /// <summary>Most fast pairs per minute, by difficulty: the busiest official charts at mid tempos.</summary>
+        public static readonly double[] MaxFastPerMinute = { 8, 18, 52, 85 };
+
+        /// <summary>What two consecutive notes ask of the player.</summary>
+        public enum Pair { SameArrows, DifferentArrows, ArrowStrum, ArrowTurn, StrumArrow, StrumStrum, StrumTurn, TurnArrow, TurnStrum, TurnTurn }
+
+        /// <summary>
+        /// Closest two consecutive notes are in the official charts (1st percentile, outside Freefly), by
+        /// pair: two plain pickups need the most time, more again when the arrow changes, while an arrow
+        /// next to a turn or a strum (two different gestures) can come much sooner. At 120 BPM, two quarter
+        /// beats (0.125 s) apart can be an arrow and a turn, never two different arrows. [difficulty][pair]
+        /// </summary>
+        private static readonly double[][] MinPairGaps =
+        {
+            new[] { 0.140, 0.140, 0.140, 0.150, 0.150, 0.175, 0.235, 0.165, 0.235, 0.285 },
+            new[] { 0.115, 0.160, 0.120, 0.135, 0.140, 0.115, 0.150, 0.150, 0.160, 0.240 },
+            new[] { 0.135, 0.150, 0.115, 0.110, 0.120, 0.115, 0.115, 0.120, 0.115, 0.230 },
+            new[] { 0.135, 0.140, 0.115, 0.110, 0.115, 0.115, 0.115, 0.110, 0.115, 0.230 },
+        };
+
+        public static Pair PairOf(Note a, Note b)
+        {
+            int ka = KindIndex(a), kb = KindIndex(b);
+            if (ka == 0 && kb == 0) return a.Color == b.Color ? Pair.SameArrows : Pair.DifferentArrows;
+            switch (ka * 3 + kb)
+            {
+                case 1: return Pair.ArrowStrum;
+                case 2: return Pair.ArrowTurn;
+                case 3: return Pair.StrumArrow;
+                case 4: return Pair.StrumStrum;
+                case 5: return Pair.StrumTurn;
+                case 6: return Pair.TurnArrow;
+                case 7: return Pair.TurnStrum;
+                default: return Pair.TurnTurn;
+            }
+        }
+
+        private static int KindIndex(Note n) => n.Kind == NoteKind.Strum ? 1 : NoteColor.IsTurn(n.Color) ? 2 : 0;
+
+        public static double MinPairGap(Difficulty d, Pair pair) => MinPairGaps[(int)d][(int)pair];
+        public static double MinPairGap(Difficulty d, Note a, Note b) => MinPairGap(d, PairOf(a, b));
+
+        /// <summary>Smallest gap any two notes of this difficulty may have, whatever they are.</summary>
+        public static double MinNoteGapFor(Difficulty d)
+        {
+            double min = double.MaxValue;
+            foreach (double g in MinPairGaps[(int)d]) min = Math.Min(min, g);
+            return Math.Max(MinNoteGap, min);
+        }
+
         public const double FreeflyRingsPerSecond = 0.46;
         public const double FreeflyMinGap = 0.70;
         public const double FreeflyFirstRingDelay = 1.2;
@@ -62,6 +119,9 @@ namespace InvectorModKit.Charting
             {
                 double gap = notes[k].Time - notes[k - 1].Time;
                 if (gap > 1e-4 && gap < MinNoteGap - 0.01) issues.Add($"{notes[k].Time:0.00}s: notes only {gap:0.000}s apart");
+                else if (ModeAt(chart, notes[k].Time) != SectionMode.Freefly && ModeAt(chart, notes[k - 1].Time) != SectionMode.Freefly
+                         && gap < MinPairGap(d, notes[k - 1], notes[k]) - 0.005)
+                    issues.Add($"{notes[k].Time:0.00}s: {PairOf(notes[k - 1], notes[k])} only {gap:0.000}s apart");
             }
             Note? prevTurn = null;
             foreach (var n in notes)
