@@ -62,10 +62,29 @@ namespace InvectorModKit.Marketplace.Ui
         }
 
         [HarmonyPatch(typeof(StateSelectSongSingleplayer), nameof(StateSelectSongSingleplayer.PopulateInputIndicators)), HarmonyPostfix]
-        private static void AddHintSingle() => AddSongSelectHint();
+        private static void AddHintSingle() => AddSongSelectHintSoon();
 
         [HarmonyPatch(typeof(StateSelectSongMultiplayer), nameof(StateSelectSongMultiplayer.PopulateInputIndicators)), HarmonyPostfix]
-        private static void AddHintMulti() => AddSongSelectHint();
+        private static void AddHintMulti() => AddSongSelectHintSoon();
+
+        /// <summary>
+        /// The game sizes its hints itself after building them (their width is not a layout's): ours is copied from
+        /// one on the next frame, once it has its final size.
+        /// </summary>
+        private static void AddSongSelectHintSoon()
+        {
+            var indicators = GameUi.SongMenu?.inputIndicators;
+            if (indicators != null)
+                foreach (var old in indicators.GetComponentsInChildren<MarketplaceEntry>(true)) Object.Destroy(old.gameObject);
+            if (MarketplacePlugin.Instance) MarketplacePlugin.Instance.StartCoroutine(NextFrame(AddSongSelectHint));
+        }
+
+        private static System.Collections.IEnumerator NextFrame(System.Action action)
+        {
+            yield return null;
+            try { action(); }
+            catch (System.Exception e) { MarketplacePlugin.Log.LogError(e); }
+        }
 
         /// <summary>Song select's bottom bar gets a "MARKETPLACE" hint (M key), clickable like the others.</summary>
         private static void AddSongSelectHint()
@@ -85,6 +104,13 @@ namespace InvectorModKit.Marketplace.Ui
             else if (label) label.text = "[M]  " + Loc.T("title");
             var button = go.GetComponent<Button>();
             if (button) button.onClick.AddListener(() => MarketplaceModal.Open(MarketplacePlugin.Instance));
+            // Our own size, from our content (the game's hints get theirs from InputIndicatorItem, which a copy lacks).
+            float width = (icon && key ? 55 + 15 : 0) + (label ? label.preferredWidth : 200);
+            ((RectTransform)go.transform).sizeDelta = new Vector2(width, 55);
+            var layout = go.GetComponent<LayoutElement>() ?? go.AddComponent<LayoutElement>();
+            layout.minWidth = layout.preferredWidth = width;
+            layout.minHeight = layout.preferredHeight = 55;
+            LayoutRebuilder.MarkLayoutForRebuild((RectTransform)indicators.transform);
         }
 
         // While the window is open, the menu underneath must not react (difficulty, worlds, sorting, DLC…),

@@ -21,6 +21,10 @@ namespace InvectorModKit.CustomSongs
         public double Duration;
         /// <summary>Higher = prepared sooner (set when the player selects or starts a song that is not ready).</summary>
         public long Priority;
+        /// <summary>Last write time of the chart file when the mod last read or wrote it (to see edits made outside).</summary>
+        public System.DateTime ChartStamp;
+        /// <summary>Being prepared again because its chart was edited: song select is refreshed once it is ready.</summary>
+        public bool Reloading;
         public bool HasMetadata;
         /// <summary>Set when the chart was installed from the marketplace.</summary>
         public string MarketplaceId;

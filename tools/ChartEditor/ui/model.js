@@ -301,6 +301,20 @@ export class Editor {
     this.dirty = false;
   }
 
+  /** A copy of the document before a gesture (drag) that edits it live. */
+  snapshot() { return clone(this.doc); }
+
+  /** Ends a live gesture: the snapshot becomes one undo step (nothing happens if the document did not change). */
+  commit(snapshot) {
+    normalize(this.doc);
+    if (JSON.stringify(snapshot) === JSON.stringify(this.doc)) return false;
+    this.undoStack.push(snapshot);
+    if (this.undoStack.length > 1000) this.undoStack.shift();
+    this.redoStack = [];
+    this.dirty = true;
+    return true;
+  }
+
   /** Runs an edit; returns what the edit returned. */
   apply(edit) {
     const before = clone(this.doc);

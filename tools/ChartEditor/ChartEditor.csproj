@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- InvectorChartEditor.exe: a window (WinForms + WebView2) showing the editor's HTML interface (ui/), with the
+       C# side in InvectorModKit.ChartEditor.Core. .NET Framework 4.8 and the WebView2 runtime ship with Windows. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>InvectorChartEditor</AssemblyName>
+    <RootNamespace>InvectorModKit.ChartEditor.Host</RootNamespace>
+    <PlatformTarget>x64</PlatformTarget>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>editor.ico</ApplicationIcon>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <NoWarn>$(NoWarn);NU1903</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <ProjectReference Include="..\..\src\InvectorModKit.ChartEditor.Core\InvectorModKit.ChartEditor.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="ui\**\*" Exclude="ui\tests\**;ui\package.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -39,14 +39,14 @@ namespace InvectorModKit.ChartEditor
                     if (File.Exists(_vocals)) args += " " + Quote("--vocals=" + _vocals);
                     var start = new ProcessStartInfo(_chartGen, args)
                     {
-                        UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true,
+                        UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, // stderr not redirected: reading one pipe to the end while the other fills up would hang
                         StandardOutputEncoding = Encoding.UTF8,
                     };
                     using (var p = Process.Start(start))
                     {
                         string stdout = p.StandardOutput.ReadToEnd();
                         p.WaitForExit();
-                        if (!File.Exists(output)) throw new InvalidOperationException("generator: " + (stdout + p.StandardError.ReadToEnd()).Trim());
+                        if (!File.Exists(output)) throw new InvalidOperationException("generator: " + stdout.Trim());
                     }
                     return ChartJson.Deserialize(File.ReadAllText(output));
                 }

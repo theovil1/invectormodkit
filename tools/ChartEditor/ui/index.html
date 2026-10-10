@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Invector Chart Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header id="top">
+    <div class="brand"><span class="kit">InvectorModKit</span><span class="dot"></span><span class="name" data-t="appName"></span></div>
+    <div class="group">
+      <button id="btn-open" data-t="open"></button>
+      <button id="btn-new" data-t="new"></button>
+      <button id="btn-save" data-t="save"></button>
+      <button id="btn-send" class="accent" data-t="sendToGame"></button>
+      <button id="btn-publish" data-t="publish"></button>
+    </div>
+    <div class="group right">
+      <span id="account" class="muted"></span>
+      <button id="btn-settings" class="icon" title="">⚙</button>
+    </div>
+  </header>
+
+  <nav id="transport">
+    <button id="btn-play" class="icon big" title="">▶</button>
+    <span id="clock">0:00.000</span>
+    <div class="group" id="tabs"></div>
+    <label><span data-t="speed"></span>
+      <select id="speed"><option value="1">100 %</option><option value="0.75">75 %</option><option value="0.5">50 %</option><option value="0.25">25 %</option></select>
+    </label>
+    <label class="toggle"><input type="checkbox" id="claps" checked><span data-t="claps"></span></label>
+    <label class="toggle"><input type="checkbox" id="metronome"><span data-t="metronome"></span></label>
+    <label class="toggle"><input type="checkbox" id="follow" checked><span data-t="follow"></span></label>
+    <label><span data-t="grid"></span>
+      <select id="division">
+        <option value="1" data-t="grid1"></option><option value="2" data-t="grid2"></option><option value="3" data-t="grid3"></option>
+        <option value="4" selected data-t="grid4"></option><option value="6" data-t="grid6"></option><option value="8" data-t="grid8"></option>
+      </select>
+    </label>
+    <label><span data-t="ghost"></span><select id="ghost"></select></label>
+    <span class="spacer"></span>
+    <button id="btn-zoom-out" class="icon">−</button>
+    <button id="btn-zoom-in" class="icon">+</button>
+  </nav>
+
+  <main>
+    <section id="timeline-wrap">
+      <canvas id="timeline"></canvas>
+      <div id="empty" class="empty"><p data-t="emptyHint"></p><button id="btn-open-2" class="accent" data-t="open"></button></div>
+    </section>
+    <aside id="side">
+      <section class="card" id="card-song">
+        <h2 data-t="song"></h2>
+        <label class="field"><span data-t="title"></span><input id="f-title" type="text"></label>
+        <label class="field"><span data-t="artist"></span><input id="f-artist" type="text"></label>
+        <div class="row">
+          <label class="field"><span>BPM</span><input id="f-bpm" type="number" step="0.01" min="20" max="400"></label>
+          <button id="btn-tap" data-t="tap"></button>
+        </div>
+        <div class="row">
+          <label class="field"><span data-t="firstBeat"></span><input id="f-first" type="number" step="0.001"></label>
+          <button id="btn-first-minus" class="icon" title="−5 ms">−5</button><button id="btn-first-plus" class="icon" title="+5 ms">+5</button>
+        </div>
+        <div class="row three">
+          <label class="field"><span data-t="start"></span><input id="f-start" type="number" step="0.01"></label>
+          <label class="field"><span data-t="end"></span><input id="f-end" type="number" step="0.01"></label>
+          <label class="field"><span data-t="preview"></span><input id="f-preview" type="number" step="0.01"></label>
+        </div>
+      </section>
+      <section class="card" id="card-selection"></section>
+      <section class="card" id="card-tools"></section>
+      <section class="card" id="card-issues"><h2 id="issues-title"></h2><ol id="issues"></ol></section>
+    </aside>
+  </main>
+
+  <footer id="status"><span id="status-text"></span><span class="spacer"></span><span id="status-info" class="muted"></span></footer>
+
+  <div id="modal" class="modal hidden"><div class="box" id="modal-box"></div></div>
+  <div id="menu" class="menu hidden"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

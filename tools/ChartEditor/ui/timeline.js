@@ -1,0 +1,523 @@
+// The horizontal timeline: drawing on a canvas, hit testing, mouse gestures. Edits go through the app (history).
+import * as m from "./model.js";
+
+const LEFT = 76; // row labels
+const ROWS = { ruler: 30, zones: 28, wave: 84, lane: 64, strum: 54, scroll: 14 };
+export const BUTTON_COLORS = ["#4FC3F7", "#FF6B6B", "#7CFF6B", "#FFD54F", "#CB33FF", "#CB33FF"];
+export const BUTTON_GLYPHS = ["←", "→", "↓", "↑", "↺", "↻"];
+const MODE_COLORS = { List: "#7B3FD1", Bounce: "#1FA3B8", Freefly: "#E08A2C" };
+const HIT = 12;
+
+export class Timeline {
+  constructor(canvas, app) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext("2d");
+    this.app = app;
+    this.t0 = 0; // song time at the left edge of the notes area
+    this.pps = 140; // pixels per second
+    this.drag = null;
+    this.hover = null;
+    this.layout();
+    new ResizeObserver(() => { this.layout(); this.draw(); }).observe(canvas.parentElement);
+    canvas.addEventListener("pointerdown", (e) => this.down(e));
+    canvas.addEventListener("pointermove", (e) => this.move(e));
+    canvas.addEventListener("pointerup", (e) => this.up(e));
+    canvas.addEventListener("dblclick", (e) => this.dblclick(e));
+    canvas.addEventListener("contextmenu", (e) => { e.preventDefault(); this.context(e); });
+    canvas.addEventListener("wheel", (e) => this.wheel(e), { passive: false });
+  }
+
+  layout() {
+    const rect = this.canvas.parentElement.getBoundingClientRect();
+    this.w = Math.max(200, rect.width);
+    this.h = Math.max(200, rect.height);
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = Math.round(this.w * dpr);
+    this.canvas.height = Math.round(this.h * dpr);
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    let y = 0;
+    const row = (name, h) => { const r = { y, h }; y += h; return r; };
+    this.rows = { ruler: row("ruler", ROWS.ruler), zones: row("zones", ROWS.zones), wave: row("wave", ROWS.wave) };
+    // Lanes share what is left (between a minimum and a comfortable size).
+    const free = this.h - y - ROWS.strum - ROWS.scroll - 8;
+    const laneH = Math.max(44, Math.min(96, Math.floor(free / 3)));
+    this.rows.lanes = [0, 1, 2].map(() => row("lane", laneH));
+    this.rows.strum = row("strum", ROWS.strum);
+    this.rows.scroll = { y: this.h - ROWS.scroll, h: ROWS.scroll };
+  }
+
+  get doc() { return this.app.editor ? this.app.editor.doc : null; }
+  get width() { return this.w - LEFT; }
+  get visibleSeconds() { return this.width / this.pps; }
+  x(t) { return LEFT + (t - this.t0) * this.pps; }
+  time(x) { return this.t0 + (x - LEFT) / this.pps; }
+  laneY(lane) { const r = this.rows.lanes[lane]; return r.y + r.h / 2; }
+
+  /** Keeps the view inside the song. */
+  clamp() {
+    const end = this.doc ? this.doc.end : 60;
+    this.t0 = Math.max(-1, Math.min(this.t0, end - this.visibleSeconds * 0.5));
+  }
+
+  zoom(factor, aroundX = LEFT + this.width / 2) {
+    const t = this.time(aroundX);
+    this.pps = Math.max(12, Math.min(2400, this.pps * factor));
+    this.t0 = t - (aroundX - LEFT) / this.pps;
+    this.clamp();
+    this.draw();
+  }
+
+  /** Brings a time into view (around a quarter from the left). */
+  reveal(t, force = false) {
+    if (force || t < this.t0 || t > this.t0 + this.visibleSeconds * 0.85) {
+      this.t0 = t - this.visibleSeconds * 0.25;
+      this.clamp();
+    }
+  }
+
+  // ----- drawing
+
+  draw() {
+    const c = this.ctx, doc = this.doc;
+    c.clearRect(0, 0, this.w, this.h);
+    c.fillStyle = "#0C0912";
+    c.fillRect(0, 0, this.w, this.h);
+    if (!doc) return;
+    const from = this.t0, to = this.t0 + this.visibleSeconds;
+    const d = this.app.difficulty;
+    const selection = this.app.selection;
+
+    // Zone tint behind the lanes.
+    const lanesTop = this.rows.lanes[0].y, lanesBottom = this.rows.strum.y + this.rows.strum.h;
+    doc.sections.forEach((s, i) => {
+      const { from: a, to: b } = m.sectionRange(doc, i);
+      const x0 = Math.max(LEFT, this.x(a)), x1 = Math.min(this.w, this.x(b));
+      if (x1 <= x0) return;
+      c.fillStyle = MODE_COLORS[s.mode] + "16";
+      c.fillRect(x0, lanesTop, x1 - x0, lanesBottom - lanesTop);
+    });
+    // Outside the song.
+    c.fillStyle = "rgba(0,0,0,.45)";
+    if (this.x(0) > LEFT) c.fillRect(LEFT, 0, this.x(0) - LEFT, this.rows.scroll.y);
+    if (this.x(doc.end) < this.w) c.fillRect(this.x(doc.end), 0, this.w - this.x(doc.end), this.rows.scroll.y);
+
+    // Grid.
+    const lines = m.gridLines(doc, Math.max(0, from), Math.min(doc.end, to), this.app.division);
+    const minGap = (m.secondsPerBeat(doc) / this.app.division) * this.pps;
+    for (const l of lines) {
+      if (l.level === 2 && minGap < 6) continue;
+      const x = Math.round(this.x(l.t)) + 0.5;
+      c.strokeStyle = l.level === 0 ? "rgba(255,255,255,.42)" : l.level === 1 ? "rgba(255,255,255,.18)" : "rgba(255,255,255,.07)";
+      c.beginPath();
+      c.moveTo(x, this.rows.ruler.y + (l.level === 0 ? 4 : l.level === 1 ? 16 : 22));
+      c.lineTo(x, lanesBottom);
+      c.stroke();
+      if (l.level === 0 && (l.bar % Math.max(1, Math.round(60 / (m.secondsPerBeat(doc) * 4 * this.pps))) === 0 || this.pps > 30)) {
+        c.fillStyle = "#E1E1E1";
+        c.font = "600 11px 'Exo 2', sans-serif";
+        c.fillText(String(l.bar), x + 3, this.rows.ruler.y + 12);
+      }
+    }
+
+    this.drawRows();
+    this.drawZones(doc);
+    this.drawWave(from);
+    this.drawMarkers(doc);
+
+    // Ghost difficulty.
+    const ghost = this.app.ghost;
+    if (ghost && ghost !== d) {
+      c.globalAlpha = 0.22;
+      for (const n of doc.notes[ghost]) if (n.t >= from - 2 && n.t <= to) this.drawNote(n, false, false);
+      c.globalAlpha = 1;
+    }
+    // Notes.
+    const issueTimes = this.app.issueTimes;
+    for (const n of doc.notes[d]) {
+      if (n.t + (n.len || 0) < from - 0.5 || n.t > to + 0.5) continue;
+      this.drawNote(n, selection.has(n.id), issueTimes.has(Math.round(n.t * 1000)));
+    }
+
+    // Box selection.
+    if (this.drag && this.drag.kind === "box" && this.drag.moved) {
+      const b = this.drag;
+      c.fillStyle = "rgba(203,51,255,.12)";
+      c.strokeStyle = "#CB33FF";
+      c.fillRect(Math.min(b.x0, b.x1), Math.min(b.y0, b.y1), Math.abs(b.x1 - b.x0), Math.abs(b.y1 - b.y0));
+      c.strokeRect(Math.min(b.x0, b.x1) + 0.5, Math.min(b.y0, b.y1) + 0.5, Math.abs(b.x1 - b.x0), Math.abs(b.y1 - b.y0));
+    }
+
+    // Playhead.
+    const px = this.x(this.app.audio.time);
+    if (px >= LEFT && px <= this.w) {
+      c.strokeStyle = "#FFFFFF";
+      c.lineWidth = 2;
+      c.beginPath();
+      c.moveTo(px, 0);
+      c.lineTo(px, lanesBottom);
+      c.stroke();
+      c.lineWidth = 1;
+      c.fillStyle = "#FFFFFF";
+      c.beginPath();
+      c.moveTo(px - 6, 0); c.lineTo(px + 6, 0); c.lineTo(px, 8); c.fill();
+    }
+
+    this.drawScrollbar(doc);
+    this.drawLabels();
+  }
+
+  drawRows() {
+    const c = this.ctx;
+    c.strokeStyle = "rgba(255,255,255,.14)";
+    for (const r of [this.rows.zones, this.rows.wave, ...this.rows.lanes, this.rows.strum]) {
+      c.beginPath();
+      c.moveTo(LEFT, r.y + 0.5);
+      c.lineTo(this.w, r.y + 0.5);
+      c.stroke();
+    }
+  }
+
+  drawLabels() {
+    const c = this.ctx, t = this.app.t;
+    c.fillStyle = "#0C0912";
+    c.fillRect(0, 0, LEFT, this.rows.scroll.y);
+    c.strokeStyle = "rgba(255,255,255,.3)";
+    c.beginPath(); c.moveTo(LEFT - 0.5, 0); c.lineTo(LEFT - 0.5, this.rows.scroll.y); c.stroke();
+    c.font = "700 10px 'Exo 2', sans-serif";
+    c.fillStyle = "#E1E1E1";
+    const label = (text, r) => c.fillText(text.toUpperCase(), 8, r.y + r.h / 2 + 4);
+    label(t("rowTime"), this.rows.ruler);
+    label(t("rowZones"), this.rows.zones);
+    label(t("rowWave"), this.rows.wave);
+    this.rows.lanes.forEach((r, i) => label(t("rowLane", i), r));
+    label(t("rowStrum"), this.rows.strum);
+  }
+
+  drawZones(doc) {
+    const c = this.ctx, r = this.rows.zones, t = this.app.t;
+    doc.sections.forEach((s, i) => {
+      const { from: a, to: b } = m.sectionRange(doc, i);
+      const x0 = Math.max(LEFT, this.x(a)), x1 = Math.min(this.w, this.x(b));
+      if (x1 <= x0) return;
+      c.fillStyle = MODE_COLORS[s.mode] + "CC";
+      c.fillRect(x0, r.y + 3, x1 - x0 - 1, r.h - 6);
+      c.fillStyle = "#FFFFFF";
+      c.font = "800 11px 'Exo 2', sans-serif";
+      c.save();
+      c.beginPath(); c.rect(x0, r.y, x1 - x0 - 4, r.h); c.clip();
+      c.fillText(t("mode" + s.mode).toUpperCase(), Math.max(x0, this.x(a)) + 8, r.y + r.h / 2 + 4);
+      c.restore();
+      if (i > 0 && this.x(a) >= LEFT) {
+        c.fillStyle = this.hover && this.hover.kind === "boundary" && this.hover.index === i ? "#FFFFFF" : "rgba(255,255,255,.7)";
+        c.fillRect(this.x(a) - 2, r.y, 4, r.h);
+      }
+    });
+  }
+
+  drawWave(from) {
+    const c = this.ctx, r = this.rows.wave;
+    const peaks = this.app.audio.peaks(from, 1 / this.pps, Math.ceil(this.width));
+    if (!peaks) return;
+    const mid = r.y + r.h / 2, amp = r.h / 2 - 4, played = this.app.audio.time;
+    for (let x = 0; x < peaks.min.length; x++) {
+      const t = from + x / this.pps;
+      c.fillStyle = t < played ? "#CB33FF" : "rgba(203,51,255,.55)";
+      const y0 = mid - peaks.max[x] * amp, y1 = mid - peaks.min[x] * amp;
+      c.fillRect(LEFT + x, y0, 1, Math.max(1, y1 - y0));
+    }
+  }
+
+  drawMarkers(doc) {
+    const c = this.ctx, r = this.rows.ruler, t = this.app.t;
+    const markers = [["start", doc.start, "#7CFF6B"], ["preview", doc.preview, "#4FC3F7"], ["end", doc.end, "#FF6B6B"]];
+    for (const [key, time, color] of markers) {
+      const x = this.x(time);
+      if (x < LEFT - 40 || x > this.w + 40) continue;
+      c.strokeStyle = color;
+      c.beginPath(); c.moveTo(x + 0.5, r.y); c.lineTo(x + 0.5, this.rows.strum.y + this.rows.strum.h); c.stroke();
+      c.fillStyle = color;
+      c.font = "800 9px 'Exo 2', sans-serif";
+      const label = t("marker_" + key).toUpperCase(), w = c.measureText(label).width + 8;
+      c.fillRect(x, r.y + r.h - 13, w, 12);
+      c.fillStyle = "#0C0912";
+      c.fillText(label, x + 4, r.y + r.h - 4);
+    }
+  }
+
+  drawNote(n, selected, issue) {
+    const c = this.ctx, x = this.x(n.t);
+    if (n.strum) {
+      const r = this.rows.strum, y = r.y + r.h / 2;
+      if (n.len > 0) {
+        const x1 = this.x(n.t + n.len);
+        c.fillStyle = selected ? "rgba(255,255,255,.75)" : "rgba(255,255,255,.4)";
+        c.fillRect(x, y - 6, Math.max(0, x1 - x), 12);
+        c.fillStyle = "#FFFFFF";
+        c.fillRect(x1 - 3, y - 12, 6, 24);
+      }
+      c.fillStyle = "#FFFFFF";
+      c.strokeStyle = selected ? "#CB33FF" : "#0C0912";
+      c.lineWidth = selected ? 3 : 2;
+      c.beginPath();
+      c.roundRect ? c.roundRect(x - 7, y - 17, 14, 34, 4) : c.rect(x - 7, y - 17, 14, 34);
+      c.fill();
+      c.stroke();
+      c.lineWidth = 1;
+    } else {
+      const y = this.laneY(n.lane), s = 13;
+      c.fillStyle = BUTTON_COLORS[n.color];
+      c.strokeStyle = selected ? "#FFFFFF" : "rgba(0,0,0,.6)";
+      c.lineWidth = selected ? 3 : 1.5;
+      c.beginPath();
+      c.moveTo(x, y - s); c.lineTo(x + s, y); c.lineTo(x, y + s); c.lineTo(x - s, y); c.closePath();
+      c.fill();
+      c.stroke();
+      c.lineWidth = 1;
+      c.fillStyle = "#0C0912";
+      c.font = "800 14px 'Segoe UI Symbol', 'Exo 2', sans-serif";
+      c.textAlign = "center";
+      c.fillText(BUTTON_GLYPHS[n.color], x, y + 5);
+      c.textAlign = "left";
+    }
+    const y = n.strum ? this.rows.strum.y + 8 : this.laneY(n.lane) - 17;
+    if (n.set > 0) {
+      c.fillStyle = "#FFD54F";
+      c.font = (n.last ? "800 15px" : "700 11px") + " 'Segoe UI Symbol', sans-serif";
+      c.textAlign = "center";
+      c.fillText("★", x, y - 1);
+      c.textAlign = "left";
+    }
+    if (issue) {
+      c.strokeStyle = "#FF5252";
+      c.lineWidth = 2;
+      c.beginPath();
+      c.arc(x, n.strum ? this.rows.strum.y + this.rows.strum.h / 2 : this.laneY(n.lane), 20, 0, Math.PI * 2);
+      c.stroke();
+      c.lineWidth = 1;
+    }
+  }
+
+  drawScrollbar(doc) {
+    const c = this.ctx, r = this.rows.scroll;
+    c.fillStyle = "#181619";
+    c.fillRect(LEFT, r.y, this.width, r.h);
+    const total = Math.max(doc.end, 1);
+    const a = LEFT + (Math.max(0, this.t0) / total) * this.width;
+    const w = Math.max(24, (this.visibleSeconds / total) * this.width);
+    c.fillStyle = this.drag && this.drag.kind === "scroll" ? "#FFFFFF" : "rgba(255,255,255,.55)";
+    c.fillRect(a, r.y + 3, Math.min(w, LEFT + this.width - a), r.h - 6);
+  }
+
+  // ----- hit testing
+
+  hit(x, y) {
+    const doc = this.doc;
+    if (!doc) return { kind: "none" };
+    const t = this.time(x), R = this.rows, d = this.app.difficulty;
+    if (y >= R.scroll.y) return { kind: "scroll" };
+    if (x < LEFT) return { kind: "none" };
+    if (y < R.ruler.y + R.ruler.h) {
+      for (const key of ["start", "preview", "end"]) if (Math.abs(this.x(doc[key]) - x) < 7) return { kind: "marker", key };
+      return { kind: "ruler", t };
+    }
+    if (y < R.zones.y + R.zones.h) {
+      for (let i = 1; i < doc.sections.length; i++) if (Math.abs(this.x(doc.sections[i].t) - x) < 6) return { kind: "boundary", index: i };
+      return { kind: "zone", index: m.sectionIndexAt(doc, t), t };
+    }
+    if (y < R.wave.y + R.wave.h) return { kind: "wave", t };
+    if (y >= R.strum.y && y < R.strum.y + R.strum.h) {
+      const notes = doc.notes[d].filter((n) => n.strum);
+      for (const n of notes) if (n.len > 0 && Math.abs(this.x(n.t + n.len) - x) < 7) return { kind: "hold", note: n };
+      const n = nearest(notes, (n) => Math.abs(this.x(n.t) - x), HIT);
+      return n ? { kind: "note", note: n } : { kind: "empty", row: "strum", t };
+    }
+    const lane = R.lanes.findIndex((r) => y >= r.y && y < r.y + r.h);
+    if (lane >= 0) {
+      const n = nearest(doc.notes[d].filter((n) => !n.strum && n.lane === lane), (n) => Math.abs(this.x(n.t) - x), HIT);
+      return n ? { kind: "note", note: n } : { kind: "empty", row: "lane", lane, t };
+    }
+    return { kind: "none" };
+  }
+
+  laneAt(y) {
+    const i = this.rows.lanes.findIndex((r) => y >= r.y && y < r.y + r.h);
+    return i >= 0 ? i : y < this.rows.lanes[0].y ? 0 : 2;
+  }
+
+  // ----- gestures
+
+  pos(e) { const r = this.canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+
+  down(e) {
+    if (e.button !== 0 || !this.doc) return;
+    this.app.closeMenu();
+    const { x, y } = this.pos(e), h = this.hit(x, y), app = this.app, d = app.difficulty;
+    this.canvas.setPointerCapture(e.pointerId);
+    switch (h.kind) {
+      case "note": {
+        const id = h.note.id;
+        if (e.ctrlKey || e.shiftKey) { app.toggleSelect(id); this.draw(); return; }
+        if (!app.selection.has(id)) app.select([id]);
+        const ids = [...app.selection];
+        const origin = new Map(app.editor.doc.notes[d].filter((n) => ids.includes(n.id)).map((n) => [n.id, { t: n.t, lane: n.lane }]));
+        this.drag = { kind: "move", x0: x, y0: y, grab: h.note.t, lane0: this.laneAt(y), ids, origin, snap: app.editor.snapshot() };
+        app.seekPreview(h.note.t);
+        break;
+      }
+      case "hold":
+        app.select([h.note.id]);
+        this.drag = { kind: "hold", id: h.note.id, snap: app.editor.snapshot() };
+        break;
+      case "empty":
+        this.drag = { kind: "box", x0: x, y0: y, x1: x, y1: y, hit: h, moved: false, additive: e.ctrlKey || e.shiftKey };
+        break;
+      case "boundary":
+        this.drag = { kind: "boundary", index: h.index, snap: app.editor.snapshot() };
+        break;
+      case "marker":
+        this.drag = { kind: "marker", key: h.key, snap: app.editor.snapshot() };
+        break;
+      case "ruler":
+      case "wave":
+      case "zone":
+        this.drag = { kind: "seek" };
+        app.seek(Math.max(0, h.t));
+        break;
+      case "scroll":
+        this.drag = { kind: "scroll", x0: x, t00: this.t0 };
+        break;
+    }
+    this.draw();
+  }
+
+  move(e) {
+    const { x, y } = this.pos(e), app = this.app, doc = this.doc;
+    if (!doc) return;
+    const drag = this.drag;
+    if (!drag) {
+      const h = this.hit(x, y);
+      this.hover = h;
+      this.canvas.style.cursor = h.kind === "boundary" || h.kind === "marker" || h.kind === "hold" ? "ew-resize" : h.kind === "note" ? "grab" : h.kind === "empty" ? "crosshair" : "default";
+      app.showCursor(this.time(x), h);
+      return;
+    }
+    const d = app.difficulty, t = this.time(x);
+    switch (drag.kind) {
+      case "move": {
+        if (Math.abs(x - drag.x0) < 3 && Math.abs(y - drag.y0) < 3 && !drag.moved) return;
+        drag.moved = true;
+        const target = e.altKey ? drag.grab + (x - drag.x0) / this.pps : m.snap(doc, drag.grab + (x - drag.x0) / this.pps, app.division);
+        const dt = target - drag.grab, dLane = this.laneAt(y) - drag.lane0;
+        for (const n of doc.notes[d]) {
+          const o = drag.origin.get(n.id);
+          if (!o) continue;
+          n.t = Math.max(0, Math.min(doc.end, o.t + dt));
+          if (!n.strum) n.lane = Math.max(0, Math.min(2, o.lane + dLane));
+        }
+        m.normalize(doc);
+        app.changed(false);
+        break;
+      }
+      case "hold": {
+        const n = doc.notes[d].find((n) => n.id === drag.id);
+        if (n) m.setHold(doc, d, n.id, (e.altKey ? t : m.snap(doc, t, app.division)) - n.t);
+        app.changed(false);
+        break;
+      }
+      case "box":
+        drag.x1 = x;
+        drag.y1 = y;
+        drag.moved = drag.moved || Math.abs(x - drag.x0) > 4 || Math.abs(y - drag.y0) > 4;
+        break;
+      case "boundary":
+        m.moveSection(doc, drag.index, e.altKey ? t : m.snap(doc, t, app.division));
+        m.normalize(doc);
+        app.changed(false);
+        break;
+      case "marker":
+        m.setMeta(doc, { [drag.key]: e.altKey ? t : m.snap(doc, t, app.division) });
+        app.changed(false);
+        break;
+      case "seek":
+        app.seek(Math.max(0, t));
+        break;
+      case "scroll":
+        this.t0 = drag.t00 + ((x - drag.x0) / this.width) * Math.max(doc.end, 1);
+        this.clamp();
+        break;
+    }
+    this.draw();
+  }
+
+  up(e) {
+    const drag = this.drag, app = this.app, doc = this.doc;
+    this.drag = null;
+    if (!drag || !doc) return;
+    const d = app.difficulty;
+    switch (drag.kind) {
+      case "move":
+      case "hold":
+      case "boundary":
+      case "marker":
+        if (app.editor.commit(drag.snap)) app.changed(true);
+        break;
+      case "box":
+        if (drag.moved) {
+          const ta = this.time(Math.min(drag.x0, drag.x1)), tb = this.time(Math.max(drag.x0, drag.x1));
+          const ya = Math.min(drag.y0, drag.y1), yb = Math.max(drag.y0, drag.y1);
+          const ids = doc.notes[d].filter((n) => {
+            if (n.t < ta || n.t > tb) return false;
+            const y = n.strum ? this.rows.strum.y + this.rows.strum.h / 2 : this.laneY(n.lane);
+            return y >= ya - 10 && y <= yb + 10;
+          }).map((n) => n.id);
+          app.select(drag.additive ? [...app.selection, ...ids] : ids);
+        } else {
+          const h = drag.hit, t = e.altKey ? h.t : m.snap(doc, h.t, app.division);
+          app.addNoteAt(t, h.row === "strum" ? null : h.lane);
+        }
+        break;
+    }
+    this.draw();
+  }
+
+  dblclick(e) {
+    const { x, y } = this.pos(e), h = this.hit(x, y), app = this.app, doc = this.doc;
+    if (!doc || h.kind !== "zone") return;
+    const mode = doc.sections[h.index].mode;
+    const next = m.MODES[(m.MODES.indexOf(mode) + 1) % m.MODES.length];
+    app.edit((doc) => m.addSection(doc, m.snap(doc, h.t, app.division), next));
+  }
+
+  context(e) {
+    const { x, y } = this.pos(e), h = this.hit(x, y), app = this.app;
+    if (!this.doc) return;
+    if (h.kind === "note") {
+      const ids = app.selection.has(h.note.id) ? [...app.selection] : [h.note.id];
+      app.edit((doc) => m.removeNotes(doc, app.difficulty, ids));
+      app.select([]);
+    } else if (h.kind === "zone" || h.kind === "boundary") {
+      app.zoneMenu(h.index, e.clientX, e.clientY);
+    }
+  }
+
+  wheel(e) {
+    e.preventDefault();
+    if (!this.doc) return;
+    const { x } = this.pos(e);
+    if (e.ctrlKey) this.zoom(e.deltaY < 0 ? 1.2 : 1 / 1.2, Math.max(LEFT, x));
+    else {
+      this.t0 += ((e.deltaY + e.deltaX) / this.pps) * 0.9;
+      this.clamp();
+      this.draw();
+    }
+  }
+}
+
+function nearest(items, distance, max) {
+  let best = null, bestD = max;
+  for (const it of items) {
+    const dd = distance(it);
+    if (dd <= bestD) { best = it; bestD = dd; }
+  }
+  return best;
+}

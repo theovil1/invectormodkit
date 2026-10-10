@@ -184,7 +184,7 @@ namespace InvectorModKit.CustomSongs
                 foreach (var issue in Enum.GetValues(typeof(ChartDifficulty)).Cast<ChartDifficulty>().SelectMany(d => Playability.Validate(chart, d).Take(3).Select(i => d + " " + i)))
                     log($"{song}: playability warning: {issue}");
 
-                song.PreviewPath = Path.Combine(CacheDir, $"{song.Id}-{hash}-{chart.Gain.Value:0.0}dB.preview.wav");
+                song.PreviewPath = Path.Combine(CacheDir, $"{song.Id}-{hash}-{chart.Gain.Value:0.0}dB-{chart.PreviewStart:0.0}s.preview.wav");
                 string generatedPreview = PendingPreviewPath(song, hash);
                 if (!File.Exists(song.PreviewPath) && File.Exists(generatedPreview))
                 {
@@ -211,7 +211,17 @@ namespace InvectorModKit.CustomSongs
                 song.State = SongState.Failed;
                 log($"{Path.GetFileName(song.AudioPath)}: FAILED - {e}");
             }
+            finally
+            {
+                song.ChartStamp = StampOf(song.ChartPath);
+            }
         }
+
+        public static DateTime StampOf(string path) => File.Exists(path) ? File.GetLastWriteTimeUtc(path) : DateTime.MinValue;
+
+        /// <summary>Songs whose chart file was changed by someone else (the chart editor, a text editor) since the mod read it.</summary>
+        public List<CustomSong> ChangedCharts(IList<CustomSong> known) =>
+            known.Where(s => (s.State == SongState.Ready || s.State == SongState.Failed) && s.ChartStamp != default && StampOf(s.ChartPath) != s.ChartStamp).ToList();
 
         private string PendingPreviewPath(CustomSong song, string hash) => Path.Combine(CacheDir, $"{song.Id}-{hash}.preview.tmp");
 
@@ -309,6 +319,7 @@ namespace InvectorModKit.CustomSongs
             File.Copy(tmp, song.ChartPath, true);
             File.Delete(tmp);
             song.Chart.Source = source;
+            song.ChartStamp = StampOf(song.ChartPath); // our own write: not an outside edit
             song.MarketplaceId = source?.MarketplaceId;
             song.MarketplaceAuthor = source?.Author;
             song.MarketplaceVersion = source?.Version ?? 0;

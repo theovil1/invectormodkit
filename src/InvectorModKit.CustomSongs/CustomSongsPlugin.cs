@@ -95,7 +95,13 @@ namespace InvectorModKit.CustomSongs
                 {
                     GameAssets.ApplyChart(next);
                     Logger.LogInfo($"Ready: {next} ({next.Chart.Bpm:0.##} BPM, lead-in {next.LeadIn:0.00}s, gain {next.Chart.Gain:+0.0;-0.0} dB{(next.MarketplaceId != null ? ", marketplace chart" : "")})");
-                    if (next.MarketplaceId != null) RefreshSongSelect(); // its name comes from the marketplace record
+                    if (next.Reloading)
+                    {
+                        next.Reloading = false;
+                        if (next.PreviewItem != null && SongAudio.HasClip(next.PreviewItem)) SongAudio.Release(next.PreviewItem); // the excerpt may have moved
+                        RefreshSongSelect();
+                    }
+                    else if (next.MarketplaceId != null) RefreshSongSelect(); // its name comes from the marketplace record
                 }
                 catch (System.Exception e) { Fail(next, "could not apply chart", e); }
             }
@@ -144,7 +150,12 @@ namespace InvectorModKit.CustomSongs
         {
             var known = Library.Songs.ToList();
             (List<CustomSong> Added, List<CustomSong> Removed) changes = default;
-            var scan = RunLowPriority(() => changes = Library.FindChanges(known));
+            List<CustomSong> edited = null;
+            var scan = RunLowPriority(() =>
+            {
+                changes = Library.FindChanges(known);
+                edited = Library.ChangedCharts(known);
+            });
             while (!scan.IsCompleted) yield return null;
             if (scan.IsFaulted)
             {
@@ -164,6 +175,16 @@ namespace InvectorModKit.CustomSongs
                     Logger.LogInfo($"New song: {song} ({(File.Exists(song.ChartPath) ? "has a chart" : "chart being generated")})");
             }
             if (changes.Added.Count > 0 || changes.Removed.Count > 0) RefreshSongSelect();
+            // Charts edited outside the game (chart editor, text editor): prepared again first, without a restart.
+            foreach (var song in edited.Where(s => !changes.Removed.Contains(s)))
+            {
+                Logger.LogInfo($"Chart changed: {song}, reloading it");
+                song.Chart = null;
+                song.HasMetadata = false;
+                song.Reloading = true;
+                song.Priority = long.MaxValue;
+                song.State = SongState.Pending;
+            }
         }
 
         /// <summary>
@@ -173,7 +194,15 @@ namespace InvectorModKit.CustomSongs
         /// </summary>
         private static void RefreshSongSelect()
         {
-            if (ModKit.CurrentState is HelloThere.Avicii.StateSelectSongSingleplayer select) select.OnDLCChanged();
+            if (!(ModKit.CurrentState is HelloThere.Avicii.StateSelectSongSingleplayer select)) return;
+            // Stay on the song the player is looking at (the game would go back to the first one).
+            int index = select.buttonsWithEvents == null ? -1 : System.Array.IndexOf(select.buttonsWithEvents, select.selectedLevelButton);
+            if (index >= 0)
+            {
+                HelloThere.Avicii.StateSelectSongSingleplayer.PLAYER_PREFS_KEY_SELECTED_BUTTON_INDEX = index;
+                select.selectPreviousSong = true;
+            }
+            select.OnDLCChanged();
         }
 
         private static bool InGame
