@@ -24,6 +24,8 @@ namespace InvectorModKit.Charting.Generation
     {
         public static double HoldsPerNote = 0.02;
         private const int MinQuarters = 3, MaxQuarters = 16;
+        public static float SungAttack = 0.4f;
+        public static double SungAttackBonus = 1.0;
 
         /// <summary>HoldFeatures layout; learned on the official charts.</summary>
         private static readonly double[] Weights = { -5.097, -0.673, 0.238, 0.731, 0.903, -3.747, -2.014, 1.741, -0.2, -1.808, -1.179, 0.854 };
@@ -37,6 +39,8 @@ namespace InvectorModKit.Charting.Generation
                 var x = HoldFeatures.At(f, grid, i);
                 double z = 0;
                 for (int k = 0; k < x.Length; k++) z += Weights[k] * x[k];
+                // Official holds start on a sung attack more often than the model alone picks (55-60% vs 44%).
+                if (f.MaxAround(f.OnsetHarmonic, grid.TimeOf(i), 2) >= SungAttack) z += SungAttackBonus;
                 int quarters = Length(f, grid, i, allowed);
                 if (quarters >= MinQuarters) candidates.Add(new HoldRegion { Start = i, Quarters = quarters, Score = z });
             }
