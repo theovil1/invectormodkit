@@ -60,6 +60,14 @@ namespace InvectorModKit.Charting
         public string AudioHash;
     }
 
+    /// <summary>Provenance of a chart installed from the marketplace; such charts are never regenerated.</summary>
+    public sealed class ChartSource
+    {
+        public string MarketplaceId;
+        public int Version;
+        public string Author;
+    }
+
     /// <summary>
     /// A complete custom-song chart. All times are in the song's own audio timeline; the loader adds
     /// the lead-in padding the game needs (see <see cref="LeadIn"/>).
@@ -83,8 +91,45 @@ namespace InvectorModKit.Charting
         public Dictionary<Difficulty, List<Note>> Notes = new Dictionary<Difficulty, List<Note>>();
         /// <summary>Null for hand-made charts, which are never regenerated.</summary>
         public GeneratorStamp Generator;
+        /// <summary>Set for charts installed from the marketplace.</summary>
+        public ChartSource Source;
 
         public double SecondsPerBeat => 60.0 / Bpm;
+
+        /// <summary>
+        /// The same chart on an audio file where everything happens <paramref name="offset"/> seconds later
+        /// (earlier when negative). Notes that would fall before the start of the file are dropped; the
+        /// section playing at the new t = 0 becomes the first one.
+        /// </summary>
+        public Chart Shifted(double offset)
+        {
+            var copy = new Chart
+            {
+                Format = Format, Bpm = Bpm, Gain = Gain, Generator = Generator, Source = Source,
+                FirstBeat = FirstBeat + offset,
+                StartTime = System.Math.Max(0, StartTime + offset),
+                EndTime = EndTime + offset,
+                PreviewStart = System.Math.Max(0, PreviewStart + offset),
+            };
+            foreach (var s in Sections)
+            {
+                double start = s.Start == 0 ? 0 : s.Start + offset;
+                if (start <= 0) copy.Sections.Clear();
+                copy.Sections.Add(new Section(System.Math.Max(0, start), s.Mode));
+            }
+            foreach (var pair in Notes)
+            {
+                var list = copy[pair.Key];
+                foreach (var n in pair.Value)
+                {
+                    if (n.Time + offset < 0) continue;
+                    var moved = n;
+                    moved.Time += offset;
+                    list.Add(moved);
+                }
+            }
+            return copy;
+        }
 
         public List<Note> this[Difficulty difficulty]
         {

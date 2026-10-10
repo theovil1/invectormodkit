@@ -28,6 +28,13 @@ namespace InvectorModKit.Charting.Generation
         /// <summary>Bump whenever generation changes, so cached auto-generated charts are rebuilt.</summary>
         public const int Version = 7;
 
+        /// <summary>
+        /// An automatic chart made by another generator version or from other audio. Hand-made charts
+        /// (no generator stamp) and marketplace charts are never stale.
+        /// </summary>
+        public static bool IsStale(Chart chart, string audioHash) =>
+            chart.Source == null && chart.Generator != null && (chart.Generator.Version != Version || chart.Generator.AudioHash != audioHash);
+
         /// <summary>Vocal focus the last generation actually used (diagnostics).</summary>
         [ThreadStatic] public static double VocalFocusUsed;
         [ThreadStatic] public static double VocalShareSeen;

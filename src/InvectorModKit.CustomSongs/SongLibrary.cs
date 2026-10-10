@@ -145,7 +145,7 @@ namespace InvectorModKit.CustomSongs
                 if (File.Exists(song.ChartPath))
                 {
                     chart = ChartJson.Deserialize(File.ReadAllText(song.ChartPath));
-                    bool stale = chart.Generator != null && (chart.Generator.Version != ChartGenerator.Version || chart.Generator.AudioHash != hash);
+                    bool stale = ChartGenerator.IsStale(chart, hash);
                     if (stale)
                     {
                         log($"{song}: auto chart is out of date, regenerating");

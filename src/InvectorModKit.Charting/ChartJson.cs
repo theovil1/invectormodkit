@@ -36,6 +36,8 @@ namespace InvectorModKit.Charting
             if (chart.Gain.HasValue) root["gain"] = Round(chart.Gain.Value, 2);
             if (chart.Generator != null)
                 root["generator"] = new JObject { ["version"] = chart.Generator.Version, ["audioHash"] = chart.Generator.AudioHash };
+            if (chart.Source != null)
+                root["source"] = new JObject { ["marketplace"] = chart.Source.MarketplaceId, ["version"] = chart.Source.Version, ["author"] = chart.Source.Author };
 
             var sections = new JArray();
             foreach (var s in chart.Sections)
@@ -83,6 +85,8 @@ namespace InvectorModKit.Charting
 
             if (root["generator"] is JObject gen)
                 chart.Generator = new GeneratorStamp { Version = (int?)gen["version"] ?? 0, AudioHash = (string)gen["audioHash"] };
+            if (root["source"] is JObject source)
+                chart.Source = new ChartSource { MarketplaceId = (string)source["marketplace"], Version = (int?)source["version"] ?? 0, Author = (string)source["author"] };
 
             if (root["sections"] is JArray sections)
                 foreach (var s in sections)
