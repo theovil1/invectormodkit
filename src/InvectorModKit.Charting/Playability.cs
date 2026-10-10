@@ -111,23 +111,29 @@ namespace InvectorModKit.Charting
         }
 
         /// <summary>Problems a player would hit, one line each (empty = playable).</summary>
-        public static List<string> Validate(Chart chart, Difficulty d)
+        public static List<string> Validate(Chart chart, Difficulty d) => Issues(chart, d).ConvertAll(i => i.ToString());
+
+        /// <summary>Problems a player would hit, with the time of the note concerned (empty = playable).</summary>
+        public static List<PlayabilityIssue> Issues(Chart chart, Difficulty d)
         {
-            var issues = new List<string>();
+            var issues = new List<PlayabilityIssue>();
+            void Add(double time, string code, SectionMode? mode, double gap, string detail, string text) =>
+                issues.Add(new PlayabilityIssue { Time = time, Code = code, Mode = mode, Gap = gap, Detail = detail, Text = text });
             var notes = chart[d];
             for (int k = 1; k < notes.Count; k++)
             {
                 double gap = notes[k].Time - notes[k - 1].Time;
-                if (gap > 1e-4 && gap < MinNoteGap - 0.01) issues.Add($"{notes[k].Time:0.00}s: notes only {gap:0.000}s apart");
+                if (gap > 1e-4 && gap < MinNoteGap - 0.01) Add(notes[k].Time, "gap", null, gap, null, $": notes only {gap:0.000}s apart");
                 else if (ModeAt(chart, notes[k].Time) != SectionMode.Freefly && ModeAt(chart, notes[k - 1].Time) != SectionMode.Freefly
                          && gap < MinPairGap(d, notes[k - 1], notes[k]) - 0.005)
-                    issues.Add($"{notes[k].Time:0.00}s: {PairOf(notes[k - 1], notes[k])} only {gap:0.000}s apart");
+                    Add(notes[k].Time, "pair", null, gap, PairOf(notes[k - 1], notes[k]).ToString(), $": {PairOf(notes[k - 1], notes[k])} only {gap:0.000}s apart");
             }
             Note? prevTurn = null;
             foreach (var n in notes)
             {
                 if (n.Kind != NoteKind.Pickup || !NoteColor.IsTurn(n.Color)) continue;
-                if (prevTurn.HasValue && n.Time - prevTurn.Value.Time < MinTurnGap - 0.01) issues.Add($"{n.Time:0.00}s: turns only {n.Time - prevTurn.Value.Time:0.000}s apart");
+                if (prevTurn.HasValue && n.Time - prevTurn.Value.Time < MinTurnGap - 0.01)
+                    Add(n.Time, "turns", null, n.Time - prevTurn.Value.Time, null, $": turns only {n.Time - prevTurn.Value.Time:0.000}s apart");
                 prevTurn = n;
             }
             Note? prev = null;
@@ -137,30 +143,52 @@ namespace InvectorModKit.Charting
                 var mode = ModeAt(chart, n.Time);
                 if (mode == SectionMode.Freefly)
                 {
-                    if (n.Kind == NoteKind.Strum || NoteColor.IsTurn(n.Color)) issues.Add($"{n.Time:0.00}s Freefly: strum/turn (invisible or impossible)");
+                    if (n.Kind == NoteKind.Strum || NoteColor.IsTurn(n.Color)) Add(n.Time, "freefly-note", mode, 0, null, " Freefly: strum/turn (invisible or impossible)");
                 }
                 if (n.Kind != NoteKind.Pickup) continue;
-                if (NoteColor.IsTurn(n.Color) && !TurnAllowed(mode, n.Lane, n.Color)) issues.Add($"{n.Time:0.00}s {mode}: turn points off the track (lane {n.Lane})");
+                if (NoteColor.IsTurn(n.Color) && !TurnAllowed(mode, n.Lane, n.Color)) Add(n.Time, "turn-off-track", mode, 0, n.Lane.ToString(), $" {mode}: turn points off the track (lane {n.Lane})");
                 if (prev.HasValue && prevMode == mode)
                 {
                     var p = prev.Value;
                     double gap = n.Time - p.Time;
                     if (mode == SectionMode.Freefly)
                     {
-                        if (gap < 0.45) issues.Add($"{n.Time:0.00}s Freefly: rings {gap:0.00}s apart");
-                        if (n.Lane != p.Lane && gap < 2.5) issues.Add($"{n.Time:0.00}s Freefly: position change in {gap:0.00}s");
+                        if (gap < 0.45) Add(n.Time, "rings", mode, gap, null, $" Freefly: rings {gap:0.00}s apart");
+                        if (n.Lane != p.Lane && gap < 2.5) Add(n.Time, "freefly-move", mode, gap, null, $" Freefly: position change in {gap:0.00}s");
                     }
                     else if (NoteColor.IsTurn(p.Color))
                     {
-                        if (n.Lane != LaneAfterTurn(mode, p.Lane, p.Color)) issues.Add($"{n.Time:0.00}s {mode}: lane does not follow the turn");
-                        if (gap < MinAfterTurn(mode, d) - 1e-3) issues.Add($"{n.Time:0.00}s {mode}: only {gap:0.00}s to move after a turn");
+                        if (n.Lane != LaneAfterTurn(mode, p.Lane, p.Color)) Add(n.Time, "turn-lane", mode, gap, null, $" {mode}: lane does not follow the turn");
+                        if (gap < MinAfterTurn(mode, d) - 1e-3) Add(n.Time, "turn-time", mode, gap, null, $" {mode}: only {gap:0.00}s to move after a turn");
                     }
-                    else if (n.Lane != p.Lane) issues.Add($"{n.Time:0.00}s {mode}: lane change without a turn");
+                    else if (n.Lane != p.Lane) Add(n.Time, "lane-change", mode, gap, null, $" {mode}: lane change without a turn");
                 }
                 prev = n;
                 prevMode = mode;
             }
+            issues.Sort((a, b) => a.Time.CompareTo(b.Time));
             return issues;
         }
+    }
+
+    /// <summary>One problem found by <see cref="Playability.Issues"/>.</summary>
+    public sealed class PlayabilityIssue
+    {
+        /// <summary>Song time of the note concerned.</summary>
+        public double Time;
+        /// <summary>
+        /// Which rule (stable, for translations): gap, pair, turns, freefly-note, turn-off-track, rings,
+        /// freefly-move, turn-lane, turn-time, lane-change.
+        /// </summary>
+        public string Code;
+        public SectionMode? Mode;
+        /// <summary>Seconds between the notes concerned, when the rule is about a gap.</summary>
+        public double Gap;
+        /// <summary>Pair of notes (pair) or lane (turn-off-track).</summary>
+        public string Detail;
+        /// <summary>English description, as written after the time.</summary>
+        public string Text;
+
+        public override string ToString() => $"{Time:0.00}s{Text}";
     }
 }

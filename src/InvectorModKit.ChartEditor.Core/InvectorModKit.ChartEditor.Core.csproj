@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The chart editor's C# side, without any window: what the interface asks for (open, save, playability,
+       send to the game, regenerate, publish), so it can be tested on its own. Hosted by tools/ChartEditor. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>InvectorModKit.ChartEditor</RootNamespace>
+    <NoWarn>$(NoWarn);NU1903</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <ProjectReference Include="..\InvectorModKit.Charting\InvectorModKit.Charting.csproj" />
+    <ProjectReference Include="..\InvectorModKit.Marketplace.Client\InvectorModKit.Marketplace.Client.csproj" />
+  </ItemGroup>
+</Project>
