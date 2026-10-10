@@ -57,6 +57,12 @@ namespace InvectorModKit.Marketplace.Ui
                 }
                 var root = GameUi.Clone(dialog, canvas, "Marketplace", stillImage: true);
                 root.transform.SetAsLastSibling();
+                // Song select draws in its own canvases: the window needs one of its own, in front of them,
+                // with its own raycaster so the mouse reaches it (and nothing behind it).
+                var layer = root.AddComponent<Canvas>();
+                layer.overrideSorting = true;
+                layer.sortingOrder = 1000;
+                root.AddComponent<GraphicRaycaster>();
                 var modal = root.AddComponent<MarketplaceModal>();
                 modal.Build();
                 _instance = modal;
@@ -91,14 +97,15 @@ namespace InvectorModKit.Marketplace.Ui
             GameUi.Place(title, -Width / 2 + 60 + 300, Height / 2 - 70, 600, 60);
 
             _account = GameUi.Text(Box, "Account", Regular, 26, TextAnchor.MiddleRight, GameUi.Muted);
-            GameUi.Place(_account, Width / 2 - 360, Height / 2 - 70, 380, 50);
-            _signIn = MakeButton(Box, "SE CONNECTER", Width / 2 - 140, Height / 2 - 70, 220, 56, SignIn, 26);
+            GameUi.Place(_account, Width / 2 - 440, Height / 2 - 70, 380, 50);
+            _signIn = MakeButton(Box, "SE CONNECTER", Width / 2 - 230, Height / 2 - 70, 220, 56, SignIn, 26);
+            MakeButton(Box, "X", Width / 2 - 70, Height / 2 - 70, 64, 56, Shut, 30);
 
             _browseTab = MakeButton(Box, "PARCOURIR", -Width / 2 + 190, Height / 2 - 150, 260, 60, () => Show(_browse));
             _mineTab = MakeButton(Box, "MES MORCEAUX", -Width / 2 + 470, Height / 2 - 150, 260, 60, () => Show(_mine));
 
             var hints = GameUi.Text(Box, "Hints", Regular, 24, TextAnchor.MiddleCenter, GameUi.Muted);
-            hints.text = "ÉCHAP  Fermer      TAB  Changer d'onglet      F  Rechercher      ENTRÉE  Action principale      ← →  Actions";
+            hints.text = "ÉCHAP  Fermer      TAB  Changer d'onglet      F  Rechercher      ENTRÉE ou DOUBLE-CLIC  Action principale      ← →  Actions";
             GameUi.Place(hints, 0, -Height / 2 + 40, Width - 120, 40);
 
             _browse = new BrowseTab(this);
@@ -168,7 +175,7 @@ namespace InvectorModKit.Marketplace.Ui
                           : session.SigningIn ? "Connexion dans ton navigateur…" : "";
             _signIn.gameObject.SetActive(!session.SignedIn && !session.SigningIn);
             var rt = (RectTransform)_account.transform;
-            rt.anchoredPosition = new Vector2(session.SignedIn || session.SigningIn ? Width / 2 - 250 : Width / 2 - 460, rt.anchoredPosition.y);
+            rt.anchoredPosition = new Vector2(session.SignedIn || session.SigningIn ? Width / 2 - 300 : Width / 2 - 540, rt.anchoredPosition.y);
         }
 
         /// <summary>Opens Steam's sign-in page; true once signed in.</summary>
@@ -306,14 +313,23 @@ namespace InvectorModKit.Marketplace.Ui
                 var t = root.transform.Find(hidden);
                 if (t) t.gameObject.SetActive(false);
             }
+            // Keyboard/gamepad: Enter runs the action. Mouse: a click selects the row, a double-click runs it.
             Button.onClick.AddListener(() =>
             {
-                try { onClick(); }
+                try
+                {
+                    bool mouse = Input.GetMouseButtonUp(0) || Input.GetMouseButton(0);
+                    if (!mouse) { onClick(); return; }
+                    if (Time.unscaledTime - _lastClick < 0.35f) { _lastClick = -1; onClick(); }
+                    else _lastClick = Time.unscaledTime;
+                }
                 catch (Exception e) { MarketplacePlugin.Log.LogError(e); }
             });
             var dispatcher = root.GetComponent<SelectDispatcher>() ?? root.AddComponent<SelectDispatcher>();
             dispatcher.Selected = onSelected;
         }
+
+        private float _lastClick = -1;
 
         public void Set(string title, string artist, string note, double seconds, Sprite cover)
         {
