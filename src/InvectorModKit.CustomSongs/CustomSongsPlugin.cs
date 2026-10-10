@@ -48,7 +48,7 @@ namespace InvectorModKit.CustomSongs
         private IEnumerator PrepareSongs()
         {
             var songs = Library.Songs.ToList();
-            var info = Task.Run(() => { foreach (var s in songs) Library.ReadInfo(s, msg => _workerLog.Enqueue(msg)); });
+            var info = RunLowPriority(() => { foreach (var s in songs) Library.ReadInfo(s, msg => _workerLog.Enqueue(msg)); });
             while (!info.IsCompleted) { FlushWorkerLog(); yield return null; }
             FlushWorkerLog();
 
@@ -62,9 +62,12 @@ namespace InvectorModKit.CustomSongs
 
             while (true)
             {
+                // Heavy analysis (and the garbage collections it causes) would make the game stutter
+                // mid-song, so nothing new starts while a song is being played.
+                while (InGame) yield return new WaitForSecondsRealtime(0.5f);
                 var next = songs.Where(s => s.State == SongState.Pending).OrderByDescending(s => s.Priority).FirstOrDefault();
                 if (next == null) break;
-                var task = Task.Run(() => Library.Prepare(next, msg => _workerLog.Enqueue(msg)));
+                var task = RunLowPriority(() => Library.Prepare(next, msg => _workerLog.Enqueue(msg)));
                 while (!task.IsCompleted) { FlushWorkerLog(); yield return null; }
                 FlushWorkerLog();
                 if (next.State != SongState.Ready) continue;
@@ -75,6 +78,28 @@ namespace InvectorModKit.CustomSongs
                 }
                 catch (System.Exception e) { Fail(next, "could not apply chart", e); }
             }
+        }
+
+        private static bool InGame
+        {
+            get
+            {
+                var state = ModKit.CurrentState;
+                return state is HelloThere.Avicii.StateGame || state is HelloThere.Avicii.StateGamePause || state is global::StateGameEnd;
+            }
+        }
+
+        /// <summary>A background thread below normal priority, so the game's own threads always come first.</summary>
+        private static Task RunLowPriority(System.Action work)
+        {
+            var done = new TaskCompletionSource<bool>();
+            var thread = new System.Threading.Thread(() =>
+            {
+                try { work(); done.SetResult(true); }
+                catch (System.Exception e) { done.SetException(e); }
+            }) { IsBackground = true, Priority = System.Threading.ThreadPriority.BelowNormal, Name = "CustomSongs worker" };
+            thread.Start();
+            return done.Task;
         }
 
         private void Fail(CustomSong song, string what, System.Exception e)
