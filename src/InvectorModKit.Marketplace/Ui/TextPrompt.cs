@@ -76,7 +76,6 @@ namespace InvectorModKit.Marketplace.Ui
             _root.SetActive(true);
             _root.transform.SetAsLastSibling();
             GameUi.Select(_ok.gameObject);
-            if (EventSystem.current) EventSystem.current.sendNavigationEvents = false; // arrows and letters are typing now
         }
 
         /// <summary>Called every frame while visible: typing, paste, Enter, Escape.</summary>
@@ -129,7 +128,6 @@ namespace InvectorModKit.Marketplace.Ui
         {
             _root.SetActive(false);
             _onOk = null;
-            if (EventSystem.current) EventSystem.current.sendNavigationEvents = true;
         }
     }
 }

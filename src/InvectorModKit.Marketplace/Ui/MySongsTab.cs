@@ -27,6 +27,9 @@ namespace InvectorModKit.Marketplace.Ui
         private float _nextRefresh;
 
         public bool Typing => false;
+        public GameObject FirstItem => _rows.Count > 0 ? _rows[0].Root : _publish.gameObject;
+        public GameObject LastRow => _lastRow ? _lastRow : FirstItem;
+        private GameObject _lastRow;
 
         public MySongsTab(MarketplaceModal m)
         {
@@ -95,7 +98,7 @@ namespace InvectorModKit.Marketplace.Ui
         {
             var selected = GameUi.Selected;
             var row = _rows.FirstOrDefault(r => r.Root == selected);
-            if (row != null) MarketplaceModal.KeepVisible(_scroll, (RectTransform)row.Root.transform);
+            if (row != null) { MarketplaceModal.KeepVisible(_scroll, (RectTransform)row.Root.transform); _lastRow = row.Root; }
             if (Time.unscaledTime >= _nextRefresh)
             {
                 _nextRefresh = Time.unscaledTime + 2f;

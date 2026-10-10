@@ -32,6 +32,9 @@ namespace InvectorModKit.Marketplace.Ui
         private HashSet<string> _installed = new HashSet<string>();
 
         public bool Typing => _typing;
+        public GameObject FirstItem => _rows.Count > 0 ? _rows[0].Root : _search.gameObject;
+        public GameObject LastRow => _lastRow ? _lastRow : FirstItem;
+        private GameObject _lastRow;
 
         public BrowseTab(MarketplaceModal m)
         {
@@ -60,18 +63,21 @@ namespace InvectorModKit.Marketplace.Ui
 
             // Where the audio comes from: the chart is timed on the soundtrack of the attached video.
             _audioPanel = GameUi.Image(_root.transform, "Audio", new Color(1, 1, 1, 0.06f));
-            GameUi.Place(_audioPanel, 415, -95, 560, 130);
+            GameUi.Place(_audioPanel, 415, -100, 560, 150);
             var audioHeader = GameUi.Text(_audioPanel.transform, "Header", m.Bold, 22, TextAnchor.UpperLeft, Color.white);
             audioHeader.text = "AUDIO : LA VIDÉO YOUTUBE LIÉE";
-            GameUi.Place(audioHeader, 0, 42, 520, 30);
+            GameUi.Place(audioHeader, 0, 52, 520, 30);
             _video = GameUi.Text(_audioPanel.transform, "Video", m.Regular, 22, TextAnchor.UpperLeft, Color.white);
-            GameUi.Place(_video, 0, 3, 520, 50);
+            GameUi.Place(_video, 0, 8, 520, 56);
             var audioNote = GameUi.Text(_audioPanel.transform, "Note", m.Regular, 19, TextAnchor.UpperLeft, GameUi.Muted);
             audioNote.text = "Le chart est calé sur la bande-son de cette vidéo : c'est cette version du morceau qu'il te faut.";
-            GameUi.Place(audioNote, 0, -42, 520, 44);
+            audioNote.resizeTextForBestFit = true;
+            audioNote.resizeTextMinSize = 14;
+            audioNote.resizeTextMaxSize = 19;
+            GameUi.Place(audioNote, 0, -46, 520, 50);
 
             _status = GameUi.Text(_root.transform, "Status", m.Regular, 21, TextAnchor.UpperLeft, Color.white);
-            GameUi.Place(_status, 415, -190, 550, 56);
+            GameUi.Place(_status, 415, -202, 550, 44);
             _install = m.MakeButton(_root.transform, "INSTALLER", 280, -258, 270, 58, () => Primary(_selected));
             _youtube = m.MakeButton(_root.transform, "OUVRIR SUR YOUTUBE", 560, -258, 270, 58, () => { if (_selected != null) Application.OpenURL(_selected.YoutubeUrl); });
             _folder = m.MakeButton(_root.transform, "DOSSIER CUSTOMSONGS", 280, -324, 270, 52, OpenFolder, 24);
@@ -115,7 +121,7 @@ namespace InvectorModKit.Marketplace.Ui
 
             var selected = GameUi.Selected;
             var row = _rows.FirstOrDefault(r => r.Root == selected);
-            if (row != null) MarketplaceModal.KeepVisible(_scroll, (RectTransform)row.Root.transform);
+            if (row != null) { MarketplaceModal.KeepVisible(_scroll, (RectTransform)row.Root.transform); _lastRow = row.Root; }
 
             if (Time.unscaledTime >= _nextRefresh)
             {
@@ -129,7 +135,6 @@ namespace InvectorModKit.Marketplace.Ui
         private void StartTyping()
         {
             _typing = true;
-            if (EventSystem.current) EventSystem.current.sendNavigationEvents = false;
             UpdateSearchLabel();
         }
 
@@ -137,7 +142,6 @@ namespace InvectorModKit.Marketplace.Ui
         {
             if (!_typing) return;
             _typing = false;
-            if (EventSystem.current) EventSystem.current.sendNavigationEvents = true;
             UpdateSearchLabel();
             if (search) { _searchAt = -1; Search(); }
         }
@@ -209,6 +213,10 @@ namespace InvectorModKit.Marketplace.Ui
                 _rows.Add(row);
             }
             MarketplaceModal.ChainNavigation(_rows.Select(r => (Selectable)r.Button).ToList(), _install);
+            Selectable first = _rows.Count > 0 ? _rows[0].Button : null;
+            if (first) { var nav = first.navigation; nav.selectOnUp = _search; first.navigation = nav; }
+            _search.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnRight = _sort, selectOnDown = first };
+            _sort.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = _search, selectOnDown = first };
             if (_rows.Count > 0 && !_typing && _root.activeInHierarchy) GameUi.Select(_rows[0].Root);
             if (_rows.Count == 0) ShowDetails(null);
         }

@@ -122,7 +122,7 @@ namespace InvectorModKit.Marketplace.Ui
             _prompt = new TextPrompt(this);
             _previousSelection = GameUi.Selected;
             _lastMouse = Input.mousePosition;
-            TakeMouse();
+            TakeInput();
             HideShip();
             RefreshAccount();
             Show(_browse);
@@ -147,26 +147,62 @@ namespace InvectorModKit.Marketplace.Ui
         }
 
         // ----- mouse
-        // The game's input module only feeds the mouse to the Rewired players controlling the current menu,
-        // which may not own the mouse: the window reads the mouse itself (and switches the module's mouse
-        // off meanwhile, so nothing is clicked twice).
+        // While the window is open it reads every input itself and the game's input module sends nothing: the
+        // module only feeds the mouse to the Rewired players controlling the current menu (which may not own
+        // it), and its keys (move, submit) could reach game objects behind the window.
 
         private Rewired.Integration.UnityUI.RewiredStandaloneInputModule _module;
-        private bool _moduleMouse;
+        private bool _moduleMouse, _moduleNavigation;
         private Vector3 _lastMouse;
         private readonly List<RaycastResult> _hits = new List<RaycastResult>();
 
-        private void TakeMouse()
+        private void TakeInput()
         {
-            _module = EventSystem.current ? EventSystem.current.currentInputModule as Rewired.Integration.UnityUI.RewiredStandaloneInputModule : null;
+            if (EventSystem.current == null) return;
+            _moduleNavigation = EventSystem.current.sendNavigationEvents;
+            EventSystem.current.sendNavigationEvents = false;
+            _module = EventSystem.current.currentInputModule as Rewired.Integration.UnityUI.RewiredStandaloneInputModule;
             if (_module == null) return;
             _moduleMouse = _module.allowMouseInput;
             _module.allowMouseInput = false;
         }
 
-        private void GiveMouseBack()
+        private void GiveInputBack()
         {
             if (_module) _module.allowMouseInput = _moduleMouse;
+            if (EventSystem.current) EventSystem.current.sendNavigationEvents = _moduleNavigation;
+            _module = null;
+        }
+
+        /// <summary>Arrows / stick move along the explicit navigation, OK (Enter, A) presses the selected button.</summary>
+        private void Navigate()
+        {
+            var current = GameUi.Selected;
+            var selectable = current ? current.GetComponent<Selectable>() : null;
+            var dir = Direction();
+            if (selectable == null || !selectable.transform.IsChildOf(transform))
+            {
+                if (dir != Vector2Int.zero && _current?.FirstItem) GameUi.Select(_current.FirstItem);
+                return;
+            }
+            Selectable next = dir.y > 0 ? selectable.FindSelectableOnUp() : dir.y < 0 ? selectable.FindSelectableOnDown()
+                            : dir.x > 0 ? selectable.FindSelectableOnRight() : dir.x < 0 ? selectable.FindSelectableOnLeft() : null;
+            if (next && next.gameObject.activeInHierarchy && next.IsInteractable()) GameUi.Select(next.gameObject);
+            else if (dir.x < 0 && _current?.LastRow && current != _current.LastRow) GameUi.Select(_current.LastRow); // from the actions back to the list
+            if (OkPressed() && selectable is Button button && button.IsInteractable()) button.onClick.Invoke();
+        }
+
+        private static Vector2Int Direction()
+        {
+            try { return new Vector2Int(RewiredInputHelper.GetHorizontalDirectionUIAll(), RewiredInputHelper.GetVerticalDirectionUIAll()); }
+            catch (Exception) { return Vector2Int.zero; }
+        }
+
+        private static bool OkPressed()
+        {
+            if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) return true;
+            try { return RewiredInputHelper.GetButtonDownAll(RewiredInputHelper.ActionIdOk); }
+            catch (Exception) { return false; }
         }
 
         private void HandleMouse()
@@ -205,7 +241,8 @@ namespace InvectorModKit.Marketplace.Ui
             }
             if (_confirmation.Visible)
             {
-                if (Input.GetKeyDown(KeyCode.Escape)) _confirmation.Answer(false);
+                if (Input.GetKeyDown(KeyCode.Escape) || CancelPressed()) _confirmation.Answer(false);
+                else Navigate();
                 return;
             }
             bool typing = _current != null && _current.Typing;
@@ -215,6 +252,7 @@ namespace InvectorModKit.Marketplace.Ui
                 return;
             }
             if (!typing && Input.GetKeyDown(KeyCode.Tab)) Show(_current == _browse ? (ITab)_mine : _browse);
+            else if (!typing) Navigate();
             _current?.Tick();
             RefreshAccount();
         }
@@ -244,15 +282,14 @@ namespace InvectorModKit.Marketplace.Ui
 
         private void OnDestroy()
         {
-            GiveMouseBack();
+            GiveInputBack();
             ShowShip();
         }
 
         private void Shut()
         {
-            GiveMouseBack();
+            GiveInputBack();
             ShowShip();
-            if (EventSystem.current) EventSystem.current.sendNavigationEvents = true;
             _instance = null;
             Destroy(gameObject);
             if (_previousSelection) GameUi.Select(_previousSelection);
@@ -397,6 +434,10 @@ namespace InvectorModKit.Marketplace.Ui
     internal interface ITab
     {
         bool Typing { get; }
+        /// <summary>Where keyboard navigation starts when nothing in the window is selected.</summary>
+        GameObject FirstItem { get; }
+        /// <summary>The list row last selected, to come back to from the action buttons.</summary>
+        GameObject LastRow { get; }
         void Show();
         void Hide();
         void Tick();
