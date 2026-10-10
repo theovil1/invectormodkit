@@ -13,7 +13,9 @@ namespace InvectorModKit.ChartEditor.Host
 {
     /// <summary>
     /// The editor's window: the HTML interface in WebView2 (served from ui/ as https://app.editor/), the open song's
-    /// audio as https://app.editor/audio/…, and the interface's messages answered here ("host.*") or by the EditorBackend.
+    /// audio as https://app.editor/audio/…, the game's look as https://app.editor/skin/… (the pictures the mod exports in
+    /// game, and the game's fonts cut out of its bundles here), and the interface's messages answered here ("host.*")
+    /// or by the EditorBackend.
     /// </summary>
     internal sealed class MainForm : Form
     {
@@ -24,6 +26,7 @@ namespace InvectorModKit.ChartEditor.Host
         private readonly EditorBackend _backend;
         private bool _ready, _allowClose;
         private string _audioPath;
+        private readonly string _fontsDir;
 
         public MainForm()
         {
@@ -48,6 +51,7 @@ namespace InvectorModKit.ChartEditor.Host
                 }
             }
             _backend = new EditorBackend(settings, OpenUrl);
+            _fontsDir = Path.Combine(data, "fonts");
             Load += async (_, __) => await Start();
         }
 
@@ -86,7 +90,33 @@ namespace InvectorModKit.ChartEditor.Host
             core.WebMessageReceived += async (_, e) => await OnMessage(e.WebMessageAsJson);
             core.Navigate($"https://{AppHost}/index.html");
             _ready = true;
+            ExtractFontsOnce();
         }
+
+        /// <summary>The game's fonts, cut out of its bundles the first time (a few seconds, in the background).</summary>
+        private void ExtractFontsOnce()
+        {
+            string game = _backend.Settings.GameDir;
+            if (!GameLocator.IsGameDir(game) || (Directory.Exists(_fontsDir) && Directory.GetFiles(_fontsDir, "*.otf").Length > 0)) return;
+            Task.Run(() =>
+            {
+                try
+                {
+                    if (GameFonts.Extract(game, _fontsDir).Count > 0) Post("{\"event\":\"fonts\"}");
+                }
+                catch (Exception) { } // the editor's own fonts stay
+            });
+        }
+
+        private void Post(string json)
+        {
+            if (InvokeRequired) BeginInvoke(new Action(() => Post(json)));
+            else _web.CoreWebView2?.PostWebMessageAsJson(json);
+        }
+
+        /// <summary>Where the mod writes the game's pictures for the editor (BepInEx/cache/InvectorModKit/editor-skin).</summary>
+        private string SkinDir => string.IsNullOrEmpty(_backend.Settings.GameDir) ? null
+            : Path.Combine(_backend.Settings.GameDir, "BepInEx", "cache", "InvectorModKit", "editor-skin");
 
         private static readonly string UiDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ui");
 
@@ -97,8 +127,15 @@ namespace InvectorModKit.ChartEditor.Host
         private CoreWebView2WebResourceResponse Serve(CoreWebView2Environment env, Uri uri)
         {
             string path = Uri.UnescapeDataString(uri.AbsolutePath).TrimStart('/');
-            string file = path.StartsWith("audio/", StringComparison.Ordinal) ? _audioPath : Path.GetFullPath(Path.Combine(UiDir, path.Replace('/', '\\')));
-            bool allowed = file != null && (file == _audioPath || file.StartsWith(UiDir + "\\", StringComparison.OrdinalIgnoreCase));
+            string root = UiDir, file;
+            if (path.StartsWith("audio/", StringComparison.Ordinal)) file = _audioPath;
+            else
+            {
+                if (path.StartsWith("skin/fonts/", StringComparison.Ordinal)) { root = _fontsDir; path = path.Substring(11); }
+                else if (path.StartsWith("skin/", StringComparison.Ordinal)) { root = SkinDir; path = path.Substring(5); }
+                file = root == null ? null : Path.GetFullPath(Path.Combine(root, path.Replace('/', '\\')));
+            }
+            bool allowed = file != null && (file == _audioPath || file.StartsWith(Path.GetFullPath(root) + "\\", StringComparison.OrdinalIgnoreCase));
             if (!allowed || !File.Exists(file)) return env.CreateWebResourceResponse(null, 404, "Not Found", "");
             string type;
             switch (Path.GetExtension(file).ToLowerInvariant())
@@ -108,6 +145,9 @@ namespace InvectorModKit.ChartEditor.Host
                 case ".css": type = "text/css; charset=utf-8"; break;
                 case ".json": type = "application/json"; break;
                 case ".png": type = "image/png"; break;
+                case ".jpg": type = "image/jpeg"; break;
+                case ".otf": type = "font/otf"; break;
+                case ".ttf": type = "font/ttf"; break;
                 case ".svg": type = "image/svg+xml"; break;
                 case ".ogg": type = "audio/ogg"; break;
                 case ".wav": type = "audio/wav"; break;

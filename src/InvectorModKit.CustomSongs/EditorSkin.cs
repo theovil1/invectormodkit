@@ -16,7 +16,7 @@ namespace InvectorModKit.CustomSongs
     /// the interface. Written to BepInEx/cache/InvectorModKit/editor-skin on this computer only, while the player is
     /// in the menus, a few sprites per frame; nothing leaves the game folder.
     /// </summary>
-    internal sealed class EditorSkin : MonoBehaviour
+    internal sealed partial class EditorSkin : MonoBehaviour
     {
         public static string Dir => Path.Combine(Paths.CachePath, "InvectorModKit", "editor-skin");
         private const int Version = 1;
@@ -36,6 +36,8 @@ namespace InvectorModKit.CustomSongs
             catch (Exception) { }
             if (_manifest == null || (int?)_manifest["version"] != Version || (string)_manifest["game"] != Application.version)
                 _manifest = new JObject { ["version"] = Version, ["game"] = Application.version, ["sprites"] = new JObject(), ["backgrounds"] = new JObject() };
+            foreach (var key in new[] { "models", "ships" })
+                if (!(_manifest[key] is JObject)) _manifest[key] = new JObject();
         }
 
         private void Update()
@@ -43,7 +45,15 @@ namespace InvectorModKit.CustomSongs
             if (_running || Time.unscaledTime < _next) return;
             _next = Time.unscaledTime + 4f;
             var state = ModKit.CurrentState;
-            if (state is StateMainMenu || state is StateSelectSongSingleplayer) StartCoroutine(Export(state));
+            if (state is StateGameResult || state is StateGameResultCampaign)
+            {
+                if (WantsPickups) StartCoroutine(ExportPickups());
+            }
+            else if (state is StateMainMenu || state is StateSelectSongSingleplayer)
+            {
+                if (WantsShip(out var ship)) StartCoroutine(ExportShip(ship));
+                else StartCoroutine(Export(state));
+            }
         }
 
         private static bool Wanted(Sprite s)
@@ -94,11 +104,16 @@ namespace InvectorModKit.CustomSongs
             }
             if (done > 0 || background != null)
             {
-                try { File.WriteAllText(Path.Combine(Dir, "manifest.json"), _manifest.ToString()); }
-                catch (Exception e) { CustomSongsPlugin.Log.LogWarning("Editor skin: " + e.Message); }
+                SaveManifest();
                 if (done > 0) CustomSongsPlugin.Log.LogInfo($"Editor skin: {done} sprite(s) looked at for the chart editor");
             }
             _running = false;
+        }
+
+        private void SaveManifest()
+        {
+            try { File.WriteAllText(Path.Combine(Dir, "manifest.json"), _manifest.ToString()); }
+            catch (Exception e) { CustomSongsPlugin.Log.LogWarning("Editor skin: " + e.Message); }
         }
 
         /// <summary>The sprite's pixels as a PNG (its texture is copied once through the GPU: game textures are not readable).</summary>

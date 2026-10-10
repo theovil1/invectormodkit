@@ -1,12 +1,39 @@
 // The horizontal timeline: drawing on a canvas, hit testing, mouse gestures. Edits go through the app (history).
+// It reads like the game: zones named by what the player sees (tunnel, road, free flight) with their lanes' names,
+// pickups as the game's keys in their colour's glow, turns as purple rings, strums as the game's strum badge, and the
+// ship's path from pickup to pickup, bending at the turns.
 import * as m from "./model.js";
+import { MODE_COLOR, KEY_COLOR, KEY_GLYPH, KEY_SPRITE, STRUM_SPRITE, FONT } from "./look.js";
+import { skin } from "./skin.js";
 
-const LEFT = 76; // row labels
-const ROWS = { ruler: 30, zones: 28, wave: 84, lane: 64, strum: 54, scroll: 14 };
-export const BUTTON_COLORS = ["#4FC3F7", "#FF6B6B", "#7CFF6B", "#FFD54F", "#CB33FF", "#CB33FF"];
-export const BUTTON_GLYPHS = ["←", "→", "↓", "↑", "↺", "↻"];
-const MODE_COLORS = { List: "#7B3FD1", Bounce: "#1FA3B8", Freefly: "#E08A2C" };
-const HIT = 12;
+const LEFT = 104; // row labels
+const ROWS = { ruler: 26, zones: 26, wave: 64, lane: 64, strum: 46, scroll: 12 };
+export const BUTTON_COLORS = KEY_COLOR;
+export const BUTTON_GLYPHS = KEY_GLYPH;
+const HIT = 14;
+
+/** A lane's name in a zone: the tunnel's faces, the road's sides, the flight positions. */
+export function laneName(t, mode, lane) {
+  if (mode === "List") return t("laneFace", lane + 1);
+  if (mode === "Bounce") return [t("button0"), t("center"), t("button1")][lane];
+  return [t("flyBottom"), t("flyTopLeft"), t("flyTopRight")][lane];
+}
+
+const tints = new Map();
+/** A white picture in a colour (cached). */
+function tint(image, color) {
+  const key = image.src + color;
+  if (tints.has(key)) return tints.get(key);
+  const c = document.createElement("canvas");
+  c.width = image.naturalWidth; c.height = image.naturalHeight;
+  const g = c.getContext("2d");
+  g.drawImage(image, 0, 0);
+  g.globalCompositeOperation = "source-in";
+  g.fillStyle = color;
+  g.fillRect(0, 0, c.width, c.height);
+  tints.set(key, c);
+  return c;
+}
 
 export class Timeline {
   constructor(canvas, app) {
@@ -37,10 +64,12 @@ export class Timeline {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     let y = 0;
     const row = (name, h) => { const r = { y, h }; y += h; return r; };
-    this.rows = { ruler: row("ruler", ROWS.ruler), zones: row("zones", ROWS.zones), wave: row("wave", ROWS.wave) };
-    // Lanes share what is left (between a minimum and a comfortable size).
-    const free = this.h - y - ROWS.strum - ROWS.scroll - 8;
-    const laneH = Math.max(44, Math.min(96, Math.floor(free / 3)));
+    // Lanes share what is left (between a minimum and a comfortable size); the waveform gives way first.
+    const fixed = ROWS.ruler + ROWS.zones + ROWS.strum + ROWS.scroll + 4;
+    const wave = Math.max(26, Math.min(ROWS.wave, this.h - fixed - 3 * 40));
+    this.rows = { ruler: row("ruler", ROWS.ruler), zones: row("zones", ROWS.zones), wave: row("wave", wave) };
+    const free = this.h - y - ROWS.strum - ROWS.scroll - 4;
+    const laneH = Math.max(30, Math.min(96, Math.floor(free / 3)));
     this.rows.lanes = [0, 1, 2].map(() => row("lane", laneH));
     this.rows.strum = row("strum", ROWS.strum);
     this.rows.scroll = { y: this.h - ROWS.scroll, h: ROWS.scroll };
@@ -80,22 +109,33 @@ export class Timeline {
   draw() {
     const c = this.ctx, doc = this.doc;
     c.clearRect(0, 0, this.w, this.h);
-    c.fillStyle = "#0C0912";
+    c.fillStyle = "rgba(10, 7, 16, .82)";
     c.fillRect(0, 0, this.w, this.h);
     if (!doc) return;
     const from = this.t0, to = this.t0 + this.visibleSeconds;
     const d = this.app.difficulty;
     const selection = this.app.selection;
 
-    // Zone tint behind the lanes.
+    // Zone tint behind the lanes, fading down; the lanes' names where each zone starts.
     const lanesTop = this.rows.lanes[0].y, lanesBottom = this.rows.strum.y + this.rows.strum.h;
     doc.sections.forEach((s, i) => {
       const { from: a, to: b } = m.sectionRange(doc, i);
       const x0 = Math.max(LEFT, this.x(a)), x1 = Math.min(this.w, this.x(b));
       if (x1 <= x0) return;
-      c.fillStyle = MODE_COLORS[s.mode] + "16";
+      const g = c.createLinearGradient(0, lanesTop, 0, lanesBottom);
+      g.addColorStop(0, MODE_COLOR[s.mode] + "2A");
+      g.addColorStop(1, MODE_COLOR[s.mode] + "08");
+      c.fillStyle = g;
       c.fillRect(x0, lanesTop, x1 - x0, lanesBottom - lanesTop);
+      if (this.x(a) >= LEFT && this.x(a) < this.w - 60) {
+        c.font = `600 11px ${FONT.semi}`;
+        c.fillStyle = MODE_COLOR[s.mode] + "CC";
+        for (let lane = 0; lane < 3; lane++) c.fillText(laneName(this.app.t, s.mode, lane).toUpperCase(), this.x(a) + 6, this.rows.lanes[lane].y + 13);
+      }
     });
+    // Lane separators.
+    c.strokeStyle = "rgba(255,255,255,.08)";
+    for (const r of this.rows.lanes) { c.beginPath(); c.moveTo(LEFT, r.y + r.h + 0.5); c.lineTo(this.w, r.y + r.h + 0.5); c.stroke(); }
     // Outside the song.
     c.fillStyle = "rgba(0,0,0,.45)";
     if (this.x(0) > LEFT) c.fillRect(LEFT, 0, this.x(0) - LEFT, this.rows.scroll.y);
@@ -113,9 +153,9 @@ export class Timeline {
       c.lineTo(x, lanesBottom);
       c.stroke();
       if (l.level === 0 && (l.bar % Math.max(1, Math.round(60 / (m.secondsPerBeat(doc) * 4 * this.pps))) === 0 || this.pps > 30)) {
-        c.fillStyle = "#E1E1E1";
-        c.font = "600 11px 'Exo 2', sans-serif";
-        c.fillText(String(l.bar), x + 3, this.rows.ruler.y + 12);
+        c.fillStyle = "#FFFFFF";
+        c.font = `700 14px ${FONT.bold}`;
+        c.fillText(String(l.bar), x + 4, this.rows.ruler.y + 15);
       }
     }
 
@@ -123,6 +163,7 @@ export class Timeline {
     this.drawZones(doc);
     this.drawWave(from);
     this.drawMarkers(doc);
+    this.drawPath(doc, d, from, to);
 
     // Ghost difficulty.
     const ghost = this.app.ghost;
@@ -147,23 +188,46 @@ export class Timeline {
       c.strokeRect(Math.min(b.x0, b.x1) + 0.5, Math.min(b.y0, b.y1) + 0.5, Math.abs(b.x1 - b.x0), Math.abs(b.y1 - b.y0));
     }
 
-    // Playhead.
+    // Playhead, glowing.
     const px = this.x(this.app.audio.time);
     if (px >= LEFT && px <= this.w) {
-      c.strokeStyle = "#FFFFFF";
-      c.lineWidth = 2;
-      c.beginPath();
-      c.moveTo(px, 0);
-      c.lineTo(px, lanesBottom);
-      c.stroke();
-      c.lineWidth = 1;
+      const g = c.createLinearGradient(px - 14, 0, px + 14, 0);
+      g.addColorStop(0, "rgba(203,51,255,0)"); g.addColorStop(0.5, "rgba(203,51,255,.32)"); g.addColorStop(1, "rgba(203,51,255,0)");
+      c.fillStyle = g;
+      c.fillRect(px - 14, 0, 28, lanesBottom);
       c.fillStyle = "#FFFFFF";
+      c.fillRect(px - 1, 0, 2, lanesBottom);
       c.beginPath();
-      c.moveTo(px - 6, 0); c.lineTo(px + 6, 0); c.lineTo(px, 8); c.fill();
+      c.moveTo(px - 7, 0); c.lineTo(px + 7, 0); c.lineTo(px, 9); c.fill();
     }
 
     this.drawScrollbar(doc);
-    this.drawLabels();
+    this.drawLabels(doc);
+  }
+
+  /** The ship's path: from pickup to pickup in the tunnel and on the road, bending where a turn moves it. */
+  drawPath(doc, d, from, to) {
+    const c = this.ctx;
+    c.lineWidth = 3;
+    c.strokeStyle = "rgba(255,255,255,.2)";
+    c.beginPath();
+    let prev = null;
+    for (const n of doc.notes[d]) {
+      if (n.t < from - 3) continue;
+      if (n.t > to + 3) break;
+      if (n.strum) continue;
+      const mode = m.modeAt(doc, n.t);
+      if (mode === "Freefly") { prev = null; continue; } // flying: no track to follow
+      const x = this.x(n.t), y = this.laneY(n.lane);
+      if (!prev || m.modeAt(doc, prev.t) !== mode) c.moveTo(x, y);
+      else if (m.isTurn(prev.color)) {
+        const xm = (this.x(prev.t) + x) / 2;
+        c.bezierCurveTo(xm, this.laneY(prev.lane), xm, y, x, y);
+      } else c.lineTo(x, y);
+      prev = n;
+    }
+    c.stroke();
+    c.lineWidth = 1;
   }
 
   drawRows() {
@@ -177,19 +241,22 @@ export class Timeline {
     }
   }
 
-  drawLabels() {
+  /** Row names; the lanes are named after the zone at the playhead (or at the left edge). */
+  drawLabels(doc) {
     const c = this.ctx, t = this.app.t;
-    c.fillStyle = "#0C0912";
+    c.fillStyle = "rgba(10, 7, 16, .96)";
     c.fillRect(0, 0, LEFT, this.rows.scroll.y);
     c.strokeStyle = "rgba(255,255,255,.3)";
     c.beginPath(); c.moveTo(LEFT - 0.5, 0); c.lineTo(LEFT - 0.5, this.rows.scroll.y); c.stroke();
-    c.font = "700 10px 'Exo 2', sans-serif";
+    c.font = `700 13px ${FONT.bold}`;
     c.fillStyle = "#E1E1E1";
-    const label = (text, r) => c.fillText(text.toUpperCase(), 8, r.y + r.h / 2 + 4);
+    const label = (text, r, color) => { c.fillStyle = color || "#E1E1E1"; c.fillText(text.toUpperCase(), 10, r.y + r.h / 2 + 5); };
     label(t("rowTime"), this.rows.ruler);
     label(t("rowZones"), this.rows.zones);
     label(t("rowWave"), this.rows.wave);
-    this.rows.lanes.forEach((r, i) => label(t("rowLane", i), r));
+    const now = this.app.audio.time, at = now >= this.t0 && now <= this.t0 + this.visibleSeconds ? now : Math.max(0, this.t0);
+    const mode = m.modeAt(doc, at);
+    this.rows.lanes.forEach((r, i) => label(laneName(t, mode, i), r, MODE_COLOR[mode]));
     label(t("rowStrum"), this.rows.strum);
   }
 
@@ -199,13 +266,15 @@ export class Timeline {
       const { from: a, to: b } = m.sectionRange(doc, i);
       const x0 = Math.max(LEFT, this.x(a)), x1 = Math.min(this.w, this.x(b));
       if (x1 <= x0) return;
-      c.fillStyle = MODE_COLORS[s.mode] + "CC";
-      c.fillRect(x0, r.y + 3, x1 - x0 - 1, r.h - 6);
+      const g = c.createLinearGradient(0, r.y, 0, r.y + r.h);
+      g.addColorStop(0, MODE_COLOR[s.mode]); g.addColorStop(1, MODE_COLOR[s.mode] + "AA");
+      c.fillStyle = g;
+      c.fillRect(x0, r.y + 4, x1 - x0 - 2, r.h - 8);
       c.fillStyle = "#FFFFFF";
-      c.font = "800 11px 'Exo 2', sans-serif";
+      c.font = `700 14px ${FONT.bold}`;
       c.save();
       c.beginPath(); c.rect(x0, r.y, x1 - x0 - 4, r.h); c.clip();
-      c.fillText(t("mode" + s.mode).toUpperCase(), Math.max(x0, this.x(a)) + 8, r.y + r.h / 2 + 4);
+      c.fillText(t("mode" + s.mode).toUpperCase(), Math.max(x0, this.x(a)) + 8, r.y + r.h / 2 + 5);
       c.restore();
       if (i > 0 && this.x(a) >= LEFT) {
         c.fillStyle = this.hover && this.hover.kind === "boundary" && this.hover.index === i ? "#FFFFFF" : "rgba(255,255,255,.7)";
@@ -236,7 +305,7 @@ export class Timeline {
       c.strokeStyle = color;
       c.beginPath(); c.moveTo(x + 0.5, r.y); c.lineTo(x + 0.5, this.rows.strum.y + this.rows.strum.h); c.stroke();
       c.fillStyle = color;
-      c.font = "800 9px 'Exo 2', sans-serif";
+      c.font = `700 10px ${FONT.bold}`;
       const label = t("marker_" + key).toUpperCase(), w = c.measureText(label).width + 8;
       c.fillRect(x, r.y + r.h - 13, w, 12);
       c.fillStyle = "#0C0912";
@@ -244,47 +313,92 @@ export class Timeline {
     }
   }
 
+  /** A soft glow in a colour: the game's Glow sprite, or a gradient. */
+  glow(x, y, r, color, alpha = 0.9) {
+    const c = this.ctx, image = skin.img("Glow");
+    c.globalAlpha *= alpha;
+    if (skin.ready(image)) c.drawImage(tint(image, color), x - r, y - r, r * 2, r * 2);
+    else {
+      const g = c.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, color); g.addColorStop(1, color + "00");
+      c.fillStyle = g;
+      c.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    c.globalAlpha /= alpha;
+  }
+
   drawNote(n, selected, issue) {
     const c = this.ctx, x = this.x(n.t);
+    const size = Math.max(18, Math.min(28, this.rows.lanes[0].h * 0.42)); // a key's size
     if (n.strum) {
       const r = this.rows.strum, y = r.y + r.h / 2;
       if (n.len > 0) {
         const x1 = this.x(n.t + n.len);
-        c.fillStyle = selected ? "rgba(255,255,255,.75)" : "rgba(255,255,255,.4)";
-        c.fillRect(x, y - 6, Math.max(0, x1 - x), 12);
+        const g = c.createLinearGradient(x, 0, x1, 0);
+        g.addColorStop(0, selected ? "rgba(255,255,255,.95)" : "rgba(255,255,255,.8)"); g.addColorStop(1, "rgba(203,51,255,.45)");
+        c.fillStyle = g;
+        c.fillRect(x, y - 7, Math.max(0, x1 - x), 14);
         c.fillStyle = "#FFFFFF";
-        c.fillRect(x1 - 3, y - 12, 6, 24);
+        c.fillRect(x1 - 2, y - 13, 4, 26);
       }
-      c.fillStyle = "#FFFFFF";
-      c.strokeStyle = selected ? "#CB33FF" : "#0C0912";
-      c.lineWidth = selected ? 3 : 2;
-      c.beginPath();
-      c.roundRect ? c.roundRect(x - 7, y - 17, 14, 34, 4) : c.rect(x - 7, y - 17, 14, 34);
-      c.fill();
-      c.stroke();
-      c.lineWidth = 1;
+      const ring = skin.img("PickupStrum Air Glow"), badge = skin.img(STRUM_SPRITE), back = skin.img("StrumBG");
+      if (skin.ready(ring)) c.drawImage(ring, x - 24, y - 24, 48, 48);
+      else this.glow(x, y, 22, "#FFFFFF", 0.35);
+      if (skin.ready(badge)) {
+        if (skin.ready(back)) c.drawImage(back, x - 17, y - 13, 34, 26);
+        c.drawImage(badge, x - 15, y - 10, 30, 20);
+      } else {
+        c.fillStyle = "#FFFFFF";
+        c.beginPath();
+        c.roundRect(x - 13, y - 10, 26, 20, 5);
+        c.fill();
+        c.fillStyle = "#0C0912";
+        c.font = `700 13px ${FONT.bold}`;
+        c.textAlign = "center";
+        c.fillText("R", x, y + 5);
+        c.textAlign = "left";
+      }
+      if (selected) {
+        c.strokeStyle = "#FFFFFF";
+        c.lineWidth = 2.5;
+        c.strokeRect(x - 19, y - 16, 38, 32);
+        c.lineWidth = 1;
+      }
     } else {
-      const y = this.laneY(n.lane), s = 13;
-      c.fillStyle = BUTTON_COLORS[n.color];
-      c.strokeStyle = selected ? "#FFFFFF" : "rgba(0,0,0,.6)";
-      c.lineWidth = selected ? 3 : 1.5;
-      c.beginPath();
-      c.moveTo(x, y - s); c.lineTo(x + s, y); c.lineTo(x, y + s); c.lineTo(x - s, y); c.closePath();
-      c.fill();
-      c.stroke();
-      c.lineWidth = 1;
-      c.fillStyle = "#0C0912";
-      c.font = "800 14px 'Segoe UI Symbol', 'Exo 2', sans-serif";
-      c.textAlign = "center";
-      c.fillText(BUTTON_GLYPHS[n.color], x, y + 5);
-      c.textAlign = "left";
+      const y = this.laneY(n.lane), color = KEY_COLOR[n.color], half = size / 2;
+      this.glow(x, y, size, color);
+      const key = KEY_SPRITE[n.color] ? skin.img(KEY_SPRITE[n.color]) : null;
+      if (skin.ready(key)) c.drawImage(key, x - half, y - half, size, size);
+      else {
+        // turns (and arrows without the game's pictures): a ring in the button's colour with its arrow
+        c.fillStyle = m.isTurn(n.color) ? color : "#FFFFFF";
+        c.beginPath();
+        if (m.isTurn(n.color)) c.arc(x, y, half, 0, Math.PI * 2);
+        else c.roundRect(x - half, y - half, size, size, 4);
+        c.fill();
+        c.fillStyle = m.isTurn(n.color) ? "#FFFFFF" : "#0C0912";
+        c.font = `800 ${Math.round(size * 0.68)}px 'Segoe UI Symbol', sans-serif`;
+        c.textAlign = "center";
+        c.fillText(BUTTON_GLYPHS[n.color], x, y + size * 0.24);
+        c.textAlign = "left";
+      }
+      if (!m.isTurn(n.color)) { // the key's colour under it, as on the game's pickups
+        c.fillStyle = color;
+        c.fillRect(x - half + 2, y + half - 1, size - 4, 3);
+      }
+      if (selected) {
+        c.strokeStyle = "#FFFFFF";
+        c.lineWidth = 2.5;
+        c.strokeRect(x - half - 4, y - half - 4, size + 8, size + 8);
+        c.lineWidth = 1;
+      }
     }
-    const y = n.strum ? this.rows.strum.y + 8 : this.laneY(n.lane) - 17;
+    const y = n.strum ? this.rows.strum.y + 8 : this.laneY(n.lane) - size / 2 - 3;
     if (n.set > 0) {
-      c.fillStyle = "#FFD54F";
-      c.font = (n.last ? "800 15px" : "700 11px") + " 'Segoe UI Symbol', sans-serif";
+      c.fillStyle = "#FFD23F";
+      c.font = (n.last ? "800 15px" : "700 12px") + " 'Segoe UI Symbol', sans-serif";
       c.textAlign = "center";
-      c.fillText("★", x, y - 1);
+      c.fillText("★", x + size / 2, y);
       c.textAlign = "left";
     }
     if (issue) {

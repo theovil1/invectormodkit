@@ -37,7 +37,7 @@ test("language codes from Windows or the game", () => {
 test("playability issues are translated, with their numbers", () => {
   setLang("fr");
   assert.equal(issueText({ code: "pair", gap: 0.12, detail: "ArrowTurn" }), "Trop rapide : flèche → virage (0.12 s)");
-  assert.equal(issueText({ code: "lane-change", mode: "Bounce" }), "Bounce : changement de voie sans virage");
+  assert.equal(issueText({ code: "lane-change", mode: "Bounce" }), "Route : changement de voie sans virage");
   assert.equal(issueText({ code: "something-new", text: "12.00s: raw" }), "12.00s: raw");
   assert.equal(t("rowLane", 2), "Voie 2");
 });

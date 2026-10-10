@@ -2,9 +2,11 @@
 // audio.js, edits in model.js, the C# side behind rpc.js.
 import * as m from "./model.js";
 import { AudioEngine } from "./audio.js";
-import { Timeline, BUTTON_COLORS, BUTTON_GLYPHS } from "./timeline.js";
+import { Timeline, BUTTON_COLORS, BUTTON_GLYPHS, laneName } from "./timeline.js";
 import { call, on, inHost } from "./rpc.js";
 import { LANGUAGES, setLang, t, issueText, langCode } from "./i18n.js";
+import { skin } from "./skin.js";
+import { KEY_SPRITE, MODE_COLOR } from "./look.js";
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, ...kids) => {
@@ -43,6 +45,8 @@ class App {
     this.clipboard = [];
     this.timeline = new Timeline($("timeline"), this);
     this.audio.onEnded = () => this.refreshTransport();
+    this.preview = null; // the 3D view (none without WebGL)
+    this.previewDirty = true;
   }
 
   async start() {
@@ -53,13 +57,53 @@ class App {
       if (!inHost) this.status(e.message, true);
     }
     setLang(this.settings.lang || navigator.language);
+    await skin.load();
+    skin.onChange = () => this.timeline.draw();
+    this.dress();
+    await this.startPreview();
     this.translate();
     this.bind();
     this.renderAll();
     this.loop();
     if (this.settings.hasToken) call("me").then((me) => { this.me = me; this.renderAccount(); }).catch(() => {});
     on("closing", () => this.requestClose());
+    on("fonts", () => skin.loadFonts().then(() => { this.timeline.draw(); this.markPreview(); }));
     if (!this.settings.gameFound) this.status(t("gameNotFound"));
+  }
+
+  /** The game's pictures around the editor: logo, world backdrop. */
+  dress() {
+    if (skin.has("Logo Menu")) $("logo").src = skin.url("Logo Menu");
+    const bg = skin.manifest.backgrounds || {};
+    const file = bg["world-6"] || bg["world-5"] || bg.menu;
+    if (file) $("backdrop").style.backgroundImage = `url("${skin.base + file}")`;
+  }
+
+  async startPreview() {
+    try {
+      const { Preview3D } = await import("./preview3d.js");
+      this.preview = new Preview3D($("preview"), { skin: skin.base, manifest: skin.manifest });
+      const wrap = $("preview-wrap");
+      const fit = () => { const r = wrap.getBoundingClientRect(); this.preview.resize(Math.max(1, r.width), Math.max(1, r.height)); this.markPreview(); };
+      new ResizeObserver(fit).observe(wrap);
+      fit();
+    } catch (e) {
+      this.preview = null;
+      $("preview-hint").textContent = t("noPreview");
+      $("preview-hint").classList.remove("hidden");
+    }
+  }
+
+  /** The 3D view is drawn again on the next frame (it is drawn every frame while playing). */
+  markPreview() { this.previewDirty = true; }
+
+  /** The chart into the 3D view: at once, or at most every 120 ms during a drag. */
+  syncPreview(final = true) {
+    if (!this.preview || !this.editor) return;
+    clearTimeout(this._previewSync);
+    const go = () => { this.preview.setChart(this.editor.doc, this.difficulty); this.preview.setSelection((n) => this.selection.has(n.id)); this.markPreview(); };
+    if (final) go();
+    else this._previewSync = setTimeout(go, 120);
   }
 
   // ----- text
@@ -69,8 +113,23 @@ class App {
     for (const e of document.querySelectorAll("[data-t]")) e.textContent = t(e.dataset.t);
     $("btn-play").title = t("playHint");
     $("btn-settings").title = t("settings");
-    this.renderTabs();
+    this.renderKeybar();
+    this.renderDifficulty();
     this.renderGhost();
+  }
+
+  /** The game's key hints: its key pictures (or drawn keys) and what they do. */
+  renderKeybar() {
+    const short = (name) => name.replace("Keyboard_", "").replace("Alpha", "").replace("LeftControl", "Ctrl").replace("Plus", "+").replace("Minus", "−");
+    for (const e of document.querySelectorAll("#keybar .key")) {
+      const keys = e.dataset.keys.split(" ").map((k) => (skin.has(k) ? el("img", { src: skin.url(k), alt: short(k) }) : el("kbd", {}, short(k))));
+      e.replaceChildren(...keys, el("span", { class: "label" }, t(e.dataset.label)));
+    }
+    const key = (c) => (skin.has(KEY_SPRITE[c]) ? el("img", { src: skin.url(KEY_SPRITE[c]), alt: "" }) : el("kbd", {}, BUTTON_GLYPHS[c]));
+    $("legend").replaceChildren(
+      ...[0, 1, 3, 2].map((c) => el("span", { style: `color:${BUTTON_COLORS[c]}` }, key(c), el("span", { style: "color:var(--muted)" }, t("button" + c)))),
+      el("span", { style: `color:${BUTTON_COLORS[4]}` }, el("i"), el("span", { style: "color:var(--muted)" }, t("turn"))),
+      el("span", { class: "muted" }, "━ " + t("shipPath")));
   }
 
   status(text, error = false) {
@@ -131,6 +190,7 @@ class App {
       this.timeline.pps = 140;
       this.closeModal();
       this.renderAll();
+      this.syncPreview();
       this.validateSoon();
       this.status(t("opened", info.title || info.audioPath));
     } catch (e) {
@@ -197,6 +257,7 @@ class App {
     const ids = new Set(this.editor.doc.notes[this.difficulty].map((n) => n.id));
     for (const id of [...this.selection]) if (!ids.has(id)) this.selection.delete(id);
     this.timeline.draw();
+    this.syncPreview(final);
     if (final) {
       this.renderMeta();
       this.renderSelection();
@@ -216,12 +277,20 @@ class App {
     this.selection = new Set(ids);
     this.renderSelection();
     this.timeline.draw();
+    this.selectionToPreview();
   }
 
   toggleSelect(id) {
     if (this.selection.has(id)) this.selection.delete(id);
     else this.selection.add(id);
     this.renderSelection();
+    this.selectionToPreview();
+  }
+
+  selectionToPreview() {
+    if (!this.preview) return;
+    this.preview.setSelection((n) => this.selection.has(n.id));
+    this.markPreview();
   }
 
   selectedNotes() { return this.editor ? this.editor.doc.notes[this.difficulty].filter((n) => this.selection.has(n.id)) : []; }
@@ -229,10 +298,11 @@ class App {
   setDifficulty(d) {
     this.difficulty = d;
     this.selection = new Set();
-    this.renderTabs();
+    this.renderDifficulty();
     this.renderSelection();
     this.renderIssues();
     this.timeline.draw();
+    this.syncPreview();
   }
 
   nudgeFirstBeat(dt) { if (this.editor) this.edit((doc) => m.setMeta(doc, { firstBeat: doc.firstBeat + dt })); }
@@ -277,6 +347,7 @@ class App {
     this.audio.seek(time);
     this.refreshTransport();
     this.timeline.draw();
+    this.markPreview();
   }
 
   /** Clicking a note puts the playhead on it (handy to listen from there). */
@@ -301,6 +372,17 @@ class App {
         this.audio.schedule(notes, beats, $("claps").checked, $("metronome").checked);
         this.timeline.draw();
         $("clock").textContent = fmt(now);
+        this.previewDirty = true;
+      }
+      if (this.preview && this.previewDirty && this.editor) {
+        this.previewDirty = false;
+        const now = this.audio.time, mode = m.modeAt(this.editor.doc, Math.max(0, now));
+        if (mode !== this._zoneShown) {
+          this._zoneShown = mode;
+          $("zone-name").textContent = t("mode" + mode);
+          $("zone-name").style.color = MODE_COLOR[mode];
+        }
+        this.preview.render(now);
       }
       requestAnimationFrame(frame);
     };
@@ -331,7 +413,11 @@ class App {
     const has = !!this.editor;
     $("empty").classList.toggle("hidden", has);
     for (const id of ["btn-save", "btn-send", "btn-publish", "btn-play"]) $(id).disabled = !has;
-    this.renderTabs();
+    if (this.preview) {
+      $("preview-hint").textContent = t("skinHint");
+      $("preview-hint").classList.toggle("hidden", skin.hasModels());
+    }
+    this.renderDifficulty();
     this.renderGhost();
     this.renderMeta();
     this.renderSelection();
@@ -344,11 +430,17 @@ class App {
     this.timeline.draw();
   }
 
-  renderTabs() {
-    const tabs = $("tabs");
-    tabs.replaceChildren(...m.DIFFICULTIES.map((d) => {
+  /** The game's difficulty selector (top) and the difficulties with their note counts (side panel). */
+  renderDifficulty() {
+    const i = m.DIFFICULTIES.indexOf(this.difficulty);
+    const step = (k) => this.setDifficulty(m.DIFFICULTIES[(i + k + 4) % 4]);
+    const arrow = (side, k, glyph) => el("button", { class: "arrow", onclick: () => step(k), title: t("kbDifficulty") },
+      skin.has(`DirectionArrowDifficulty ${side}`) ? el("img", { src: skin.url(`DirectionArrowDifficulty ${side}`), alt: glyph }) : glyph);
+    const bar = (n) => (skin.has("DifficultyIcon2") ? el("img", { src: skin.url("DifficultyIcon2"), class: n > i ? "off" : "", alt: "" }) : el("i", { class: n > i ? "off" : "" }));
+    $("difficulty").replaceChildren(arrow("Left", -1, "‹"), el("div", { class: "bars" }, [0, 1, 2, 3].map(bar)), el("span", { class: "name" }, this.difficulty), arrow("Right", 1, "›"));
+    $("difficulties").replaceChildren(...m.DIFFICULTIES.map((d) => {
       const count = this.editor ? this.editor.doc.notes[d].length : 0;
-      return el("button", { class: d === this.difficulty ? "on" : "", onclick: () => this.setDifficulty(d), title: t("notesCount", count) }, d);
+      return el("button", { class: d === this.difficulty ? "on" : "", onclick: () => this.setDifficulty(d) }, el("span", {}, d), el("b", {}, t("notesCount", count)));
     }));
   }
 
@@ -365,7 +457,7 @@ class App {
     set("f-end", doc ? doc.end : 0, 3);
     set("f-preview", doc ? doc.preview : 0, 3);
     $("f-title").disabled = $("f-artist").disabled = $("btn-tap").disabled = $("btn-first-minus").disabled = $("btn-first-plus").disabled = !doc;
-    if (doc) this.renderTabs();
+    if (doc) this.renderDifficulty();
   }
 
   renderSelection() {
@@ -377,9 +469,9 @@ class App {
     // Buttons: the current one for new notes, or the selection's.
     kids.push(el("div", { class: "buttons colors" }, BUTTON_GLYPHS.map((g, c) => el("button", {
       class: (notes.length ? notes.every((n) => !n.strum && n.color === c) : this.color === c) ? "on" : "",
-      style: `border-color:${BUTTON_COLORS[c]}`, title: t("button" + c) + ` (${c + 1})`,
+      style: `border-color:${BUTTON_COLORS[c]};color:${BUTTON_COLORS[c]}`, title: t("button" + c) + ` (${c + 1})`,
       onclick: () => this.setColor(c),
-    }, g))));
+    }, KEY_SPRITE[c] && skin.has(KEY_SPRITE[c]) ? el("img", { src: skin.url(KEY_SPRITE[c]), alt: g }) : g))));
     if (notes.length) {
       const ids = notes.map((n) => n.id);
       const allStrum = notes.every((n) => n.strum);
@@ -391,8 +483,8 @@ class App {
       if (notes.length === 1) {
         const n = notes[0], free = m.laneIsFree(this.editor.doc, d, n);
         if (!n.strum && free)
-          kids.push(el("div", { class: "buttons" }, el("span", { class: "muted" }, t("lane") + " "), [0, 1, 2].map((lane) =>
-            el("button", { class: n.lane === lane ? "on" : "", onclick: () => this.edit((doc) => m.setLane(doc, d, [n.id], lane)) }, String(lane)))));
+          kids.push(el("div", { class: "buttons" }, [0, 1, 2].map((lane) =>
+            el("button", { class: n.lane === lane ? "on" : "", onclick: () => this.edit((doc) => m.setLane(doc, d, [n.id], lane)) }, laneName(t, m.modeAt(this.editor.doc, n.t), lane)))));
         else if (!n.strum) kids.push(el("p", { class: "note-info" }, t("laneFollows")));
         if (n.strum) {
           const input = el("input", { type: "number", step: "0.01", min: "0", value: n.len.toFixed(3) });
@@ -687,7 +779,7 @@ class App {
 }
 
 function describe(n, doc) {
-  const kind = n.strum ? t("strum") + (n.len > 0 ? ` · ${t("hold")} ${n.len.toFixed(2)} s` : "") : `${t("button" + n.color)} · ${t("lane")} ${n.lane}`;
+  const kind = n.strum ? t("strum") + (n.len > 0 ? ` · ${t("hold")} ${n.len.toFixed(2)} s` : "") : `${t("button" + n.color)} · ${laneName(t, m.modeAt(doc, n.t), n.lane)}`;
   return `${fmt(n.t)} · ${kind} · ${t("mode" + m.modeAt(doc, n.t))}${n.set ? ` · ★${n.set}${n.last ? "!" : ""}` : ""}`;
 }
 
