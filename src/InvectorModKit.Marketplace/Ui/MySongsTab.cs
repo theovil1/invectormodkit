@@ -93,25 +93,36 @@ namespace InvectorModKit.Marketplace.Ui
         private HashSet<string> _hidden = new HashSet<string>();
 
         /// <summary>
-        /// Songs published before charts were pinned get their marketplace source now, when the local chart
-        /// still has the published note counts (so its leaderboard compares like with like).
+        /// Keeps my songs' marketplace source in step with my live publications: a song published before
+        /// charts were pinned, or pinned to an earlier publication since withdrawn, points at the live chart
+        /// when its note counts still match it (so its leaderboard compares like with like); a song pinned to
+        /// a publication of mine that no longer exists is unpinned.
         /// </summary>
         private bool PinPublished(List<ChartSummary> live)
         {
             bool any = false;
+            var me = MarketplacePlugin.Session.Current;
             foreach (var s in _songs)
             {
-                if (s.MarketplaceId != null) continue;
+                if (s.MarketplaceId != null && !IsOwn(s)) continue; // someone else's chart
                 string id = MarketplacePlugin.Session.PublishedChart(s.Id);
                 var c = id == null ? null : live.FirstOrDefault(x => x.Id == id);
-                if (c == null || s.Notes.Length != 4) continue;
-                if (s.Notes[0] != c.Notes.Casual || s.Notes[1] != c.Notes.Normal || s.Notes[2] != c.Notes.Hard || s.Notes[3] != c.Notes.Ultra) continue;
                 try
                 {
-                    Pin(s, c.Id, c.Version, c.Author);
-                    any = true;
+                    if (c != null)
+                    {
+                        if (s.MarketplaceId == c.Id && s.MarketplaceVersion == c.Version) continue;
+                        if (s.Notes.Length != 4 || s.Notes[0] != c.Notes.Casual || s.Notes[1] != c.Notes.Normal || s.Notes[2] != c.Notes.Hard || s.Notes[3] != c.Notes.Ultra) continue;
+                        Pin(s, c.Id, c.Version, c.Author);
+                        any = true;
+                    }
+                    else if (s.MarketplaceId != null && me != null && s.MarketplaceAuthor == me.Name && live.All(x => x.Id != s.MarketplaceId))
+                    {
+                        Pin(s, null, 0, null);
+                        any = true;
+                    }
                 }
-                catch (Exception e) { MarketplacePlugin.Log.LogWarning($"Could not pin {s.Title}: {e.Message}"); }
+                catch (Exception e) { MarketplacePlugin.Log.LogWarning($"Could not update the marketplace source of {s.Title}: {e.Message}"); }
             }
             return any;
         }

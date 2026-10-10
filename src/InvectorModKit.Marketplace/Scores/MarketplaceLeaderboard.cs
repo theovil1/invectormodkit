@@ -40,6 +40,12 @@ namespace InvectorModKit.Marketplace.Scores
 
         public bool Claims(int tablePrefix) => SongFor(tablePrefix) != null;
 
+        public bool ClaimsAny()
+        {
+            SongFor(int.MaxValue);
+            return _songs.Any(s => s.BoardPrefix > 0 && s.MarketplaceId != null && s.MarketplaceVersion > 0);
+        }
+
         /// <summary>The server's (and charts') order: Casual, Normal, Hard, Ultra; the game's enum starts with Normal.</summary>
         public static int ServerDifficulty(GameDifficulty d)
         {
@@ -170,12 +176,19 @@ namespace InvectorModKit.Marketplace.Scores
             entries = entries.Select(e => new Highscores.ListEntry
             {
                 name = e.Name,
-                onlineUserId = e.SteamId,
+                onlineUserId = AccountId(e.SteamId),
                 score = e.Score,
                 comment = e.Percent.ToString(),
                 rank = (uint)Math.Max(0, e.Rank),
             }).ToList(),
         };
+
+        /// <summary>
+        /// The game knows players by their 32-bit Steam account id (SteamGameSystem.GetOnlineUserId), which is how
+        /// it spots its own player in a list; the server speaks 64-bit Steam ids.
+        /// </summary>
+        private static string AccountId(string steamId64) =>
+            ulong.TryParse(steamId64, out ulong id) && id > 76561197960265728UL ? (id - 76561197960265728UL).ToString() : steamId64;
 
         private static void Fail(Action<Highscores.ListResult, HighScoreManager.ServerResult> onComplete, Exception e)
         {

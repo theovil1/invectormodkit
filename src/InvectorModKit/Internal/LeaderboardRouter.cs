@@ -1,6 +1,7 @@
 using System;
 using HarmonyLib;
 using HelloThere.Avicii;
+using HelloThere.Modules.MenuModules;
 using HelloThere.Services;
 
 namespace InvectorModKit.Internal
@@ -19,7 +20,7 @@ namespace InvectorModKit.Internal
 
         private LeaderboardRouter(IHighscoreService inner) => _inner = inner;
 
-        public bool IsEnabled() => SafeInnerEnabled() || Leaderboards.Claims(CurrentLevel);
+        public bool IsEnabled() => SafeInnerEnabled() || Leaderboards.Claims(CurrentLevel) || (_buildingHints && Leaderboards.Any());
 
         private bool SafeInnerEnabled()
         {
@@ -83,6 +84,7 @@ namespace InvectorModKit.Internal
             harmony.Patch(AccessTools.PropertyGetter(typeof(LevelDefinition), nameof(LevelDefinition.SupportsHighscores)),
                 postfix: new HarmonyMethod(typeof(LeaderboardRouter), nameof(SupportsHighscoresPostfix)));
             harmony.Patch(AccessTools.Method(typeof(StateSelectSongSingleplayer), nameof(StateSelectSongSingleplayer.PopulateInputIndicators)),
+                prefix: new HarmonyMethod(typeof(LeaderboardRouter), nameof(IndicatorsPrefix)),
                 postfix: new HarmonyMethod(typeof(LeaderboardRouter), nameof(IndicatorsPostfix)));
             harmony.Patch(AccessTools.Method(typeof(StateSelectSongSingleplayer), nameof(StateSelectSongSingleplayer.OnSelect)),
                 postfix: new HarmonyMethod(typeof(LeaderboardRouter), nameof(OnSelectPostfix)));
@@ -104,18 +106,31 @@ namespace InvectorModKit.Internal
             if (!__result && Leaderboards.Claims(__instance)) __result = true;
         }
 
-        // Song select builds its key hints once, dropping "highscores" when the service is off; with claimed
-        // levels that depends on the song, so the hints are rebuilt when the selection crosses that line.
-        private static bool _hintsForClaimed;
+        // Song select builds its key hints once (rebuilding them later loses what it sets up afterwards), and
+        // drops "highscores" when the service is off. With claimed levels the hint is kept at build time and
+        // then shown only while the selected song has a board.
+        private static bool _buildingHints;
 
-        private static void IndicatorsPostfix() => _hintsForClaimed = Leaderboards.Claims(CurrentLevel);
+        private static void IndicatorsPrefix() => _buildingHints = true;
 
-        private static void OnSelectPostfix(StateSelectSongSingleplayer __instance, LevelDefinition levelDefinition)
+        private static void IndicatorsPostfix()
         {
-            bool claimed = Leaderboards.Claims(levelDefinition);
-            if (claimed == _hintsForClaimed) return;
-            try { __instance.PopulateInputIndicators(); }
-            catch (Exception e) { ModKit.Log.LogError("Could not refresh song select hints: " + e.Message); }
+            _buildingHints = false;
+            ShowHighscoreHint(CurrentLevel);
+        }
+
+        private static void OnSelectPostfix(LevelDefinition levelDefinition) => ShowHighscoreHint(levelDefinition);
+
+        private static void ShowHighscoreHint(LevelDefinition level)
+        {
+            try
+            {
+                var item = View.Get(StateMenuModuleBase.menuSceneRoot.refSongMenu)?.inputIndicators?.GetItem("ToggleHighscore");
+                if (item == null) return;
+                bool on = (Highscores.service as LeaderboardRouter)?.SafeInnerEnabled() == true || Leaderboards.Claims(level);
+                if (item.gameObject.activeSelf != on) item.gameObject.SetActive(on);
+            }
+            catch (Exception e) { ModKit.Log.LogError("Could not update the highscores hint: " + e.Message); }
         }
     }
 }

@@ -14,6 +14,9 @@ namespace InvectorModKit
         /// <summary>True for the table prefixes this provider serves (never 0: that is an official song's).</summary>
         bool Claims(int tablePrefix);
 
+        /// <summary>True when at least one level currently has one of this provider's boards.</summary>
+        bool ClaimsAny();
+
         /// <param name="percent">The game's rounded percentage (0-100).</param>
         void Submit(int tablePrefix, global::Difficulty difficulty, long score, int percent, Action<Highscores.SubmitResult, HighScoreManager.ServerResult> onComplete);
 
@@ -53,6 +56,20 @@ namespace InvectorModKit
         }
 
         public static bool Claims(HelloThere.Avicii.LevelDefinition level) => level != null && For(level.highscoreTablePrefix) != null;
+
+        /// <summary>Some level has a provider's board (song select then keeps its highscores hint).</summary>
+        public static bool Any()
+        {
+            foreach (var p in Providers)
+            {
+                try
+                {
+                    if (p.ClaimsAny()) return true;
+                }
+                catch (Exception e) { ModKit.Log.LogError("Leaderboard provider failed: " + e); }
+            }
+            return false;
+        }
 
         /// <summary>Splits a board id made by Highscores.GetHighscoreId; false for anything else.</summary>
         public static bool TryParseBoard(int board, out int tablePrefix, out global::Difficulty difficulty)
