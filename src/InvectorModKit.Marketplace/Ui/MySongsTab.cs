@@ -37,9 +37,9 @@ namespace InvectorModKit.Marketplace.Ui
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.sizeDelta = Vector2.zero;
 
-            var help = GameUi.Text(_root.transform, "Help", m.Regular, 24, TextAnchor.MiddleLeft, GameUi.Muted);
+            var help = GameUi.Text(_root.transform, "Help", m.Regular, 22, TextAnchor.MiddleLeft, GameUi.Muted);
             help.text = "Pour publier : choisis un morceau, « Publier », puis donne le lien de sa vidéo YouTube. Seul le chart est envoyé, jamais l'audio.";
-            GameUi.Place(help, 0, 205, 1380, 60);
+            GameUi.Place(help, -310, 212, 780, 60);
             (_scroll, _content) = MarketplaceModal.MakeList(_root.transform, -310, -70, 780, 500);
             _empty = GameUi.Text(_scroll.transform, "Empty", m.Regular, 28, TextAnchor.MiddleCenter, GameUi.Muted);
             GameUi.Place(_empty, 0, 0, 700, 200);
@@ -67,6 +67,24 @@ namespace InvectorModKit.Marketplace.Ui
         {
             _root.SetActive(true);
             Rebuild();
+            SyncWithServer();
+        }
+
+        /// <summary>Publications withdrawn elsewhere (another tab, another PC, an admin) stop showing as published.</summary>
+        private async void SyncWithServer()
+        {
+            if (!MarketplacePlugin.Session.SignedIn) return;
+            try
+            {
+                var live = await MarketplacePlugin.Api.MyChartsAsync();
+                if (!_root) return;
+                if (MarketplacePlugin.Session.KeepOnlyPublished(new HashSet<string>(live.Select(c => c.Id))))
+                {
+                    RefreshNotes();
+                    if (_selected != null) ShowDetails(_selected, keepStatus: true);
+                }
+            }
+            catch (Exception) { } // offline: keep what we know
         }
 
         public void Hide() => _root.SetActive(false);

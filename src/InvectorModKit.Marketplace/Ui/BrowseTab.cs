@@ -281,6 +281,7 @@ namespace InvectorModKit.Marketplace.Ui
                 try
                 {
                     await MarketplacePlugin.Api.DeleteAsync(c.Id);
+                    MarketplacePlugin.Session.ForgetPublishedChart(c.Id);
                     Search();
                 }
                 catch (Exception e)

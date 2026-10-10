@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -97,6 +98,24 @@ namespace InvectorModKit.Marketplace
         {
             (_state["published"] as JObject)?.Remove(songId);
             Save();
+        }
+
+        /// <summary>Forgets publications whose chart is no longer on the server (withdrawn anywhere). True if any changed.</summary>
+        public bool KeepOnlyPublished(ICollection<string> liveChartIds)
+        {
+            if (!(_state["published"] is JObject published)) return false;
+            var gone = published.Properties().Where(p => !liveChartIds.Contains(p.Value is JObject o ? (string)o["chart"] : (string)p.Value)).Select(p => p.Name).ToList();
+            foreach (var songId in gone) published.Remove(songId);
+            if (gone.Count > 0) Save();
+            return gone.Count > 0;
+        }
+
+        public void ForgetPublishedChart(string chartId)
+        {
+            if (!(_state["published"] is JObject published)) return;
+            var gone = published.Properties().Where(p => (p.Value is JObject o ? (string)o["chart"] : (string)p.Value) == chartId).Select(p => p.Name).ToList();
+            foreach (var songId in gone) published.Remove(songId);
+            if (gone.Count > 0) Save();
         }
 
         private void Save()
