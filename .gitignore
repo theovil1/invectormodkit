@@ -6,10 +6,11 @@ Directory.Build.user.props
 /artifacts/
 /models/
 
-# Marketplace server
+.superpowers/
+/third_party/
+
+# Server (kept in the private tools repository; never commit its secrets)
 server/node_modules/
 server/.wrangler/
 server/.dev.vars
 server/public/
-.superpowers/
-/third_party/

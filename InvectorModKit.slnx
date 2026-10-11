@@ -4,7 +4,6 @@
     <Project Path="src/InvectorModKit.ChartGen/InvectorModKit.ChartGen.csproj" />
     <Project Path="src/InvectorModKit.Charting/InvectorModKit.Charting.csproj" />
     <Project Path="src/InvectorModKit.CustomSongs/InvectorModKit.CustomSongs.csproj" />
-    <Project Path="src/InvectorModKit.DevTools/InvectorModKit.DevTools.csproj" />
     <Project Path="src/InvectorModKit.Installer/InvectorModKit.Installer.csproj" />
     <Project Path="src/InvectorModKit.Marketplace.Client/InvectorModKit.Marketplace.Client.csproj" />
     <Project Path="src/InvectorModKit.Marketplace/InvectorModKit.Marketplace.csproj" />
@@ -19,6 +18,5 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/ChartEditor/ChartEditor.csproj" />
-    <Project Path="tools/ChartLab/ChartLab.csproj" />
   </Folder>
 </Solution>
