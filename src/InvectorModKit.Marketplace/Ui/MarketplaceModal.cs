@@ -115,6 +115,7 @@ namespace InvectorModKit.Marketplace.Ui
             _browseTab = MakeButton(Box, Loc.T("tab_browse"), -Width / 2 + 190, Height / 2 - 150, 260, 60, () => Show(_browse));
             _mineTab = MakeButton(Box, Loc.T("tab_mine"), -Width / 2 + 470, Height / 2 - 150, 260, 60, () => Show(_mine));
             MakeButton(Box, Loc.T("rules"), Width / 2 - 160, Height / 2 - 150, 220, 60, () => Application.OpenURL(MarketplacePlugin.Api.RulesUrl(Loc.Code)), 26);
+            if (Community.HasDiscord) AddDiscordButton(Width / 2 - 400, Height / 2 - 150);
 
             var hints = GameUi.Text(Box, "Hints", Regular, 24, TextAnchor.MiddleCenter, GameUi.Muted);
             hints.text = Loc.T("hints");
@@ -131,6 +132,34 @@ namespace InvectorModKit.Marketplace.Ui
             RefreshAccount();
             Show(_browse);
         }
+
+        /// <summary>"DISCORD" with the animated logo, beside the rules: the community's server.</summary>
+        private void AddDiscordButton(float x, float y)
+        {
+            var button = MakeButton(Box, "DISCORD", x, y, 230, 60, Community.OpenDiscord, 28);
+            var label = button.GetComponentInChildren<Text>(true);
+            if (label)
+            {
+                var rt = label.rectTransform;
+                rt.offsetMin = new Vector2(rt.offsetMin.x + 62, rt.offsetMin.y);
+            }
+            var halo = GameUi.Image(button.transform, "Halo", Community.Purple);
+            halo.sprite = Community.Glow;
+            GameUi.Place(halo, -78, 0, 120, 120);
+            var logo = GameUi.Image(button.transform, "Logo", Color.white);
+            logo.sprite = Community.Logo;
+            logo.preserveAspect = true;
+            GameUi.Place(logo, -78, 0, 44, 44);
+            var pulse = button.gameObject.AddComponent<DiscordPulse>();
+            pulse.Logo = logo.rectTransform;
+            pulse.LogoImage = logo;
+            pulse.Halo = halo;
+            pulse.Float = 3f;
+            pulse.HoverColor = Community.Purple; // the game's buttons turn white when selected
+            _discord = (button, pulse);
+        }
+
+        private (ButtonWithEvents button, DiscordPulse pulse) _discord;
 
         private void Show(ITab tab)
         {
@@ -238,6 +267,7 @@ namespace InvectorModKit.Marketplace.Ui
         private void Update()
         {
             HandleMouse();
+            if (_discord.pulse) _discord.pulse.Hovered = GameUi.Selected == _discord.button.gameObject;
             if (_prompt.Visible)
             {
                 _prompt.Tick();

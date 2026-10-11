@@ -26,3 +26,6 @@ Spleeter 2-stem vocal separation model (vocals.fp16.onnx), MIT, by Deezer Resear
   ONNX export by the sherpa-onnx project, Apache-2.0: https://github.com/k2-fsa/sherpa-onnx
 Level editor only: three.js, MIT (https://github.com/mrdoob/three.js),
   Microsoft Edge WebView2 SDK (https://www.nuget.org/packages/Microsoft.Web.WebView2)
+Discord logo (in-game Discord buttons), from Simple Icons, CC0-1.0
+  https://github.com/simple-icons/simple-icons
+  Discord is a trademark of Discord Inc. The logo only links to the InvectorModKit community server.

@@ -27,6 +27,15 @@ namespace InvectorModKit
         /// <summary>Flags the session as modded at runtime (e.g. a dev tool enabling autoplay).</summary>
         public static void MarkModded(string reason) => Integrity.MarkModded(reason);
 
+        /// <summary>
+        /// Whether the player wants the mod's name, version and scores status shown in the corner of the menus
+        /// (core setting "Show status overlay").
+        /// </summary>
+        public static bool StatusCornerEnabled => Internal.StatusOverlay.Visible;
+
+        /// <summary>A plugin draws the status corner itself: the core's plain label is no longer shown.</summary>
+        public static void TakeOverStatusCorner() => Internal.StatusOverlay.HandedOver = true;
+
         /// <summary>The game's current state (title, menus, song select, game, results...), null before boot.</summary>
         public static HelloThere.Applications.ApplicationState CurrentState => LifecyclePatches.Current;
 
