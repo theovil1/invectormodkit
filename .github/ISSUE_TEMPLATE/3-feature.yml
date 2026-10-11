@@ -1,0 +1,35 @@
+name: Idea or feature
+description: Suggest something new or an improvement.
+title: "feat: "
+labels: ["type: feature"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would it solve?
+      description: The problem or the wish behind the idea.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Your idea
+      description: How it could work in the game or in the level editor.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where?
+      options:
+        - Custom songs
+        - Marketplace
+        - Leaderboards
+        - Level editor
+        - Installer or updates
+        - Other
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Other ways you thought of, if any.

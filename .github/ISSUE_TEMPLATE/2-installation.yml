@@ -1,0 +1,42 @@
+name: Installation problem
+description: The installer, an update or the uninstall did not work.
+title: "install: "
+labels: ["type: bug", "area: installer"]
+body:
+  - type: dropdown
+    id: step
+    attributes:
+      label: Where did it go wrong?
+      options:
+        - Downloading the installer
+        - Windows warning ("Windows protected your PC")
+        - The installer did not find the game
+        - During the installation
+        - The game starts without the mod
+        - Updating from the game
+        - Uninstalling
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: message
+    attributes:
+      label: What did you see?
+      description: The message shown, word for word if possible, or a screenshot (drag it here).
+    validations:
+      required: true
+  - type: input
+    id: antivirus
+    attributes:
+      label: Antivirus
+      description: The antivirus you use, if any (Windows Defender, Avast, Norton...).
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11
+  - type: textarea
+    id: log
+    attributes:
+      label: Installer log
+      description: If it exists, drag `%LOCALAPPDATA%\InvectorModKit\setup.log` here (paste that path in the File Explorer address bar).

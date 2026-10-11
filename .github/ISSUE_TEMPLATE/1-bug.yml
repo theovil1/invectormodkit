@@ -1,0 +1,56 @@
+name: Bug report
+description: Something in the mod does not work as it should.
+title: "bug: "
+labels: ["type: bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for the report! The more precise it is, the faster it gets fixed.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the Marketplace
+        2. Install a chart
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where?
+      options:
+        - Custom songs
+        - Marketplace
+        - Leaderboards
+        - Level editor
+        - Installer or updates
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Mod version
+      description: Shown by the installer, or in Windows' Installed apps (InvectorModKit).
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: Drag `BepInEx/LogOutput.log` from the game's folder here (in Steam, right-click the game, Manage, Browse local files).
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else?
+      description: Screenshots, the song, your Windows version.

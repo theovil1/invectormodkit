@@ -1,0 +1,48 @@
+name: Marketplace chart problem
+description: A chart from the marketplace is broken, out of sync or not playable.
+title: "chart: "
+labels: ["area: marketplace", "type: chart"]
+body:
+  - type: markdown
+    attributes:
+      value: For inappropriate content, use the Report button in the game's Marketplace instead.
+  - type: input
+    id: song
+    attributes:
+      label: Song
+      description: Title and artist as shown in the Marketplace.
+    validations:
+      required: true
+  - type: input
+    id: author
+    attributes:
+      label: Chart author
+  - type: dropdown
+    id: difficulty
+    attributes:
+      label: Difficulty
+      multiple: true
+      options:
+        - Casual
+        - Normal
+        - Hard
+        - Ultra
+    validations:
+      required: true
+  - type: dropdown
+    id: problem
+    attributes:
+      label: Problem
+      options:
+        - Notes out of sync with the music
+        - A passage is not playable
+        - The music does not match the chart
+        - The game shows an error or freezes
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: When in the song (for example 1:12), and what happens.
