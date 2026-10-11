@@ -8,6 +8,7 @@
     <Project Path="src/InvectorModKit.Installer/InvectorModKit.Installer.csproj" />
     <Project Path="src/InvectorModKit.Marketplace.Client/InvectorModKit.Marketplace.Client.csproj" />
     <Project Path="src/InvectorModKit.Marketplace/InvectorModKit.Marketplace.csproj" />
+    <Project Path="src/InvectorModKit.Setup/InvectorModKit.Setup.csproj" />
     <Project Path="src/InvectorModKit/InvectorModKit.csproj" />
   </Folder>
   <Folder Name="/tests/">

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- InvectorModKitSetup.exe: one standalone file that installs, updates and uninstalls the mod. It compiles the
+       InvectorModKit.Installer sources itself (no DLL beside it) and carries the payload built by tools/release.ps1
+       (artifacts/stage/payload.zip and editor.zip) as embedded resources. .NET Framework 4.8 ships with Windows. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>InvectorModKitSetup</AssemblyName>
+    <RootNamespace>InvectorModKit.Setup</RootNamespace>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\tools\ChartEditor\editor.ico</ApplicationIcon>
+    <Version Condition="'$(Version)' == ''">0.1.0</Version>
+    <Product>InvectorModKit</Product>
+    <Stage>$(MSBuildThisFileDirectory)..\..\artifacts\stage\</Stage>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\InvectorModKit.Installer\*.cs" Link="Installer\%(Filename)%(Extension)" />
+    <Compile Include="..\InvectorModKit.ChartEditor.Core\GameLocator.cs" Link="Installer\GameLocator.cs" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="Microsoft.CSharp" />
+    <EmbeddedResource Include="$(Stage)payload.zip" LogicalName="payload.zip" Condition="Exists('$(Stage)payload.zip')" />
+    <EmbeddedResource Include="$(Stage)editor.zip" LogicalName="editor.zip" Condition="Exists('$(Stage)editor.zip')" />
+  </ItemGroup>
+</Project>
