@@ -1,0 +1,28 @@
+InvectorModKit is released under the MIT licence. It ships with the following third-party components.
+Nothing from Invector: Rhythm Galaxy itself is redistributed.
+
+BepInEx 5 (mod loader), LGPL-2.1
+  https://github.com/BepInEx/BepInEx (source code and licence)
+UnityDoorstop (BepInEx's loader), LGPL-2.1
+  https://github.com/NeighTools/UnityDoorstop
+HarmonyX, MIT
+  https://github.com/BepInEx/HarmonyX
+MonoMod, MIT
+  https://github.com/MonoMod/MonoMod
+Mono.Cecil, MIT
+  https://github.com/jbevain/cecil
+Newtonsoft.Json, MIT
+  https://github.com/JamesNK/Newtonsoft.Json
+NLayer, MIT
+  https://github.com/naudio/NLayer
+NVorbis, MIT
+  https://github.com/NVorbis/NVorbis
+ONNX Runtime and Microsoft.ML.OnnxRuntime, MIT
+  https://github.com/microsoft/onnxruntime
+System.Memory, System.Buffers, System.Numerics.Vectors, System.Runtime.CompilerServices.Unsafe, MIT
+  https://github.com/dotnet/runtime
+Spleeter 2-stem vocal separation model (vocals.fp16.onnx), MIT, by Deezer Research
+  https://github.com/deezer/spleeter
+  ONNX export by the sherpa-onnx project, Apache-2.0: https://github.com/k2-fsa/sherpa-onnx
+Level editor only: three.js, MIT (https://github.com/mrdoob/three.js),
+  Microsoft Edge WebView2 SDK (https://www.nuget.org/packages/Microsoft.Web.WebView2)

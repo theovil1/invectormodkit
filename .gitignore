@@ -12,3 +12,4 @@ server/.wrangler/
 server/.dev.vars
 server/public/
 .superpowers/
+/third_party/

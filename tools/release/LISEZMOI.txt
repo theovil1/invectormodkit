@@ -1,0 +1,25 @@
+InvectorModKit, manual installation
+
+The easiest way is InvectorModKitSetup.exe (same page). This zip is for players who prefer to do it by hand,
+or whose antivirus blocks the installer.
+
+1. In Steam, right-click Invector: Rhythm Galaxy > Manage > Browse local files.
+2. Extract everything from this zip into that folder (next to "Invector Rhythm Galaxy.exe").
+3. Start the game: the Marketplace is in the main menu, your songs go in the CustomSongs folder.
+
+To uninstall: delete winhttp.dll, doorstop_config.ini and the BepInEx folder from the game folder.
+Your songs stay in CustomSongs.
+
+-----
+
+InvectorModKit, installation manuelle
+
+Le plus simple est InvectorModKitSetup.exe (même page). Ce zip est pour ceux qui préfèrent faire à la main,
+ou dont l'antivirus bloque l'installateur.
+
+1. Dans Steam, clic droit sur Invector: Rhythm Galaxy > Gérer > Parcourir les fichiers locaux.
+2. Extrais tout le contenu de ce zip dans ce dossier (à côté de "Invector Rhythm Galaxy.exe").
+3. Lance le jeu : le Marketplace est dans le menu principal, tes morceaux vont dans le dossier CustomSongs.
+
+Pour désinstaller : supprime winhttp.dll, doorstop_config.ini et le dossier BepInEx du dossier du jeu.
+Tes morceaux restent dans CustomSongs.
