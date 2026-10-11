@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- InvectorChartEditor.exe: a window (WinForms + WebView2) showing the editor's HTML interface (ui/), with the
+  <!-- InvectorLevelEditor.exe (the level editor): a window (WinForms + WebView2) showing the editor's HTML interface (ui/), with the
        C# side in InvectorModKit.ChartEditor.Core. .NET Framework 4.8 and the WebView2 runtime ship with Windows. -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net48</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
-    <AssemblyName>InvectorChartEditor</AssemblyName>
+    <AssemblyName>InvectorLevelEditor</AssemblyName>
     <RootNamespace>InvectorModKit.ChartEditor.Host</RootNamespace>
     <PlatformTarget>x64</PlatformTarget>
     <ApplicationManifest>app.manifest</ApplicationManifest>

@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- The chart editor's C# side, without any window: what the interface asks for (open, save, playability,
+  <!-- The level editor's C# side, without any window: what the interface asks for (open, save, playability,
        send to the game, regenerate, publish), so it can be tested on its own. Hosted by tools/ChartEditor. -->
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>

@@ -5,15 +5,15 @@ using System.IO.Compression;
 namespace InvectorModKit.Installer
 {
     /// <summary>
-    /// The optional chart editor: its zip (everything under InvectorChartEditor/) unpacked into its own folder
-    /// (by default %LOCALAPPDATA%\Programs\InvectorChartEditor), an older version replaced as a whole.
+    /// The optional level editor: its zip (everything under InvectorLevelEditor/) unpacked into its own folder
+    /// (by default %LOCALAPPDATA%\Programs\InvectorLevelEditor), an older version replaced as a whole.
     /// </summary>
     public static class EditorInstaller
     {
-        public const string ExeName = "InvectorChartEditor.exe";
+        public const string ExeName = "InvectorLevelEditor.exe";
 
         public static string DefaultDir =>
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "InvectorChartEditor");
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "InvectorLevelEditor");
 
         public static bool IsInstalled(string dir) => File.Exists(Path.Combine(dir, ExeName));
 
@@ -29,7 +29,7 @@ namespace InvectorModKit.Installer
                     if (entry.FullName.EndsWith("/")) continue;
                     string rel = entry.FullName.Replace('\\', '/');
                     int slash = rel.IndexOf('/');
-                    if (slash >= 0 && rel.Substring(0, slash).Equals("InvectorChartEditor", StringComparison.OrdinalIgnoreCase)) rel = rel.Substring(slash + 1);
+                    if (slash >= 0 && rel.Substring(0, slash).Equals("InvectorLevelEditor", StringComparison.OrdinalIgnoreCase)) rel = rel.Substring(slash + 1);
                     string target = Path.GetFullPath(Path.Combine(dir, rel.Replace('/', Path.DirectorySeparatorChar)));
                     if (!target.StartsWith(root, StringComparison.OrdinalIgnoreCase)) continue; // never outside its folder
                     Directory.CreateDirectory(Path.GetDirectoryName(target));

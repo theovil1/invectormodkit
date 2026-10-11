@@ -11,7 +11,7 @@ using UnityEngine;
 namespace InvectorModKit.CustomSongs
 {
     /// <summary>
-    /// The game's look for the chart editor (InvectorChartEditor): the menus' sprites (with their 9-slice borders),
+    /// The game's look for the level editor (InvectorChartEditor): the menus' sprites (with their 9-slice borders),
     /// key and controller icons, badges, world and ship icons, and the menu and world backgrounds rendered without
     /// the interface. Written to BepInEx/cache/InvectorModKit/editor-skin on this computer only, while the player is
     /// in the menus, a few sprites per frame; nothing leaves the game folder.
@@ -107,7 +107,7 @@ namespace InvectorModKit.CustomSongs
             if (done > 0 || background != null || keysChanged)
             {
                 SaveManifest();
-                if (done > 0) CustomSongsPlugin.Log.LogInfo($"Editor skin: {done} sprite(s) looked at for the chart editor");
+                if (done > 0) CustomSongsPlugin.Log.LogInfo($"Editor skin: {done} sprite(s) looked at for the level editor");
             }
             _running = false;
         }

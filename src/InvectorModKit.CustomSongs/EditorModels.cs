@@ -10,7 +10,7 @@ using UnityEngine;
 namespace InvectorModKit.CustomSongs
 {
     /// <summary>
-    /// The game's 3D pickups and ship as pictures for the chart editor's preview: each model is copied far below the
+    /// The game's 3D pickups and ship as pictures for the level editor's preview: each model is copied far below the
     /// level, on a layer of its own, and photographed by a camera that sees nothing else, once on black and once on
     /// white so that its glow keeps its transparency. Pickups are taken on the results screen (the level's entity
     /// database is loaded, nothing is played), the selected ship in the menus.
@@ -111,7 +111,7 @@ namespace InvectorModKit.CustomSongs
                 }
             }
             SaveManifest();
-            CustomSongsPlugin.Log.LogInfo($"Editor skin: {models.Count} pickup model(s) for the chart editor");
+            CustomSongsPlugin.Log.LogInfo($"Editor skin: {models.Count} pickup model(s) for the level editor");
             _running = false;
         }
 
@@ -183,7 +183,7 @@ namespace InvectorModKit.CustomSongs
                 _manifest["ships"][ship.shipId] = entry;
                 _manifest["ship"] = ship.shipId;
                 SaveManifest();
-                CustomSongsPlugin.Log.LogInfo($"Editor skin: ship {ship.shipId} for the chart editor");
+                CustomSongsPlugin.Log.LogInfo($"Editor skin: ship {ship.shipId} for the level editor");
             }
             _running = false;
         }

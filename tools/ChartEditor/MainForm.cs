@@ -30,7 +30,7 @@ namespace InvectorModKit.ChartEditor.Host
 
         public MainForm()
         {
-            Text = "Invector Chart Editor";
+            Text = "Invector Level Editor";
             BackColor = Background;
             ClientSize = new Size(1560, 920);
             MinimumSize = new Size(1100, 680);
@@ -186,7 +186,7 @@ namespace InvectorModKit.ChartEditor.Host
             switch (method)
             {
                 case "host.openAudio":
-                    using (var dialog = new OpenFileDialog { Filter = "Audio (*.mp3;*.ogg;*.wav)|*.mp3;*.ogg;*.wav", Title = "Invector Chart Editor" })
+                    using (var dialog = new OpenFileDialog { Filter = "Audio (*.mp3;*.ogg;*.wav)|*.mp3;*.ogg;*.wav", Title = "Invector Level Editor" })
                     {
                         string songs = _backend.Settings.CustomSongsDir;
                         if (songs != null && Directory.Exists(songs)) dialog.InitialDirectory = songs;
@@ -202,7 +202,7 @@ namespace InvectorModKit.ChartEditor.Host
                     return new JValue($"https://{AppHost}/audio/{Uri.EscapeDataString(Path.GetFileName(_audioPath))}?v={File.GetLastWriteTimeUtc(_audioPath).Ticks}");
                 }
                 case "host.title":
-                    Text = (string)p["text"] ?? "Invector Chart Editor";
+                    Text = (string)p["text"] ?? "Invector Level Editor";
                     return JValue.CreateNull();
                 case "host.close":
                     _allowClose = true;

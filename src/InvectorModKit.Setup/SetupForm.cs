@@ -8,7 +8,7 @@ using InvectorModKit.Installer;
 namespace InvectorModKit.Setup
 {
     /// <summary>
-    /// The one window players see: where the game is, a box for the chart editor, one big button (install, update or
+    /// The one window players see: where the game is, a box for the level editor, one big button (install, update or
     /// repair), then "Play". Uninstall is a small link. Colours and font of the game's menus.
     /// </summary>
     internal sealed class SetupForm : Form

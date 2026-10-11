@@ -35,7 +35,7 @@ export function issueText(i) {
 
 // Columns: en, fr, de, it, es, pt-BR, pl, ru, ja, ko, zh
 const S = {
-  appName: ["Chart Editor", "Éditeur de charts", "Chart-Editor", "Editor di chart", "Editor de charts", "Editor de charts", "Edytor chartów", "Редактор чартов", "チャートエディター", "차트 편집기", "谱面编辑器"],
+  appName: ["Level Editor", "Éditeur de niveaux", "Level-Editor", "Editor di livelli", "Editor de niveles", "Editor de fases", "Edytor poziomów", "Редактор уровней", "レベルエディター", "레벨 에디터", "关卡编辑器"],
   open: ["Open", "Ouvrir", "Öffnen", "Apri", "Abrir", "Abrir", "Otwórz", "Открыть", "開く", "열기", "打开"],
   new: ["New", "Nouveau", "Neu", "Nuovo", "Nuevo", "Novo", "Nowy", "Новый", "新規", "새로 만들기", "新建"],
   save: ["Save", "Enregistrer", "Speichern", "Salva", "Guardar", "Salvar", "Zapisz", "Сохранить", "保存", "저장", "保存"],

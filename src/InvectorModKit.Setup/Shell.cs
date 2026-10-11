@@ -9,7 +9,7 @@ namespace InvectorModKit.Setup
 {
     /// <summary>
     /// What the installer does in Windows itself: the "Installed apps" entry (uninstall), its own copy that entry
-    /// runs, the chart editor's shortcuts, running as administrator when writing is refused, its log.
+    /// runs, the level editor's shortcuts, running as administrator when writing is refused, its log.
     /// </summary>
     internal static class Shell
     {
@@ -71,10 +71,10 @@ namespace InvectorModKit.Setup
             { CreateNoWindow = true, UseShellExecute = false, WindowStyle = ProcessWindowStyle.Hidden });
         }
 
-        // ----- the chart editor's shortcuts
+        // ----- the level editor's shortcuts
 
-        private static string StartMenuShortcut => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Invector Chart Editor.lnk");
-        private static string DesktopShortcut => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Invector Chart Editor.lnk");
+        private static string StartMenuShortcut => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Invector Level Editor.lnk");
+        private static string DesktopShortcut => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Invector Level Editor.lnk");
 
         public static void CreateShortcuts(string exe)
         {
@@ -85,7 +85,7 @@ namespace InvectorModKit.Setup
                 shortcut.TargetPath = exe;
                 shortcut.WorkingDirectory = Path.GetDirectoryName(exe);
                 shortcut.IconLocation = exe + ",0";
-                shortcut.Description = "Invector Chart Editor";
+                shortcut.Description = "Invector Level Editor";
                 shortcut.Save();
             }
         }

@@ -8,7 +8,7 @@ using UnityEngine;
 namespace InvectorModKit.CustomSongs
 {
     /// <summary>
-    /// The player's own keyboard keys for the chart editor: which key strums, which keys the four pickups and the two
+    /// The player's own keyboard keys for the level editor: which key strums, which keys the four pickups and the two
     /// turns ask for, with the picture the game puts on its pickups for each (as the pickups do it: the gameplay
     /// keyboard map, the keyboard icon map). Rewritten whenever the bindings change.
     /// </summary>

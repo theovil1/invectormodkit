@@ -176,7 +176,7 @@ namespace InvectorModKit.CustomSongs
                     Logger.LogInfo($"New song: {song} ({(File.Exists(song.ChartPath) ? "has a chart" : "chart being generated")})");
             }
             if (changes.Added.Count > 0 || changes.Removed.Count > 0) RefreshSongSelect();
-            // Charts edited outside the game (chart editor, text editor): prepared again first, without a restart.
+            // Charts edited outside the game (level editor, text editor): prepared again first, without a restart.
             foreach (var song in edited.Where(s => !changes.Removed.Contains(s)))
             {
                 Logger.LogInfo($"Chart changed: {song}, reloading it");

@@ -219,7 +219,7 @@ namespace InvectorModKit.CustomSongs
 
         public static DateTime StampOf(string path) => File.Exists(path) ? File.GetLastWriteTimeUtc(path) : DateTime.MinValue;
 
-        /// <summary>Songs whose chart file was changed by someone else (the chart editor, a text editor) since the mod read it.</summary>
+        /// <summary>Songs whose chart file was changed by someone else (the level editor, a text editor) since the mod read it.</summary>
         public List<CustomSong> ChangedCharts(IList<CustomSong> known) =>
             known.Where(s => (s.State == SongState.Ready || s.State == SongState.Failed) && s.ChartStamp != default && StampOf(s.ChartPath) != s.ChartStamp).ToList();
 
