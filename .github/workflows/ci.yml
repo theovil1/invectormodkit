@@ -1,0 +1,105 @@
+name: ci
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dotnet:
+    name: dotnet
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      # The game plugins need the game's own assemblies, which cannot be redistributed: CI builds and tests
+      # everything else.
+      - name: Build tools and installer
+        run: |
+          dotnet build src/InvectorModKit.ChartGen -c Release -p:DeployToGame=false
+          dotnet build src/InvectorModKit.Setup -c Release
+          dotnet build tools/ChartEditor -c Release
+      - name: Test
+        run: |
+          dotnet test tests/InvectorModKit.Charting.Tests -c Release
+          dotnet test tests/InvectorModKit.Marketplace.Client.Tests -c Release
+          dotnet test tests/InvectorModKit.ChartEditor.Tests -c Release
+          dotnet test tests/InvectorModKit.Installer.Tests -c Release
+
+  editor-js:
+    name: editor-js
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Level editor tests
+        working-directory: tools/ChartEditor/ui
+        run: node --test tests/model.test.js tests/i18n.test.js
+
+  pr-title:
+    name: pr-title
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Conventional Commits title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._-]+\))?!?: [^ ].*$'
+          if [[ ! "$TITLE" =~ $pattern ]]; then
+            echo "::error::The title must follow Conventional Commits, for example 'fix(marketplace): keep the search text'. Got: $TITLE"
+            exit 1
+          fi
+
+  branch-name:
+    name: branch-name
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Conventional branch name
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          pattern='^((feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|hotfix)/[a-z0-9][a-z0-9._-]*|release/[0-9]+\.[0-9]+\.[0-9]+|release-please--.+)$'
+          if [[ ! "$BRANCH" =~ $pattern ]]; then
+            echo "::error::The branch must be named type/short-description (for example feat/level-editor-zoom). Got: $BRANCH"
+            exit 1
+          fi
+
+  no-ai:
+    name: no-ai
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: No mention of AI tools
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+          BRANCH: ${{ github.head_ref }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          pattern='(co-authored-by:.*(claude|copilot|chatgpt|openai|gemini|anthropic|cursor|codeium|devin))|(generated (with|by) .*(claude|copilot|chatgpt|gpt|gemini|ai\b))|\bclaude\b|\banthropic\b|\bchatgpt\b|\bopenai\b|\bcopilot\b|🤖'
+          text="$(git log --format='%B' "$BASE..$HEAD")"
+          # Release Please writes its own pull request body; its commits are still checked.
+          if [[ ! "$BRANCH" =~ ^release-please-- ]]; then text="$text"$'\n'"$TITLE"$'\n'"$BODY"; fi
+          if echo "$text" | grep -Eiq "$pattern"; then
+            echo "::error::Commits and pull requests must not mention AI tools:"
+            echo "$text" | grep -Ein "$pattern" | head -5
+            exit 1
+          fi
