@@ -23,6 +23,9 @@ namespace InvectorModKit.Setup
         [STAThread]
         private static int Main(string[] args)
         {
+            // paths over 260 characters (deep Steam libraries), where Windows allows them; no .config file beside the exe
+            AppContext.SetSwitch("Switch.System.IO.UseLegacyPathHandling", false);
+            AppContext.SetSwitch("Switch.System.IO.BlockLongPaths", false);
             string lang = SetupTexts.Resolve(Arg(args, "--lang") ?? CultureInfo.CurrentUICulture.Name);
             using (var single = new Mutex(false, @"Local\InvectorModKitSetup"))
             {
