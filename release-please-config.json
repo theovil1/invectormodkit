@@ -9,9 +9,16 @@
       "package-name": "invectormodkit",
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
-        { "type": "generic", "path": "src/InvectorModKit/Api/ModKit.cs" },
-        { "type": "generic", "path": "src/InvectorModKit.Setup/InvectorModKit.Setup.csproj" }
-      ]
+        {
+          "type": "generic",
+          "path": "src/InvectorModKit/Api/ModKit.cs"
+        },
+        {
+          "type": "generic",
+          "path": "src/InvectorModKit.Setup/InvectorModKit.Setup.csproj"
+        }
+      ],
+      "initial-version": "0.1.0"
     }
   }
 }
