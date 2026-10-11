@@ -1,5 +1,4 @@
-# Builds the level editor and zips it for download: artifacts/InvectorLevelEditor.zip, also copied to
-# server/public/ where the marketplace Worker serves it as a static file (/InvectorLevelEditor.zip).
+# Builds the level editor and zips it for download: artifacts/InvectorLevelEditor.zip (attached to each GitHub release).
 # Nothing of the game is inside: the editor reads the game's look from the player's own install.
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -36,12 +35,8 @@ trouve tes morceaux perso, envoie les charts dans le jeu (ils se rechargent tout
     $zip = Join-Path $artifacts 'InvectorLevelEditor.zip'
     if (Test-Path $zip) { Remove-Item $zip -Force }
     Compress-Archive -Path $folder -DestinationPath $zip -CompressionLevel Optimal
-
-    $public = Join-Path $root 'server\public'
-    New-Item -ItemType Directory -Force $public | Out-Null
-    Copy-Item $zip (Join-Path $public 'InvectorLevelEditor.zip') -Force
     $mb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
-    Write-Host "Saved $zip ($mb MB), copied to server/public"
+    Write-Host "Saved $zip ($mb MB)"
     $global:LASTEXITCODE = 0 # robocopy leaves 1 ("files copied")
 }
 finally { Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue }
