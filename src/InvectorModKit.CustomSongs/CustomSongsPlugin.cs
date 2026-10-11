@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace InvectorModKit.CustomSongs
 {
-    [BepInPlugin(Guid, "Custom Songs", "0.1.0")]
+    [BepInPlugin(Guid, "Custom Songs", ModKit.Version)]
     [BepInDependency(ModKit.Guid)]
     [ModKitMod(AffectsGameplay = true)]
     public sealed class CustomSongsPlugin : BaseUnityPlugin

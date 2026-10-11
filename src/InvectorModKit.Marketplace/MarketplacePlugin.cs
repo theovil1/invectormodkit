@@ -12,7 +12,7 @@ namespace InvectorModKit.Marketplace
     /// In-game marketplace: browse and install charts shared by other players (the audio comes from each
     /// player's own copy of the song), and publish your own.
     /// </summary>
-    [BepInPlugin(Guid, "Marketplace", "0.1.0")]
+    [BepInPlugin(Guid, "Marketplace", ModKit.Version)]
     [BepInDependency(ModKit.Guid)]
     [BepInDependency(CustomSongsPlugin.Guid)]
     [ModKitMod(AffectsGameplay = false)]
@@ -27,6 +27,7 @@ namespace InvectorModKit.Marketplace
         internal static InstallStore Installs;
 
         private ConfigEntry<string> _server;
+        private ConfigEntry<bool> _checkUpdates;
 
         private void Awake()
         {
@@ -39,6 +40,8 @@ namespace InvectorModKit.Marketplace
             new HarmonyLib.Harmony(Guid).PatchAll(typeof(Ui.EntryPoints));
             new HarmonyLib.Harmony(Guid).PatchAll(typeof(Scores.MarketplaceLeaderboard));
             Leaderboards.Register(Scores.MarketplaceLeaderboard.Instance);
+            _checkUpdates = Config.Bind("Updates", "Check", true, "Look for a newer version of the mod at start (GitHub Releases) and offer it in the main menu.");
+            if (_checkUpdates.Value) Updates.Check();
             Startup();
         }
 

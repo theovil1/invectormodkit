@@ -12,10 +12,10 @@ namespace InvectorModKit.Marketplace.Client
         public string SetupUrl;
     }
 
-    /// <summary>The mod's versions, published on GitHub Releases (theovil1/InvectorModKit).</summary>
+    /// <summary>The mod's versions, published on GitHub Releases (theovil1/invectormodkit).</summary>
     public static class Releases
     {
-        public const string LatestUrl = "https://api.github.com/repos/theovil1/InvectorModKit/releases/latest";
+        public const string LatestUrl = "https://api.github.com/repos/theovil1/invectormodkit/releases/latest";
         public const string SetupAsset = "InvectorModKitSetup.exe";
 
         /// <summary>The latest release from GitHub's answer; null when it is an error, unreadable, or has no installer.</summary>

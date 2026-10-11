@@ -32,10 +32,12 @@ namespace InvectorModKit.Marketplace.Ui
         private Confirmation _confirmation;
         private TextPrompt _prompt;
 
-        public static void Open(MonoBehaviour host)
+        /// <param name="then">Runs with the window once it is open (or at once when it already is).</param>
+        public static void Open(MonoBehaviour host, Action<MarketplaceModal> then = null)
         {
-            if (IsOpen || _opening) return;
-            host.StartCoroutine(OpenRoutine());
+            if (IsOpen) { then?.Invoke(_instance); return; }
+            if (_opening) return;
+            host.StartCoroutine(OpenRoutine(then));
         }
 
         public static void Close()
@@ -43,7 +45,7 @@ namespace InvectorModKit.Marketplace.Ui
             if (_instance != null) _instance.Shut();
         }
 
-        private static IEnumerator OpenRoutine()
+        private static IEnumerator OpenRoutine(Action<MarketplaceModal> then)
         {
             _opening = true;
             try
@@ -71,6 +73,7 @@ namespace InvectorModKit.Marketplace.Ui
                 var modal = root.AddComponent<MarketplaceModal>();
                 modal.Build();
                 _instance = modal;
+                then?.Invoke(modal);
             }
             finally
             {
@@ -329,6 +332,9 @@ namespace InvectorModKit.Marketplace.Ui
         private async void SignIn() => await EnsureSignedIn();
 
         public void Confirm(string question, Action onYes) => _confirmation.Ask(question, onYes);
+
+        /// <summary>A message in the open tab's status line.</summary>
+        public void Status(string text) => _current?.SetStatus(text);
 
         /// <summary>Asks for one line of text; <paramref name="validate"/> returns why it is refused, or null.</summary>
         public void Prompt(string question, string hint, string initial, Func<string, string> validate, Action<string> onOk) =>

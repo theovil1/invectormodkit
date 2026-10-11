@@ -20,7 +20,7 @@ namespace InvectorModKit.Marketplace.Ui
     {
         private const string Label = "Marketplace";
 
-        private static UIItemData _menuItem;
+        private static UIItemData _menuItem, _updateItem;
         private static SignalObject _noSignal;
 
         /// <summary>
@@ -58,7 +58,32 @@ namespace InvectorModKit.Marketplace.Ui
             int dlc = items.FindLastIndex(i => i.stringId != null && i.stringId.Contains("dlc"));
             int options = items.FindIndex(i => i.stringId != null && i.stringId.Contains("option"));
             items.Insert(dlc >= 0 ? dlc + 1 : options >= 0 ? options : Mathf.Max(0, items.Count - 1), _menuItem);
+            AddUpdateItem(items);
             content.Content = items.ToArray();
+        }
+
+        /// <summary>A newer version of the mod: an entry right after "Marketplace" that downloads it, once confirmed.</summary>
+        private static void AddUpdateItem(System.Collections.Generic.List<UIItemData> items)
+        {
+            if (Updates.Available == null || items.Contains(_updateItem)) return;
+            if (_updateItem == null)
+                _updateItem = new UIItemData
+                {
+                    stringId = "",
+                    signal = _noSignal,
+                    submit = () =>
+                    {
+                        AudioModule.AudioProvider.Play(AudioShortcut.SFX_MENU_CONFIRM);
+                        MarketplaceModal.Open(MarketplacePlugin.Instance, modal =>
+                        {
+                            if (Updates.State == Updates.Step.Ready) { modal.Status(Loc.T("update_ready")); return; }
+                            modal.Confirm(Loc.T("update_confirm", Updates.Available.Version),
+                                () => MarketplacePlugin.Instance.StartCoroutine(Updates.Download(text => { if (MarketplaceModal.IsOpen) modal.Status(text); })));
+                        });
+                    },
+                };
+            _updateItem.label = Updates.State == Updates.Step.Ready ? Loc.T("update_ready_menu") : Loc.T("update_menu", Updates.Available.Version);
+            items.Insert(items.IndexOf(_menuItem) + 1, _updateItem);
         }
 
         [HarmonyPatch(typeof(StateSelectSongSingleplayer), nameof(StateSelectSongSingleplayer.PopulateInputIndicators)), HarmonyPostfix]
