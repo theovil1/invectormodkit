@@ -5,6 +5,7 @@
     <Project Path="src/InvectorModKit.Charting/InvectorModKit.Charting.csproj" />
     <Project Path="src/InvectorModKit.CustomSongs/InvectorModKit.CustomSongs.csproj" />
     <Project Path="src/InvectorModKit.DevTools/InvectorModKit.DevTools.csproj" />
+    <Project Path="src/InvectorModKit.Installer/InvectorModKit.Installer.csproj" />
     <Project Path="src/InvectorModKit.Marketplace.Client/InvectorModKit.Marketplace.Client.csproj" />
     <Project Path="src/InvectorModKit.Marketplace/InvectorModKit.Marketplace.csproj" />
     <Project Path="src/InvectorModKit/InvectorModKit.csproj" />
@@ -12,6 +13,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/InvectorModKit.ChartEditor.Tests/InvectorModKit.ChartEditor.Tests.csproj" />
     <Project Path="tests/InvectorModKit.Charting.Tests/InvectorModKit.Charting.Tests.csproj" />
+    <Project Path="tests/InvectorModKit.Installer.Tests/InvectorModKit.Installer.Tests.csproj" />
     <Project Path="tests/InvectorModKit.Marketplace.Client.Tests/InvectorModKit.Marketplace.Client.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
