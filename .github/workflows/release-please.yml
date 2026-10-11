@@ -1,0 +1,21 @@
+name: release-please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      # Keeps a release pull request up to date from the Conventional Commits on main (version, CHANGELOG.md).
+      # Merging it creates the tag and the GitHub release; the installer is attached afterwards by
+      # tools/release.ps1 and `gh release upload` (see CONTRIBUTING.md).
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
