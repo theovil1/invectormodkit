@@ -40,6 +40,8 @@ namespace InvectorModKit.Marketplace
             new HarmonyLib.Harmony(Guid).PatchAll(typeof(Ui.EntryPoints));
             new HarmonyLib.Harmony(Guid).PatchAll(typeof(Scores.MarketplaceLeaderboard));
             Leaderboards.Register(Scores.MarketplaceLeaderboard.Instance);
+            Ui.Community.DiscordUrl = Config.Bind("Community", "Discord", "https://discord.gg/9wXNm5NM26", "Invite link of the InvectorModKit Discord (empty: no Discord button).").Value.Trim();
+            gameObject.AddComponent<Ui.CornerBadge>();
             _checkUpdates = Config.Bind("Updates", "Check", true, "Look for a newer version of the mod at start (GitHub Releases) and offer it in the main menu.");
             if (_checkUpdates.Value) Updates.Check();
             Startup();

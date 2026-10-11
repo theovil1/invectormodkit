@@ -17,4 +17,8 @@
   <Target Name="DeployToGame" AfterTargets="Build" Condition="'$(DeployToGame)' != 'false' And Exists('$(PluginsDir)')">
     <Copy SourceFiles="$(OutDir)InvectorModKit.Marketplace.dll;$(OutDir)InvectorModKit.Marketplace.pdb;$(OutDir)InvectorModKit.Marketplace.Client.dll" DestinationFolder="$(PluginsDir)\InvectorModKit.Marketplace" SkipUnchangedFiles="true" />
   </Target>
+  <ItemGroup>
+    <!-- Discord logo (Simple Icons, CC0), white on transparent -->
+    <EmbeddedResource Include="Resources\discord.png" LogicalName="discord.png" />
+  </ItemGroup>
 </Project>
