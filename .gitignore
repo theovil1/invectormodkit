@@ -14,3 +14,4 @@ server/node_modules/
 server/.wrangler/
 server/.dev.vars
 server/public/
+/tools/audiotools/

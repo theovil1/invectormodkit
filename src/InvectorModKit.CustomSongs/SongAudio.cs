@@ -131,5 +131,12 @@ namespace InvectorModKit.CustomSongs
             item.AudioClipReference.m_Operation = default;
             if (clip != null) UnityEngine.Object.Destroy(clip);
         }
+
+        /// <summary>Releases the song's loaded clips: used when its files are removed from the folder.</summary>
+        public static void Forget(CustomSong song)
+        {
+            if (song.GameplayItem != null) Release(song.GameplayItem);
+            if (song.PreviewItem != null) Release(song.PreviewItem);
+        }
     }
 }

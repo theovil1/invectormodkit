@@ -41,6 +41,10 @@ $ours = Join-Path $plugins 'InvectorModKit'
 Copy-Item (Join-Path $PSScriptRoot 'release\THIRD-PARTY-NOTICES.txt') $ours
 Copy-Item (Join-Path $root 'LICENSE') $ours -ErrorAction SilentlyContinue
 
+# 4. yt-dlp and ffmpeg for the marketplace's audio fetches (downloads them on first use)
+& (Join-Path $PSScriptRoot 'get-audiotools.ps1')
+Copy-Item (Join-Path $root 'tools\audiotools') (Join-Path $ours 'audiotools') -Recurse -Force
+
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $payloadZip = Join-Path $stage 'payload.zip'
 [System.IO.Compression.ZipFile]::CreateFromDirectory($payload, $payloadZip, [System.IO.Compression.CompressionLevel]::Optimal, $false)

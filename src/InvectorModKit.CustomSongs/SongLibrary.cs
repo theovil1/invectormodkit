@@ -49,6 +49,40 @@ namespace InvectorModKit.CustomSongs
         }
 
         /// <summary>
+        /// Removes the songs brought by that marketplace chart, and everything only the mod added (its chart,
+        /// the cover saved next to the audio, cached excerpts): the player keeps nothing half-deleted. Only
+        /// files inside Root (or .cache) are touched. Returns whether anything was removed.
+        /// </summary>
+        public bool RemoveMarketplaceSong(string marketplaceId, Action<string> log)
+        {
+            bool any = false;
+            for (int i = Songs.Count - 1; i >= 0; i--)
+            {
+                var song = Songs[i];
+                if (song.MarketplaceId != marketplaceId) continue;
+                foreach (string path in new[] { song.AudioPath, SidecarCoverPath(song.AudioPath), song.ChartPath, song.PreviewPath })
+                {
+                    if (path == null || !Path.GetFullPath(path).StartsWith(Path.GetFullPath(Root), StringComparison.OrdinalIgnoreCase)) continue;
+                    try { if (File.Exists(path)) { File.Delete(path); log($"Deleted {path}"); } }
+                    catch (Exception e) { log("Could not delete " + path + ": " + e.GetBaseException().Message); }
+                }
+                SongAudio.Forget(song);
+                Songs.RemoveAt(i);
+                any = true;
+            }
+            return any;
+        }
+
+        /// <summary>"Song.jpg" (orpng/jpeg) next to the audio, when there is one.</summary>
+        private static string SidecarCoverPath(string audio)
+        {
+            string like = Path.Combine(Path.GetDirectoryName(audio), Path.GetFileNameWithoutExtension(audio));
+            foreach (string ext in new[] { ".jpg", ".png", ".jpeg" })
+                if (File.Exists(like + ext)) return like + ext;
+            return null;
+        }
+
+        /// <summary>
         /// Worker thread, while the game runs: songs whose audio appeared since <paramref name="known"/> was
         /// listed (only once fully written), and known songs whose audio is gone.
         /// </summary>
@@ -374,6 +408,15 @@ namespace InvectorModKit.CustomSongs
             if (string.IsNullOrEmpty(song.Artist)) song.Artist = fileArtist;
             (song.Artist, song.Title) = SongMetadata.Normalize(song.Artist, song.Title);
             if (string.IsNullOrEmpty(song.Artist)) song.Artist = "Unknown artist";
+
+            // An image named like the audio ("Song.jpg" next to "Song.ogg"), e.g. the video thumbnail the
+            // marketplace fetcher saves: it becomes the cover, also for loose songs in the shared root.
+            string like = Path.Combine(Path.GetDirectoryName(song.AudioPath), Path.GetFileNameWithoutExtension(song.AudioPath));
+            foreach (string ext in new[] { ".jpg", ".png", ".jpeg" })
+            {
+                string p = like + ext;
+                if (File.Exists(p)) { song.Cover = File.ReadAllBytes(p); break; }
+            }
 
             // song.json and cover images belong to a song's own folder, never to the shared root.
             if (string.Equals(Path.GetFullPath(song.Folder), Path.GetFullPath(Root), StringComparison.OrdinalIgnoreCase)) return;

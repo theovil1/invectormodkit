@@ -257,6 +257,16 @@ namespace InvectorModKit.Marketplace.Ui
             }
         }
 
+        /// <summary>Opens the download of a song from a link: the marketplace closes, a progress window runs it.</summary>
+        public void AddFromLink()
+        {
+            if (_busy) return;
+            string initial = YoutubeLink.Normalize(GUIUtility.systemCopyBuffer) ?? "";
+            _m.Prompt(Loc.T("add_link_question"), Loc.T("link_hint"), initial,
+                text => YoutubeLink.Normalize(text) == null ? Loc.T("link_invalid") : null,
+                AddSongModal.Start);
+        }
+
         private void Withdraw(LocalSong s)
         {
             string chartId = s == null ? null : MarketplacePlugin.Session.PublishedChart(s.Id);

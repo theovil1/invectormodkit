@@ -56,6 +56,11 @@ namespace InvectorModKit.CustomSongs
 
         internal static void RequestMarketplaceMatch() => _matchRequested = true;
 
+        private static volatile bool _metadataReload;
+
+        /// <summary>CustomSongsApi: re-reads title/artist/cover of every listed song (e.g. a cover appeared next to an audio file).</summary>
+        internal static void RequestMetadataReload() => _metadataReload = true;
+
         private void OnApplicationFocus(bool focused)
         {
             if (focused) _checkFolderNow = true; // typically back from dropping a file in Explorer
@@ -85,6 +90,16 @@ namespace InvectorModKit.CustomSongs
                 {
                     _matchRequested = false;
                     yield return MatchMarketplace();
+                }
+                if (_metadataReload)
+                {
+                    _metadataReload = false;
+                    foreach (var song in Library.Songs.Where(s => s.State == SongState.Ready))
+                    {
+                        song.HasMetadata = false; // metadata (title, artist, cover) is read again, then Prepared again
+                        song.State = SongState.Pending;
+                        song.Priority = long.MaxValue;
+                    }
                 }
                 var next = Library.Songs.Where(s => s.State == SongState.Pending).OrderByDescending(s => s.Priority).FirstOrDefault();
                 if (next == null) { yield return new WaitForSecondsRealtime(0.25f); continue; }
@@ -196,6 +211,9 @@ namespace InvectorModKit.CustomSongs
         /// <summary>The song to select again once song select has been reopened by <see cref="RefreshSongSelect"/>.</summary>
         internal static string ReselectLevelId;
 
+        /// <summary>Same as <see cref="RefreshSongSelect"/>, for <see cref="CustomSongsApi"/> (song removed).</summary>
+        internal static void RefreshListedSongs() => RefreshSongSelect();
+
         private static void RefreshSongSelect()
         {
             if (!(ModKit.CurrentState is HelloThere.Avicii.StateSelectSongSingleplayer select)) return;
@@ -275,7 +293,8 @@ Drop songs here (.mp3, .ogg or .wav), even while the game is running: they appea
 song select under the 'Custom Songs' header within a few seconds (in multiplayer, the
 next time song select opens). Deleting a song's file removes it the same way.
 
-  * Loose file:   CustomSongs/Artist - Title.mp3
+  * Loose file:   CustomSongs/Artist - Title.mp3 (a picture named like it next to it,
+                  e.g. Artist - Title.jpg, becomes the song's cover)
   * Own folder:   CustomSongs/Any Name/song.mp3 (+ optional cover.jpg / cover.png and
                   song.json: { ""title"": ""..."", ""artist"": ""..."" })
 

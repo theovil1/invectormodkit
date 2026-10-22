@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using InvectorModKit.CustomSongs;
 using InvectorModKit.Marketplace.Client;
@@ -33,9 +34,11 @@ namespace InvectorModKit.Marketplace.Ui
         private float _searchAt = -1, _nextRefresh;
         private ChartSummary _selected;
         private HashSet<string> _installed = new HashSet<string>();
+        private readonly HashSet<string> _fetching = new HashSet<string>();
         private bool _justDownloaded;
 
         public bool Typing => _typing;
+        private string _statusKey = "external";
         public GameObject FirstItem => _rows.Count > 0 ? _rows[0].Root : _search.gameObject;
         public GameObject LastRow => _lastRow ? _lastRow : FirstItem;
         private GameObject _lastRow;
@@ -125,7 +128,13 @@ namespace InvectorModKit.Marketplace.Ui
             _root.SetActive(false);
         }
 
-        public void SetStatus(string text) => _status.text = text;
+        public void SetStatus(string text) => SetStatus(text, "external");
+        /// <summary>Named status lines, so RefreshLocalState can drop the stale ones (waiting for a fetch that ended).</summary>
+        private void SetStatus(string text, string key)
+        {
+            _statusKey = key;
+            _status.text = text;
+        }
 
         public void Tick()
         {
@@ -260,7 +269,7 @@ namespace InvectorModKit.Marketplace.Ui
             if (!any)
             {
                 foreach (var go in new GameObject[] { _audioPanel.gameObject, _boardPanel.gameObject, _remove.gameObject, _report.gameObject }) go.SetActive(false);
-                _status.text = "";
+                SetStatus("", "");
                 return;
             }
             _title.text = c.Title;
@@ -276,7 +285,7 @@ namespace InvectorModKit.Marketplace.Ui
             _cover.sprite = null;
             _cover.color = new Color(1, 1, 1, 0.1f);
             Thumbnails.Get(c.YoutubeId, sprite => { if (_selected == c && _cover) { _cover.sprite = sprite; _cover.color = Color.white; } });
-            _status.text = "";
+            SetStatus("", "");
             _justDownloaded = false;
             UpdateActions(c);
         }
@@ -285,11 +294,18 @@ namespace InvectorModKit.Marketplace.Ui
         {
             bool mine = MarketplacePlugin.Session.IsPublishedByMe(c.Id);
             bool installed = _installed.Contains(c.Id), waiting = !mine && !installed && MarketplacePlugin.Installs.IsDownloaded(c.Id);
-            MarketplaceModal.SetLabel(_install, mine ? Loc.T("mine") : installed ? Loc.T("installed") : waiting ? Loc.T("waiting_audio") : Loc.T("install"));
-            _install.interactable = !mine && !installed && !waiting;
-            if (waiting && string.IsNullOrEmpty(_status.text))
-                _status.text = Loc.T("drop_hint");
-            if (installed && _justDownloaded) { _status.text = Loc.T("installed_done"); _justDownloaded = false; }
+            MarketplaceModal.SetLabel(_install, mine ? Loc.T("mine") : installed ? Loc.T("remove_game") : waiting ? Loc.T("waiting_audio") : Loc.T("install"));
+            _install.interactable = !mine && (installed || !waiting);
+            if (waiting)
+            {
+                // While a fetch runs (audio_fetching) the drop hint only shows once it's quiet, and a stale
+                // hint or failure from an earlier attempt disappears once the chart is installed.
+                if (_statusKey != "audio_fetching" && (_statusKey == "" || _statusKey == "downloading" || _statusKey == "downloaded"))
+                    SetStatus(Loc.T("drop_hint"), "drop_hint");
+                if (installed && _justDownloaded) { SetStatus(Loc.T("installed_done"), "installed_done"); _justDownloaded = false; }
+            }
+            else if (_statusKey == "drop_hint" || _statusKey == "audio_failed")
+                SetStatus("", "");
             var session = MarketplacePlugin.Session.Current;
             bool canRemove = session != null && (session.Role == "admin" || session.Name == c.Author);
             _remove.gameObject.SetActive(canRemove);
@@ -349,11 +365,11 @@ namespace InvectorModKit.Marketplace.Ui
                     try
                     {
                         bool hidden = await MarketplacePlugin.Api.ReportAsync(c.Id, text.Trim());
-                        if (_root) _status.text = Loc.T(hidden ? "reported_hidden" : "reported");
+                        if (_root) SetStatus(Loc.T(hidden ? "reported_hidden" : "reported"));
                     }
                     catch (Exception e)
                     {
-                        if (_root) _status.text = Loc.T("report_failed", e.GetBaseException().Message);
+                        if (_root) SetStatus(Loc.T("report_failed", e.GetBaseException().Message));
                     }
                 });
         }
@@ -361,28 +377,83 @@ namespace InvectorModKit.Marketplace.Ui
         private void Primary(ChartSummary c)
         {
             if (c == null) return;
-            if (_installed.Contains(c.Id) || MarketplacePlugin.Session.IsPublishedByMe(c.Id)) return;
-            if (MarketplacePlugin.Installs.IsDownloaded(c.Id)) { Application.OpenURL(c.YoutubeUrl); return; }
+            if (MarketplacePlugin.Session.IsPublishedByMe(c.Id)) return;
+            if (_installed.Contains(c.Id)) { _m.Confirm(Loc.T("remove_game_confirm", c.Title, c.Artist), () => RemoveFromGame(c)); return; }
+            if (MarketplacePlugin.Installs.IsDownloaded(c.Id)) { FetchAudio(c); return; }
             Install(c);
+        }
+
+        /// <summary>The player's copy of the song goes away (audio, chart, cover, cached excerpts); the chart stays available.</summary>
+        private void RemoveFromGame(ChartSummary c)
+        {
+            CustomSongsApi.RemoveMarketplaceSong(c.Id);
+            MarketplacePlugin.Installs.Remove(c.Id);
+            RefreshLocalState();
+            SetStatus(Loc.T("removed_game"), "removed_game");
         }
 
         private async void Install(ChartSummary c)
         {
-            _status.text = Loc.T("downloading");
+            SetStatus(Loc.T("downloading"), "downloading");
             try
             {
                 var download = await MarketplacePlugin.Api.DownloadAsync(c.Id);
                 MarketplacePlugin.Installs.Install(download);
                 CustomSongsApi.RequestMarketplaceMatch();
                 if (!_root) return;
-                _status.text = Loc.T("downloaded");
+                SetStatus(Loc.T("downloaded"), "downloaded");
                 _justDownloaded = true;
                 RefreshLocalState();
+                FetchAudio(c);
             }
             catch (Exception e)
             {
-                if (_root) _status.text = Loc.T("download_failed", e.GetBaseException().Message);
+                if (_root) SetStatus(Loc.T("download_failed", e.GetBaseException().Message), "download_failed");
             }
+        }
+
+        /// <summary>
+        /// Fetches the song itself with yt-dlp (bundled, or the player's own on the PATH), into CustomSongs:
+        /// the folder watcher then matches it with the chart, nothing else to do. A failure leaves the
+        /// download waiting, and the old advice (drop the file by hand) keeps it playable.
+        /// </summary>
+        private async void FetchAudio(ChartSummary c)
+        {
+            if (c == null || _fetching.Contains(c.Id)) return;
+            _fetching.Add(c.Id);
+            try
+            {
+                var (ytDlp, ffmpegDir) = AudioFetch.Resolve(MarketplacePlugin.SharedDir);
+                if (ytDlp == null ||
+                    AudioFetch.Existing(CustomSongsApi.SongsFolder, c.Artist, c.Title) != null)
+                {
+                    if (_root) { SetStatus(Loc.T("drop_hint"), "drop_hint"); if (ytDlp == null) Application.OpenURL(c.YoutubeUrl); }
+                    return;
+                }
+                string tmpBase = Path.Combine(Path.GetTempPath(), "invectormodkit-" + c.Id);
+                string args = AudioFetch.BuildArgs(c.YoutubeId, tmpBase, ffmpegDir);
+                MarketplacePlugin.Log.LogInfo($"Audio fetch: {ytDlp} {args}");
+                if (_root) SetStatus(Loc.T("audio_fetching"), "audio_fetching");
+                await System.Threading.Tasks.Task.Run(() =>
+                    AudioFetch.Download(ytDlp, args, line => MarketplacePlugin.Log.LogInfo(line)));
+                string produced = tmpBase + ".ogg";
+                if (!File.Exists(produced))
+                    throw new FileNotFoundException("yt-dlp left nothing at " + produced);
+                string target = AudioFetch.Target(CustomSongsApi.SongsFolder, c.Artist, c.Title);
+                AudioFetch.Move(produced, target);
+                MarketplacePlugin.Log.LogInfo("Audio fetched: " + target);
+                Thumbnails.Save(c.YoutubeId, Path.ChangeExtension(target, ".jpg")); // song select's cover
+                CustomSongsApi.RequestMetadataReload();
+                CustomSongsApi.RequestMarketplaceMatch();
+                SetStatus(Loc.T("audio_ready"), "audio_ready");
+            }
+            catch (Exception e)
+            {
+                MarketplacePlugin.Log.LogError("Audio fetch failed: " + e);
+                if (_root && _selected == c)
+                    SetStatus(Loc.T("audio_failed", e.GetBaseException().Message), "audio_failed");
+            }
+            finally { _fetching.Remove(c.Id); }
         }
 
         private void RemoveSelected()
@@ -399,7 +470,7 @@ namespace InvectorModKit.Marketplace.Ui
                 }
                 catch (Exception e)
                 {
-                    if (_root) _status.text = Loc.T("remove_failed", e.GetBaseException().Message);
+                    if (_root) SetStatus(Loc.T("remove_failed", e.GetBaseException().Message));
                 }
             });
         }
@@ -411,3 +482,5 @@ namespace InvectorModKit.Marketplace.Ui
         }
     }
 }
+
+
