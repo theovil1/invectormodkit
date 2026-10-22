@@ -6,9 +6,9 @@ using UnityEngine.UI;
 namespace InvectorModKit.Marketplace.Ui
 {
     /// <summary>
-    /// The menus' bottom left corner, in the game's style: a Discord button (animated logo, "Discord" and an
-    /// invitation) above the mod's name, version and the official scores status, in the game's language. Hidden
-    /// while playing and while the Marketplace window is open. The mouse reads it directly (the game's input module
+    /// The menus' bottom left corner, in the game's style: the mod's name, version and the official scores status, in
+    /// the game's language, and in the main menu only, a Discord button above them (animated logo, "Discord" and an
+    /// invitation). Hidden while playing and while the Marketplace window is open. The mouse reads it directly (the game's input module
     /// only serves the menu that owns the controls).
     /// </summary>
     internal sealed class CornerBadge : MonoBehaviour
@@ -93,8 +93,9 @@ namespace InvectorModKit.Marketplace.Ui
             UseGameFonts();
             _status.text = $"InvectorModKit {ModKit.Version}" + (ModKit.IsModdedSession ? "  ·  " + Loc.T("status_paused") : "");
             _invite.text = Loc.T("discord_join");
-            _button.gameObject.SetActive(Community.HasDiscord);
-            if (!Community.HasDiscord) return;
+            bool discord = Community.HasDiscord && ModKit.CurrentState is StateMainMenu;
+            _button.gameObject.SetActive(discord);
+            if (!discord) { _hovered = false; return; }
 
             bool over = Cursor.visible && RectTransformUtility.RectangleContainsScreenPoint(_button, Input.mousePosition, null);
             if (over && !_hovered) AudioModule.AudioProvider.Play(AudioShortcut.SFX_MENU_NAVIGATE);
