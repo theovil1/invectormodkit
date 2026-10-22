@@ -10,7 +10,7 @@ namespace InvectorModKit
     {
         public const string Guid = "com.invectormodkit.core";
         public const string Name = "Invector ModKit";
-        public const string Version = "0.1.0"; // x-release-please-version
+        public const string Version = "0.2.0"; // x-release-please-version
 
         internal static ManualLogSource Log;
 
