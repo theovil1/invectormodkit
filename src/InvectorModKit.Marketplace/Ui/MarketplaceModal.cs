@@ -27,6 +27,7 @@ namespace InvectorModKit.Marketplace.Ui
         private ButtonWithEvents _browseTab, _mineTab;
         private BrowseTab _browse;
         private MySongsTab _mine;
+        private ButtonWithEvents _rules, _addLink;
         private ITab _current;
         private GameObject _previousSelection;
         private Confirmation _confirmation;
@@ -114,8 +115,15 @@ namespace InvectorModKit.Marketplace.Ui
 
             _browseTab = MakeButton(Box, Loc.T("tab_browse"), -Width / 2 + 190, Height / 2 - 150, 260, 60, () => Show(_browse));
             _mineTab = MakeButton(Box, Loc.T("tab_mine"), -Width / 2 + 470, Height / 2 - 150, 260, 60, () => Show(_mine));
-            MakeButton(Box, Loc.T("rules"), Width / 2 - 160, Height / 2 - 150, 220, 60, () => Application.OpenURL(MarketplacePlugin.Api.RulesUrl(Loc.Code)), 26);
+            _rules = MakeButton(Box, Loc.T("rules"), Width / 2 - 160, Height / 2 - 150, 220, 60, () => Application.OpenURL(MarketplacePlugin.Api.RulesUrl(Loc.Code)), 26);
             if (Community.HasDiscord) AddDiscordButton(Width / 2 - 400, Height / 2 - 150);
+            // Adding a song from a link is an act of the tab, not of a song: it lives in the header row.
+            _addLink = MakeButton(Box, Loc.T("add_link"), 30, Height / 2 - 150, 260, 60, () => _mine.AddFromLink(), 26);
+            _browseTab.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnRight = _mineTab };
+            _mineTab.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = _browseTab, selectOnRight = _addLink };
+            _addLink.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = _mineTab, selectOnRight = Community.HasDiscord ? (Selectable)_discord.button : (Selectable)_rules };
+            if (Community.HasDiscord) _discord.button.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = _addLink, selectOnRight = _rules };
+            _rules.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = Community.HasDiscord ? (Selectable)_discord.button : (Selectable)_addLink };
 
             var hints = GameUi.Text(Box, "Hints", Regular, 24, TextAnchor.MiddleCenter, GameUi.Muted);
             hints.text = Loc.T("hints");
@@ -167,6 +175,11 @@ namespace InvectorModKit.Marketplace.Ui
             _current?.Hide();
             _current = tab;
             tab.Show();
+            var tabButton = tab == _mine ? _mineTab : _browseTab;
+            var nav = tabButton.navigation;
+            nav.selectOnDown = tab.FirstItem ? tab.FirstItem.GetComponent<Selectable>() : null;
+            tabButton.navigation = nav;
+            _addLink.gameObject.SetActive(tab == _mine);
             SetTabLook(_browseTab, tab == _browse);
             SetTabLook(_mineTab, tab == _mine);
         }

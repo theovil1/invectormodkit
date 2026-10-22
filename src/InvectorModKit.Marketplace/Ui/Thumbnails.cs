@@ -42,5 +42,18 @@ namespace InvectorModKit.Marketplace.Ui
                     }
             };
         }
+
+        /// <summary>Saves the video thumbnail's raw jpg next to an audio file (Song.jpg), so song select has a cover.</summary>
+        public static void Save(string youtubeId, string path)
+        {
+            if (string.IsNullOrEmpty(youtubeId)) return;
+            var request = UnityWebRequest.Get($"https://i.ytimg.com/vi/{youtubeId}/mqdefault.jpg");
+            request.SendWebRequest().completed += _ =>
+            {
+                try { if (request.result == UnityWebRequest.Result.Success) System.IO.File.WriteAllBytes(path, request.downloadHandler.data); }
+                catch (Exception e) { MarketplacePlugin.Log.LogError("thumbnail save: " + e.GetBaseException().Message); }
+                finally { request.Dispose(); }
+            };
+        }
     }
 }

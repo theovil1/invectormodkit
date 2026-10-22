@@ -9,8 +9,8 @@ using InvectorModKit.Marketplace.Client;
 namespace InvectorModKit.Marketplace
 {
     /// <summary>
-    /// In-game marketplace: browse and install charts shared by other players (the audio comes from each
-    /// player's own copy of the song), and publish your own.
+    /// In-game marketplace: browse and install charts shared by other players (installing downloads the
+    /// song from the linked video with the bundled yt-dlp + ffmpeg), and publish your own.
     /// </summary>
     [BepInPlugin(Guid, "Marketplace", ModKit.Version)]
     [BepInDependency(ModKit.Guid)]
@@ -25,6 +25,9 @@ namespace InvectorModKit.Marketplace
         internal static MarketplaceApi Api;
         internal static MarketplaceSession Session;
         internal static InstallStore Installs;
+
+        /// <summary>Bundled tools of the mod (chartgen, onnx model, audiotools), plus the marketplace client's.</summary>
+        internal static string SharedDir => Path.Combine(Paths.PluginPath, "InvectorModKit");
 
         private ConfigEntry<string> _server;
         private ConfigEntry<bool> _checkUpdates;

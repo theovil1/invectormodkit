@@ -47,6 +47,22 @@ namespace InvectorModKit.CustomSongs
         /// </summary>
         public static void RequestMarketplaceMatch() => CustomSongsPlugin.RequestMarketplaceMatch();
 
+        /// <summary>Main thread: re-reads title, artist and cover of the listed songs (a picture may have appeared next to an audio file).</summary>
+        public static void RequestMetadataReload() => CustomSongsPlugin.RequestMetadataReload();
+
+        /// <summary>
+        /// Main thread: deletes the audio, its chart and everything the mod added for the songs brought by
+        /// that marketplace chart. The chart stays on the marketplace; installing brings the audio back.
+        /// </summary>
+        public static bool RemoveMarketplaceSong(string marketplaceId)
+        {
+            var library = CustomSongsPlugin.Library;
+            if (library == null) return false;
+            bool any = library.RemoveMarketplaceSong(marketplaceId, msg => CustomSongsPlugin.Log.LogInfo(msg));
+            if (any) CustomSongsPlugin.RefreshListedSongs();
+            return any;
+        }
+
         /// <summary>
         /// Main thread, after publishing one's own song: its chart becomes that marketplace chart (frozen, with a
         /// leaderboard). <paramref name="chartId"/> null clears it (after withdrawing the publication).
