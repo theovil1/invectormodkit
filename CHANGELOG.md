@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/theovil1/invectormodkit/compare/v0.1.0...v0.2.0) (2026-10-22)
+
+
+### Features
+
+* **marketplace:** fetch the song audio from YouTube ([#7](https://github.com/theovil1/invectormodkit/issues/7)) ([9a1992a](https://github.com/theovil1/invectormodkit/commit/9a1992aa149597634b038724d0bf89959233d4a3))
+
+
+### Bug Fixes
+
+* **marketplace:** show the Discord button in the main menu only ([#5](https://github.com/theovil1/invectormodkit/issues/5)) ([5ce9f85](https://github.com/theovil1/invectormodkit/commit/5ce9f85078a123c7ad14ff83c3bda02556da564a))
+
 ## 0.1.0 (2026-10-11)
 
 

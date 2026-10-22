@@ -12,7 +12,7 @@
     <Prefer32Bit>false</Prefer32Bit>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>..\..\tools\ChartEditor\editor.ico</ApplicationIcon>
-    <Version Condition="'$(Version)' == ''">0.1.0</Version> <!-- x-release-please-version -->
+    <Version Condition="'$(Version)' == ''">0.2.0</Version> <!-- x-release-please-version -->
     <Product>InvectorModKit</Product>
     <Stage>$(MSBuildThisFileDirectory)..\..\artifacts\stage\</Stage>
   </PropertyGroup>
