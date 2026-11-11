@@ -52,12 +52,26 @@ namespace InvectorModKit.CustomSongs
         private const float FolderCheckSeconds = 2f;
         private int _order;
         private bool _checkFolderNow;
-        private static volatile bool _matchRequested, _matching;
+        private static volatile bool _matchRequested, _matching, _startupCheckDone;
 
         internal static void RequestMarketplaceMatch() => _matchRequested = true;
 
-        /// <summary>A check of the songs against the charts waiting for their audio is asked for or running.</summary>
-        internal static bool MarketplaceMatchPending => _matchRequested || _matching;
+        /// <summary>A check of the songs against the charts waiting for their audio is asked for, running, or still due at startup.</summary>
+        internal static bool MarketplaceMatchPending => !_startupCheckDone || _matchRequested || _matching;
+
+        /// <summary>
+        /// Once every song is prepared at startup: the charts still waiting for their audio are checked again
+        /// against the songs on disk, so one an older version of the mod could not place gets placed after an update.
+        /// </summary>
+        private static void StartupMarketplaceCheck()
+        {
+            _startupCheckDone = true;
+            try
+            {
+                if (InvectorModKit.Charting.Marketplace.PendingInstall.Load(Library.MarketplaceDir).Any()) _matchRequested = true;
+            }
+            catch (System.Exception e) { Log.LogWarning("Could not look at the marketplace charts waiting for their audio: " + e.Message); }
+        }
 
         private static volatile bool _metadataReload;
 
@@ -107,7 +121,12 @@ namespace InvectorModKit.CustomSongs
                     }
                 }
                 var next = Library.Songs.Where(s => s.State == SongState.Pending).OrderByDescending(s => s.Priority).FirstOrDefault();
-                if (next == null) { yield return new WaitForSecondsRealtime(0.25f); continue; }
+                if (next == null)
+                {
+                    if (!_startupCheckDone) StartupMarketplaceCheck();
+                    yield return new WaitForSecondsRealtime(0.25f);
+                    continue;
+                }
                 var task = RunLowPriority(() => Library.Prepare(next, msg => _workerLog.Enqueue(msg)));
                 while (!task.IsCompleted) { FlushWorkerLog(); yield return null; }
                 FlushWorkerLog();
