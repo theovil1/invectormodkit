@@ -7,6 +7,7 @@ import { call, on, inHost } from "./rpc.js";
 import { LANGUAGES, setLang, t, issueText, langCode } from "./i18n.js";
 import { skin } from "./skin.js";
 import { ACTION, MODE_COLOR } from "./look.js";
+import { arrowAction } from "./keys.js";
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, ...kids) => {
@@ -120,7 +121,7 @@ class App {
 
   /** The game's key hints: its key pictures (or drawn keys) and what they do. */
   renderKeybar() {
-    const short = (name) => name.replace("Keyboard_", "").replace("Alpha", "").replace("LeftControl", "Ctrl").replace("Plus", "+").replace("Minus", "−");
+    const short = (name) => name.replace("Keyboard_", "").replace("Alpha", "").replace("LeftControl", "Ctrl").replace("LeftArrow", "←").replace("RightArrow", "→").replace("Plus", "+").replace("Minus", "−");
     for (const e of document.querySelectorAll("#keybar .key")) {
       const keys = e.dataset.keys.split(" ").map((k) => (skin.has(k) ? el("img", { src: skin.url(k), alt: short(k) }) : el("kbd", {}, short(k))));
       e.replaceChildren(...keys, el("span", { class: "label" }, t(e.dataset.label)));
@@ -761,9 +762,9 @@ class App {
       case e.key.toLowerCase() === "s": if (ids.length) { const all = this.selectedNotes().every((n) => n.strum); this.edit((doc) => m.setStrum(doc, d, ids, !all)); } break;
       case e.key === "ArrowLeft" || e.key === "ArrowRight": {
         e.preventDefault();
-        const dt = (e.key === "ArrowLeft" ? -1 : 1) * (e.altKey ? 0.001 : step);
-        if (ids.length) this.edit((doc) => m.moveNotes(doc, d, ids, dt));
-        else this.seek(Math.max(0, this.audio.time + dt));
+        const a = arrowAction(e, step, ids.length > 0);
+        if (a.move) this.edit((doc) => m.moveNotes(doc, d, ids, a.move));
+        else this.seek(Math.max(0, this.audio.time + a.seek));
         break;
       }
       case e.key === "ArrowUp" || e.key === "ArrowDown": if (ids.length) { e.preventDefault(); this.edit((doc) => m.moveNotes(doc, d, ids, 0, e.key === "ArrowUp" ? -1 : 1)); } break;
