@@ -52,9 +52,12 @@ namespace InvectorModKit.CustomSongs
         private const float FolderCheckSeconds = 2f;
         private int _order;
         private bool _checkFolderNow;
-        private static volatile bool _matchRequested;
+        private static volatile bool _matchRequested, _matching;
 
         internal static void RequestMarketplaceMatch() => _matchRequested = true;
+
+        /// <summary>A check of the songs against the charts waiting for their audio is asked for or running.</summary>
+        internal static bool MarketplaceMatchPending => _matchRequested || _matching;
 
         private static volatile bool _metadataReload;
 
@@ -88,8 +91,10 @@ namespace InvectorModKit.CustomSongs
                 }
                 if (_matchRequested)
                 {
+                    _matching = true;
                     _matchRequested = false;
-                    yield return MatchMarketplace();
+                    try { yield return MatchMarketplace(); }
+                    finally { _matching = false; }
                 }
                 if (_metadataReload)
                 {
