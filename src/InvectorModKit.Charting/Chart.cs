@@ -101,19 +101,26 @@ namespace InvectorModKit.Charting
         /// (earlier when negative). Notes that would fall before the start of the file are dropped; the
         /// section playing at the new t = 0 becomes the first one.
         /// </summary>
-        public Chart Shifted(double offset)
+        public Chart Shifted(double offset) => Warped(_ => offset);
+
+        /// <summary>
+        /// The same chart on an audio file whose timeline drifts from this one: each time t moves by
+        /// <paramref name="offsetAt"/>(t), with the same rules as <see cref="Shifted"/>.
+        /// </summary>
+        public Chart Warped(System.Func<double, double> offsetAt)
         {
+            double Moved(double t) => t + offsetAt(t);
             var copy = new Chart
             {
                 Format = Format, Bpm = Bpm, Gain = Gain, Generator = Generator, Source = Source,
-                FirstBeat = FirstBeat + offset,
-                StartTime = System.Math.Max(0, StartTime + offset),
-                EndTime = EndTime + offset,
-                PreviewStart = System.Math.Max(0, PreviewStart + offset),
+                FirstBeat = Moved(FirstBeat),
+                StartTime = System.Math.Max(0, Moved(StartTime)),
+                EndTime = Moved(EndTime),
+                PreviewStart = System.Math.Max(0, Moved(PreviewStart)),
             };
             foreach (var s in Sections)
             {
-                double start = s.Start == 0 ? 0 : s.Start + offset;
+                double start = s.Start == 0 ? 0 : Moved(s.Start);
                 if (start <= 0) copy.Sections.Clear();
                 copy.Sections.Add(new Section(System.Math.Max(0, start), s.Mode));
             }
@@ -122,9 +129,10 @@ namespace InvectorModKit.Charting
                 var list = copy[pair.Key];
                 foreach (var n in pair.Value)
                 {
-                    if (n.Time + offset < 0) continue;
+                    double time = Moved(n.Time);
+                    if (time < 0) continue;
                     var moved = n;
-                    moved.Time += offset;
+                    moved.Time = time;
                     list.Add(moved);
                 }
             }

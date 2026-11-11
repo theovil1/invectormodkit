@@ -68,6 +68,35 @@ public class FingerprintTests
     }
 
     [Fact]
+    public void Match_SameRecordingDriftingBy50ms_Matches()
+    {
+        // Two copies of one recording whose timelines part by 50 ms half way (a decoder or an encoder dropped two
+        // frames): every stretch still lines up within a few frames, so it is the same version.
+        var song = Clicks(160, 10);
+        var local = Concat(Slice(song, 0, 80), new float[(int)(0.05 * Rate)], Slice(song, 80, 160));
+        var m = Fingerprint.Match(Fp(song), Fp(local));
+        Assert.True(m.IsMatch, m.ToString());
+    }
+
+    [Fact]
+    public void OffsetAt_FollowsTheDriftAlongTheSong()
+    {
+        var song = Clicks(160, 10);
+        var local = Concat(new float[(int)(1.5 * Rate)], Slice(song, 0, 80), new float[(int)(0.05 * Rate)], Slice(song, 80, 160));
+        var m = Fingerprint.Match(Fp(song), Fp(local));
+        Assert.InRange(m.OffsetAt(30), 1.494, 1.506);
+        Assert.InRange(m.OffsetAt(130), 1.544, 1.556);
+        Assert.InRange(m.OffsetAt(0), 1.494, 1.506);    // before the first stretch: its offset
+        Assert.InRange(m.OffsetAt(200), 1.544, 1.556);  // after the last one: its offset
+    }
+
+    [Fact]
+    public void OffsetAt_WithoutStretches_IsTheGlobalOffset()
+    {
+        Assert.Equal(2.5, new FingerprintMatch { IsMatch = true, Offset = 2.5 }.OffsetAt(40));
+    }
+
+    [Fact]
     public void Match_InsertedPassage_NotConsistent()
     {
         var song = Clicks(120, 4);
