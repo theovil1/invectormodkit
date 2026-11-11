@@ -16,7 +16,7 @@ namespace InvectorModKit.Setup
     ///   --update --game "dir" --wait pid      silent: waits for the game to close, then installs (in-game updates)
     ///   --uninstall [--game "dir"] [--yes]    removes the mod (Windows' "Installed apps" runs this)
     ///   --render out.png [--lang xx]          draws the window into an image (checking the languages)
-    ///   --game "dir", --auto, --editor, --lang xx   used when it restarts itself as administrator
+    ///   --game "dir", --auto, --no-editor, --lang xx   used when it restarts itself as administrator
     /// </summary>
     internal static class Program
     {
@@ -39,7 +39,8 @@ namespace InvectorModKit.Setup
                     if (render) return Render(Arg(args, "--render"), lang);
                     if (Has(args, "--update")) return Update(Arg(args, "--game"), Arg(args, "--wait"));
                     if (Has(args, "--uninstall")) return Uninstall(Actions.FindGame(Arg(args, "--game")), Has(args, "--yes"), lang);
-                    Application.Run(new SetupForm(lang, Actions.FindGame(Arg(args, "--game")), Has(args, "--editor")) { AutoStart = Has(args, "--auto") });
+                    // the level editor's box starts ticked: players who skip it never find the editor
+                    Application.Run(new SetupForm(lang, Actions.FindGame(Arg(args, "--game")), !Has(args, "--no-editor")) { AutoStart = Has(args, "--auto") });
                     return 0;
                 }
                 finally
@@ -95,7 +96,7 @@ namespace InvectorModKit.Setup
 
         private static int Render(string path, string lang)
         {
-            using (var form = new SetupForm(lang, Actions.FindGame(null), false))
+            using (var form = new SetupForm(lang, Actions.FindGame(null), true))
             {
                 // shown far off-screen: controls only draw once their window exists
                 form.StartPosition = FormStartPosition.Manual;

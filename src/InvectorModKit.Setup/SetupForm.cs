@@ -183,7 +183,7 @@ namespace InvectorModKit.Setup
             catch (UnauthorizedAccessException) when (!Shell.IsAdministrator())
             {
                 // Windows refused writing in the game folder: the same installation, as administrator
-                if (Shell.RelaunchAsAdministrator($"--game \"{game}\" --auto{(editor ? " --editor" : "")} --lang {_lang}")) { Close(); return; }
+                if (Shell.RelaunchAsAdministrator($"--game \"{game}\" --auto{(editor ? "" : " --no-editor")} --lang {_lang}")) { Close(); return; }
                 SetWorking(false, T("err_other", "access denied"));
             }
             catch (Exception e)
