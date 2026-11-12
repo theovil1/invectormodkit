@@ -56,7 +56,9 @@ namespace InvectorModKit.ChartEditor
                 "XBOX Pickup Left X OPTIMIZED", "XBOX Pickup Right B OPTIMIZED", "XBOX Pickup Down A OPTIMIZED", "XBOX Pickup Up Y OPTIMIZED",
                 "Keyboard PS4 Pickup Left OPTIMIZED", "Keyboard PS4 Pickup Right OPTIMIZED", "Keyboard PS4 Pickup Up OPTIMIZED", "Keyboard PS4 Pickup Down OPTIMIZED",
                 "Pickup 4 Left OPTIMIZED", "Pickup 5 Right OPTIMIZED",
-                "Pickup Strum, List/Bounce OPTIMIZED", "Pickup StrumHold Start, List/Bounce OPTIMIZED", "PickupStrumHoldEnd, List/Bounce, All Platforms",
+                "Pickup Strum, List OPTIMIZED", "Pickup Strum, Bounce OPTIMIZED",
+                "Pickup StrumHold Start, List OPTIMIZED", "Pickup StrumHold Start, Bounce OPTIMIZED",
+                "PickupStrumHoldEnd, List, All Platforms", "PickupStrumHoldEnd, Bounce, All Platforms",
                 "BeatLine, List", "BeatLine, Bounce", "PickupAir, All Platforms OPTIMIZED");
             Add(Shared, RecipeKind.Clip,
                 "RollRightLong", "coaster@RollRightLong2Turns", "coaster@RollRightLong3Turns", "Airpickup Spawn Legacy", "Airpickup ActivateEffect Legacy");

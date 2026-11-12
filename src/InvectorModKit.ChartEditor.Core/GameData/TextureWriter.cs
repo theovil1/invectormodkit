@@ -14,8 +14,8 @@ namespace InvectorModKit.ChartEditor
     /// <summary>Writes a texture to the cache unchanged: a header line, then the bytes as stored by the game.</summary>
     public static class TextureWriter
     {
-        /// <summary>The formats the preview can upload to WebGL: Alpha8, RGB24, RGBA32, DXT1, DXT5, BC6H, BC7.</summary>
-        public static readonly IReadOnlyCollection<int> Supported = new HashSet<int> { 1, 3, 4, 10, 12, 24, 25 };
+        /// <summary>The formats the preview can upload to WebGL 2: Alpha8, RGB24, RGBA32, DXT1, DXT5, RGBAHalf, BC6H, BC7.</summary>
+        public static readonly IReadOnlyCollection<int> Supported = new HashSet<int> { 1, 3, 4, 10, 12, 17, 24, 25 };
 
         /// <summary>Crunch-compressed DXT1, DXT5, ETC RGB4 and ETC2 RGBA8.</summary>
         public static bool IsCrunched(int format) => format == 28 || format == 29 || format == 64 || format == 65;

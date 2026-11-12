@@ -27,8 +27,19 @@ public class GameDataRecipeTests
     [InlineData(RecipeKind.Clip, "coaster@RollRightLong3Turns")]
     [InlineData(RecipeKind.Controller, "Coaster Animator")]
     [InlineData(RecipeKind.Settings, "MaterialsDatabase")]
+    // The spec's "List/Bounce" names two prefabs each, one per lane mode (as the game names them).
+    [InlineData(RecipeKind.Prefab, "Pickup Strum, List OPTIMIZED")]
+    [InlineData(RecipeKind.Prefab, "Pickup Strum, Bounce OPTIMIZED")]
+    [InlineData(RecipeKind.Prefab, "Pickup StrumHold Start, List OPTIMIZED")]
+    [InlineData(RecipeKind.Prefab, "Pickup StrumHold Start, Bounce OPTIMIZED")]
+    [InlineData(RecipeKind.Prefab, "PickupStrumHoldEnd, List, All Platforms")]
+    [InlineData(RecipeKind.Prefab, "PickupStrumHoldEnd, Bounce, All Platforms")]
     public void HoldsTheSpecItems(RecipeKind kind, string nameOrClass) =>
         Assert.Contains(GameDataRecipe.Items, i => i.Kind == kind && (i.Name ?? i.Class) == nameOrClass);
+
+    [Fact]
+    public void NoNameIsAShorthandForTwoVariants() =>
+        Assert.DoesNotContain(GameDataRecipe.Items, i => (i.Name ?? i.Class).Contains("List/Bounce"));
 
     [Fact]
     public void KeyIsKindAndNameOrClass()

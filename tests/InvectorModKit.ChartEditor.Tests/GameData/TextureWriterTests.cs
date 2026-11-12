@@ -30,7 +30,7 @@ public class TextureWriterTests
     [Fact]
     public void SupportedAndCrunchedFormats()
     {
-        Assert.Equal(new[] { 1, 3, 4, 10, 12, 24, 25 }, TextureWriter.Supported.OrderBy(f => f));
+        Assert.Equal(new[] { 1, 3, 4, 10, 12, 17, 24, 25 }, TextureWriter.Supported.OrderBy(f => f)); // 17: RGBAHalf
         foreach (int f in new[] { 28, 29, 64, 65 }) Assert.True(TextureWriter.IsCrunched(f), f.ToString());
         Assert.False(TextureWriter.IsCrunched(10));
     }

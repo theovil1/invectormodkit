@@ -46,14 +46,16 @@ namespace InvectorModKit.ChartEditor
 
         public BundleReader(string bundlesDir)
         {
-            dir = bundlesDir;
-            foreach (string path in Directory.GetFiles(bundlesDir, "*.bundle"))
+            dir = Path.GetFullPath(bundlesDir);
+            // Some bundles sit in subfolders (the shared MIDI signals, for one): they are named by their relative path.
+            foreach (string path in Directory.GetFiles(dir, "*.bundle", SearchOption.AllDirectories))
             {
                 using (var stream = OpenShared(path))
                 {
                     var bundle = new AssetBundleFile();
                     bundle.Read(new AssetsFileReader(stream));
-                    foreach (string entry in bundle.GetAllFileNames()) bundleOfEntry[entry] = Path.GetFileName(path);
+                    string relative = path.Substring(dir.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                    foreach (string entry in bundle.GetAllFileNames()) bundleOfEntry[entry] = relative;
                 }
             }
         }
