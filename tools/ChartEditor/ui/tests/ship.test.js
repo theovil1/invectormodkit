@@ -95,3 +95,32 @@ test("odd charts", () => {
     }
   }
 });
+
+/** An angle's difference from another, wrapped to (-pi, pi]. */
+const turnDiff = (a, b) => { let d = (a - b) % (2 * Math.PI); if (d > Math.PI) d -= 2 * Math.PI; if (d <= -Math.PI) d += 2 * Math.PI; return d; };
+const THIRD = (2 * Math.PI) / 3;
+
+test("List: the tunnel turns to the lane, smoothly, from the turn's perfect window", () => {
+  // 120 bpm: Walker lerps the angle by 12 x 0.75 / 0.5 / 60 = 0.3 of the way each 60th of a second
+  const { ship } = setup([{ t: 1, lane: 1 }, { t: 2, lane: 1, color: 4 }, { t: 3, lane: 0 }], [{ t: 0, mode: "List" }]);
+  near(turnDiff(ship.spin(0.5), -THIRD), 0, 1e-6, "on the first note's lane"); // turned there before the song
+  const t0 = 2 - 1 / 30; // the autopilot steers as soon as the turn is within 1/30 s
+  near(turnDiff(ship.spin(t0), -THIRD), 0, 1e-6, "not yet turning");
+  near(turnDiff(ship.spin(t0 + 0.05), -THIRD * 0.7 ** 3), 0, 1e-6, "three frames into the turn");
+  near(turnDiff(ship.spin(3), 0), 0, 1e-4, "on lane 0 after the turn");
+});
+
+test("List: the angle never jumps inside the tunnel", () => {
+  const { ship } = setup([{ t: 1, lane: 1 }, { t: 2, lane: 1, color: 5 }, { t: 2.2, lane: 2, color: 5 }, { t: 3, lane: 0 }], [{ t: 0, mode: "List" }]);
+  let prev = ship.spin(0.5), worst = 0;
+  for (let t = 0.501; t < 4; t += 0.001) { const a = ship.spin(t); worst = Math.max(worst, Math.abs(turnDiff(a, prev))); prev = a; }
+  assert.ok(worst < 0.05, `a step of ${worst} rad`);
+  near(turnDiff(ship.spin(3.5), 0), 0, 1e-4, "two right turns from lane 1 end on lane 0");
+});
+
+test("List after Bounce: the tunnel is set to the first note's lane at once, before the tunnel comes", () => {
+  const { ship } = setup([{ t: 5, lane: 1 }, { t: 11, lane: 2 }], [{ t: 0, mode: "Bounce" }, { t: 10, mode: "List" }]);
+  near(turnDiff(ship.spin(6), 0), 0, 1e-9, "still the song's start angle");
+  near(turnDiff(ship.spin(7.01), -2 * THIRD), 0, 1e-9, "set while the tunnel is 3 s away");
+  near(turnDiff(ship.spin(10.5), -2 * THIRD), 0, 1e-9, "in the tunnel");
+});

@@ -249,7 +249,7 @@ export async function createEffects(cache, rig, level) {
       const out = (tex, p, c, size, maxSize) => { const set = points.get(tex); if (set) set.buffers.push(p, c, size, maxSize * height); };
       const walkerD = path.start + run.distAt(t), wf = path.frameAt(walkerD), wq = frameQ(wf);
       const st = ship.state(t);
-      const listLane = ship.lane(t, "List").lane;
+      const spinNow = ship.spin(t); // the List tunnel's turn
       const shipX = st.mode === "Bounce" ? st.sl[0] : 0;
       // the walker's emitters (Particles under the walker, PickupParticles/StrumParticles scaled 2.4)
       const walkerFrame = (x, y, z, q, scale) => ({ o: path.place([x, y, z], walkerD), q: qmul(wq, q), shapeScale: scale, sizeScale: 1 });
@@ -273,7 +273,8 @@ export async function createEffects(cache, rig, level) {
           if (n.len > 0) { if (shipBurst[lv]) emit(withMat(shipBurst[lv], switched[lastCol]), shipFrame, age, seed, out); }
           else if (strumBurst[lv]) emit(strumBurst[lv], strumFrame, age, seed, out);
           const fx = strumFx[(n.len > 0 ? "hold" : "strum") + (n.mode === "List" ? "List" : "Bounce")];
-          const base = { o: nf.p, q: frameQ(nf) };
+          // a List strum turns with the tunnel as it was when taken
+          const base = { o: nf.p, q: n.mode === "List" ? qmul(frameQ(nf), qfromAxisAngle([0, 0, 1], ship.spin(n.t))) : frameQ(nf) };
           fx.systems.forEach((sys, i) => emit(sys.spec, compose(base, sys), age, seed + 31 * i, out));
           fx.flashes.forEach((sys, i) => { const f = compose(base, sys); emit(sys.spec, f, age, seed + 61 * i, meshOut(sys.spec.mesh + "|" + sys.spec.mat.tex, f.q, sys.s3, startTurn(sys.spec.rot3d))); });
           continue;
@@ -281,7 +282,8 @@ export async function createEffects(cache, rig, level) {
         const key = keyOf(n), col = key.startsWith("turn") ? "turn" : key;
         if (shipBurst[lv]) emit(withMat(shipBurst[lv], switched[col]), shipFrame, age, seed, out);
         const fx = pickupFx[key];
-        const roll = n.mode === "List" ? ((lane - listLane) * 2 * Math.PI) / 3 : 0, rollQ = qfromAxisAngle([0, 0, 1], roll);
+        // a List pickup's effects stay where it was taken, turned as the tunnel was then
+        const roll = n.mode === "List" ? ship.spin(n.t) + (lane * 2 * Math.PI) / 3 : 0, rollQ = qfromAxisAngle([0, 0, 1], roll);
         const at = n.mode === "Bounce" ? [rig.pickupLaneX * (lane - 1), rig.pickupY, 0] : qrotate(rollQ, [0, rig.pickupY, 0]);
         const base = { o: path.place(at, noteD), q: qmul(frameQ(nf), rollQ) };
         fx.systems.forEach((sys, i) => emit(sys.spec, compose(base, sys), age, seed + 1 + i, out));
@@ -344,15 +346,18 @@ export async function createEffects(cache, rig, level) {
         ribbon(buf, pts, nrm, time, tr.w0 * width, tr.w1 * width, k, depth, camPos, camera.near, tr.mat.fade || 1);
       }
 
-      // the hold walls: lit between a hold's start and end along the track, from its spawn until 1 s after its end
+      // the hold walls: lit between a hold's start and end along the track, from its spawn until 1 s after its end; the
+      // List ones turn with the tunnel (PlacePickupsOnPath.UpdateStrumholds)
       holdUniforms.scroll.value = (scrollU * t) / 20;
+      const sc = Math.cos(spinNow), sn = Math.sin(spinNow);
+      const turned = listFaces.map((face) => face.map(([x, y]) => [x * sc - y * sn, x * sn + y * sc]));
       if (holdTex) {
         for (const n of run.notes) {
           if (n.t > t + 5) break;
           if (!n.strum || !n.len || n.mode === "Freefly" || n.t + n.len + 1 < t) continue;
           const f0 = run.noteDist(n.t, t), f1 = run.noteDist(n.t + n.len, t);
           const segs = Math.max(1, Math.ceil((f1 - f0) / 2));
-          for (const [p, q] of n.mode === "List" ? listFaces : bounceFaces) {
+          for (const [p, q] of n.mode === "List" ? turned : bounceFaces) {
             for (let j = 0; j < segs; j++) {
               const fa = f0 + ((f1 - f0) * j) / segs, fb = f0 + ((f1 - f0) * (j + 1)) / segs;
               const A = path.place([p[0], p[1], 0], path.start + fa), B = path.place([q[0], q[1], 0], path.start + fa);

@@ -119,7 +119,7 @@ export class GamePreview {
       const w = this.shipCtl.world(t, this.path);
       this.shipMount.position.set(...w.pos);
       this.shipMount.quaternion.set(...w.q);
-      this.track.update(t);
+      this.track.update(t, this.shipCtl.spin(t));
       this.notes.update(this.run, this.shipCtl, this.path, t);
       this.effects.update(this.run, this.shipCtl, this.path, this.camera, this.renderer, t);
     }

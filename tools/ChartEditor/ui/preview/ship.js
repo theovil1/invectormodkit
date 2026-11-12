@@ -241,5 +241,44 @@ export function prepareShip(run, rig, level, rolls) {
     return { pos, q: qmul(qfromBasis(f.right, f.up, f.back), local), st };
   }
 
-  return { lane, laneAfter, bounceX, flyArea, ringAt, flight, barrelAt, flyStretch, flyOffsetAt, state, world };
+  // The List tunnel's turn (Walker.rotation, here radians about the track's axis, as notes.js rolls the List notes).
+  // Walker eases it once a frame towards -lane x 120 degrees, by rotationLerp x 0.75 / (seconds per beat) of the way
+  // (Mathf.LerpAngle; the game ran at 60 frames a second when recorded). The tunnel, its hold walls and the List notes
+  // turn with it; the camera does not (Walker.rotateSelf is off). The autopilot turns in a turn's perfect window, 1/30 s
+  // before it; a song that starts in List turns from lane 0 to its first note's lane when that note spawns, 3 s before
+  // it; a List after Bounce or Freefly is set to its first note's lane at once when its notes spawn (ModeSelector).
+  const THIRD = (2 * Math.PI) / 3, SPAWN_AHEAD = 3, PERFECT = 1 / 30, FPS = 60;
+  const spinStep = Math.min(1, ((rig.rotationLerp ?? 12) * 0.75 * (run.doc.bpm / 60)) / FPS);
+  const spinRate = spinStep >= 1 ? Infinity : -Math.log(1 - spinStep) * FPS;
+  const wrapPi = (a) => { a %= 2 * Math.PI; if (a > Math.PI) a -= 2 * Math.PI; if (a <= -Math.PI) a += 2 * Math.PI; return a; };
+  const spinEvents = [];
+  for (let i = 0; i < sections.length; i++) {
+    const sec = sections[i];
+    if (sec.mode !== "List") continue;
+    const inSec = plain.filter((n) => n.mode === "List" && n.t >= sec.from && n.t < sec.to);
+    if (!inSec.length) continue;
+    const firstLane = inSec[0].lane ?? 1;
+    if (i === 0) spinEvents.push({ t: inSec[0].t - SPAWN_AHEAD, lane: firstLane, instant: false });
+    else if (sections[i - 1].mode !== "List") spinEvents.push({ t: Math.max(sections[i - 1].from, sec.from - SPAWN_AHEAD), lane: firstLane, instant: true });
+    for (const n of inSec) if (isTurn(n.color)) spinEvents.push({ t: n.t - PERFECT, lane: laneAfter(n, "List"), instant: false });
+  }
+  spinEvents.sort((a, b) => a.t - b.t);
+  const spinAt = (e, t) => (t <= e.t ? e.from : spinRate === Infinity ? e.target : e.target + (e.from - e.target) * Math.exp(-spinRate * (t - e.t)));
+  let reached = 0; // Steering.Reset: lane 0, angle 0
+  for (let i = 0; i < spinEvents.length; i++) {
+    const e = spinEvents[i];
+    if (i > 0) reached = spinAt(spinEvents[i - 1], e.t);
+    e.target = reached + wrapPi(-e.lane * THIRD - reached); // the shorter way round, as LerpAngle
+    e.from = e.instant ? e.target : reached;
+  }
+
+  /** The List tunnel's turn at t (radians): the List notes on lane L roll by spin(t) + L x 120 degrees. */
+  function spin(t) {
+    if (!spinEvents.length || t < spinEvents[0].t) return 0;
+    let lo = 0, hi = spinEvents.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (spinEvents[mid].t <= t) lo = mid; else hi = mid - 1; }
+    return spinAt(spinEvents[lo], t);
+  }
+
+  return { lane, laneAfter, bounceX, flyArea, ringAt, flight, barrelAt, flyStretch, flyOffsetAt, state, world, spin };
 }

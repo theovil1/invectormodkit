@@ -17,6 +17,7 @@ test("the owner's cache gives the prototype's numbers", { skip: !HAS_CACHE }, ()
   const expected = {
     walkerY: -2.5, pickupY: -3, roadY: -3.3333, hitAhead: 1, camOrigin: [0, 2.67, -5.39], shipLocal: [0, 0.12, -2.723],
     camTransition: 1, zComp: 0.05, laneX: 4.4933, pickupLaneX: 4.5, tri: [[0, 7.62], [-6.57, -3.81], [6.57, -3.81]],
+    rotationLerp: 12,
   };
   for (const [k, v] of Object.entries(expected)) nearAll(rig[k], v, k);
   nearAll(rig.coast.follow, [1, 0.5, 1], "coast.follow");

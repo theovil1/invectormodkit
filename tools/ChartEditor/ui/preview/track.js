@@ -2,7 +2,9 @@
 // level's own road piece repeated along the path), and the lab decor (a floor far below, blocks and an orange arch
 // every 4 bars). Built on the straight track (x across, y up, z = -distance), bent once along the level path, in
 // chunks of 100 units of distance kept in a bounded cache. The chunks only depend on the sections, the beat grid and
-// the perfect run's level changes, so most edits keep them.
+// the perfect run's level changes, so most edits keep them. The tunnel turns about the track's axis as the game's does
+// (its shader's _TunnelRotation, from Walker.rotation): its parts keep their place across the track and their frame
+// on the path, and the vertex shader turns them by the current angle.
 import * as THREE from "three";
 
 const CHUNK = 100;
@@ -24,6 +26,19 @@ function gridTexture(base, line, bold, text) {
   return t;
 }
 
+/** Makes a material turn its geometry about the track's axis by `uniform.value` radians (see Bender: spinning parts). */
+function spinning(material, uniform) {
+  material.userData.spin = true;
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.tunnelSpin = uniform;
+    shader.vertexShader = "attribute vec3 spinAxis; attribute vec3 spinRight; attribute vec3 spinUp; attribute vec2 spinXY; uniform float tunnelSpin;\n" +
+      shader.vertexShader.replace("#include <begin_vertex>", "float spinC = cos(tunnelSpin), spinS = sin(tunnelSpin);\n" +
+        "vec3 transformed = spinAxis + spinRight * (spinXY.x * spinC - spinXY.y * spinS) + spinUp * (spinXY.x * spinS + spinXY.y * spinC);");
+  };
+  material.customProgramCacheKey = () => "tunnel-spin";
+  return material;
+}
+
 /** Collects straight-track geometry and bends it along the path into one geometry per material. */
 class Bender {
   constructor(path) { this.path = path; this.parts = new Map(); }
@@ -42,6 +57,9 @@ class Bender {
       let count = 0;
       for (const g of list) count += g.attributes.position.count;
       const pos = new Float32Array(count * 3), nrm = new Float32Array(count * 3), uv = new Float32Array(count * 2);
+      // a spinning part also keeps its place across the track and its frame on the path, for the shader to turn it
+      const spin = !!material.userData.spin;
+      const axis = spin ? new Float32Array(count * 3) : null, right = spin ? new Float32Array(count * 3) : null, up = spin ? new Float32Array(count * 3) : null, xy = spin ? new Float32Array(count * 2) : null;
       let at = 0;
       for (const g of list) {
         const p = g.attributes.position, n = g.attributes.normal, u = g.attributes.uv;
@@ -52,6 +70,10 @@ class Bender {
             if (n) nrm[at * 3 + k] = f.right[k] * n.getX(i) + f.up[k] * n.getY(i) + f.back[k] * n.getZ(i);
           }
           if (u) { uv[at * 2] = u.getX(i); uv[at * 2 + 1] = u.getY(i); }
+          if (spin) {
+            for (let k = 0; k < 3; k++) { axis[at * 3 + k] = f.p[k]; right[at * 3 + k] = f.right[k]; up[at * 3 + k] = f.up[k]; }
+            xy[at * 2] = x; xy[at * 2 + 1] = y;
+          }
         }
         g.dispose();
       }
@@ -59,8 +81,15 @@ class Bender {
       geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
       geo.setAttribute("normal", new THREE.BufferAttribute(nrm, 3));
       geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+      if (spin) {
+        geo.setAttribute("spinAxis", new THREE.BufferAttribute(axis, 3));
+        geo.setAttribute("spinRight", new THREE.BufferAttribute(right, 3));
+        geo.setAttribute("spinUp", new THREE.BufferAttribute(up, 3));
+        geo.setAttribute("spinXY", new THREE.BufferAttribute(xy, 2));
+      }
       geo.computeBoundingSphere();
       const mesh = new THREE.Mesh(geo, material);
+      if (spin) mesh.frustumCulled = false; // turned in the shader, it can leave its unturned bounds
       group.add(mesh);
     }
     return group;
@@ -83,9 +112,10 @@ export async function createTrack(cache, rig, path, level) {
   const roadDark = new THREE.MeshBasicMaterial({ map: occlusion, color: new THREE.Color(0.025, 0.025, 0.0275), side: THREE.DoubleSide });
   const roadGlow = new THREE.MeshBasicMaterial({ map: emission, color: new THREE.Color(glow[0], glow[1], glow[2]), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide });
   // HDR white: with the game's bloom threshold (2) the corners sit well above it to glow as in the game
-  const corner = new THREE.MeshBasicMaterial({ color: new THREE.Color(8, 8, 8) });
+  const spinUniform = { value: 0 }; // the tunnel's turn
+  const corner = spinning(new THREE.MeshBasicMaterial({ color: new THREE.Color(8, 8, 8) }), spinUniform);
   // the lab only (not the game): a light smoked glass so the white corners still read against the bright decor
-  const smoke = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.02, 0.02, 0.03), side: THREE.DoubleSide, transparent: true, opacity: 0.5, depthWrite: false, fog: false });
+  const smoke = spinning(new THREE.MeshBasicMaterial({ color: new THREE.Color(0.02, 0.02, 0.03), side: THREE.DoubleSide, transparent: true, opacity: 0.5, depthWrite: false, fog: false }), spinUniform);
   const labMat = (t) => new THREE.MeshStandardMaterial({ map: t, roughness: 0.9 });
   const floorTex = gridTexture("#bfc3c7", "#a9adb2", "#8d9196", "4 m");
   floorTex.repeat.set(45, 25);
@@ -167,9 +197,10 @@ export async function createTrack(cache, rig, path, level) {
         if (t >= 0) beats.push({ k: k2, s: run.distAt(t) });
       }
     },
-    /** Shows the chunks around the walker at song time t, building the missing ones. */
-    update(t) {
+    /** Shows the chunks around the walker at song time t, building the missing ones, the tunnel turned by `spin` (radians). */
+    update(t, spin = 0) {
       if (!run) return;
+      spinUniform.value = spin;
       const c0 = Math.floor(run.distAt(t) / CHUNK);
       stamp++;
       for (let c = c0 - BEHIND; c <= c0 + AHEAD; c++) {

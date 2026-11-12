@@ -30,6 +30,7 @@ export const RIG_CONSTANTS = {
   tri: [[0, 7.62], [-6.57, -3.81], [6.57, -3.81]], // the List tunnel's corner lines (Toblerone)
   sideways: 3, // Walker.SidewaysMovementAmount
   lookLerp: 0.5, // Walker.lookAtTransformLerp (Freefly aim pulled half way to the ship)
+  rotationLerp: 12, // Walker.rotationLerp: how fast the tunnel turns to the walker's lane (times 0.75 a beat)
   steer: { speed: 100, damp: 0.1, spring: 1, pitchSpeed: 7, yawSpeed: 10, rollSpeed: 15, limitPitch: 20, limitYaw: 30, limitRoll: 60, transition: 1 / 3, transitionFly: 0.5 }, // Steering
   transition: TRANSITION, // CameraController.cameraTransitionCurve
   shipTransition: TRANSITION, // Steering.horizontalTransitionCurve
@@ -85,6 +86,7 @@ export function readRig(settings, walkerRoot) {
     zComp: or(num(first(cam.zCompensationMultiplier)), C.zComp),
     sideways: or(num(walker.SidewaysMovementAmount), C.sideways),
     lookLerp: or(num(walker.lookAtTransformLerp), C.lookLerp),
+    rotationLerp: or(num(walker.rotationLerp), C.rotationLerp),
     steer: {
       speed: or(num(steer.FlySteerSpeed), C.steer.speed),
       damp: or(num(steer.FlyDamp), C.steer.damp),

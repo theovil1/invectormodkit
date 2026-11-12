@@ -1,8 +1,10 @@
 // The notes as the game places them: the XBOX pickups (as the game shows a keyboard player) with the white arrow it
 // prints on keyboard pickups, turns, strums, holds (start and end bars), beat lines and Freefly gates, each where
 // the perfect run puts it at the time shown (Pickup.UpdatePosition: its time to come at the current speed ahead of
-// the walker), carried along the level path. A level-up pickup shows its "Level Up Text"; selected notes get a thin
-// white outline. Objects come from pools by prefab and are reused from frame to frame.
+// the walker), carried along the level path. In List the notes turn with the tunnel (ship.spin: the tunnel's turn,
+// eased as Walker.rotation is, plus 120 degrees a lane), and a strum's label stays upright (Pickup.KeepRotation). A
+// level-up pickup shows its "Level Up Text"; selected notes get a thin white outline. Objects come from pools by
+// prefab and are reused from frame to frame.
 import * as THREE from "three";
 import { isTurn } from "../model.js";
 import { qfromBasis } from "./math.js";
@@ -19,6 +21,10 @@ const PREFABS = {
 // only what the game shows at rest (the rest plays when a note is taken, failed or spawned)
 const AT_REST_HIDDEN = /Failed|Star|Effects|Particles|Level Up|Activated|Activate Shockwave|Spawn Circle|^Symbol$|Fake AA|Level Pickup Effect/i;
 const NOTE_GLOW = 0.6, BEAT_GLOW = 6; // the prototype's emissive scales for the pickups and the beat lines
+const THIRD = (2 * Math.PI) / 3; // a List lane's turn
+// Pickup.KeepRotation: the parts a List pickup keeps upright while it turns with the tunnel (the strums' label); the
+// cache does not keep Transform ids, so they are found by their node's name
+const KEEP_UPRIGHT = /^ZeroRotation$/;
 
 /** The white arrow the game prints on keyboard pickups (its "Symbol" glyph), as a texture per direction. */
 function arrowTexture(angle, color = "#fff") {
@@ -69,7 +75,9 @@ export async function createNotes(cache, rig) {
       const holder = new THREE.Group(), inner = new THREE.Group(), obj = templates[kind].clone();
       inner.add(obj);
       holder.add(inner);
-      holder.userData = { inner, obj, outline: null, kind };
+      const keep = [];
+      obj.traverse((o) => { if (o !== obj && KEEP_UPRIGHT.test(o.name)) keep.push(o); });
+      holder.userData = { inner, obj, outline: null, kind, keep };
       if (/^(left|right|down|up)$/.test(kind)) addIcon(obj, kind);
       root.add(holder);
       pool.push(holder);
@@ -110,13 +118,17 @@ export async function createNotes(cache, rig) {
 
   let isSelected = () => false;
 
-  /** Puts a pooled object at straight distance d along the path, offset (x, y) across it, turned by roll. */
-  function put(kind, path, d, x, y, roll, note) {
+  /**
+   * Puts a pooled object at straight distance d along the path, offset (x, y) across it, turned by roll; its upright
+   * parts turn by `upright` (minus the tunnel's turn in List, none on the road).
+   */
+  function put(kind, path, d, x, y, roll, note, upright = 0) {
     const h = take(kind), f = path.frameAt(path.start + d);
     h.position.set(...f.p);
     h.quaternion.set(...qfromBasis(f.right, f.up, f.back));
     const u = h.userData;
     u.inner.rotation.set(0, 0, roll);
+    for (const k of u.keep) k.rotation.set(0, 0, upright);
     u.obj.position.set(x, y, 0);
     if (u.kind === "turnL" || u.kind === "turnR") {
       u.obj.traverse((o) => { if (/Turn (Toblerone|Bounce) Ghost/.test(o.name)) o.visible = note.mode === "List" ? /Toblerone/.test(o.name) : /Bounce/.test(o.name); });
@@ -134,7 +146,7 @@ export async function createNotes(cache, rig) {
     update(run, ship, path, t) {
       used = {};
       for (const pool of Object.values(pools)) for (const h of pool) h.visible = false;
-      const listLane = ship.lane(t, "List").lane;
+      const spin = ship.spin(t); // the List tunnel's turn
       // beat lines, 1 s ahead (not in Freefly)
       const doc = run.doc, spb = 60 / doc.bpm;
       for (let k = Math.ceil((t - 0.2 - doc.firstBeat) / spb); ; k++) {
@@ -142,14 +154,14 @@ export async function createNotes(cache, rig) {
         if (bt > t + 1) break;
         const mode = run.modeAt(bt);
         if (mode === "Freefly") continue;
-        put(mode === "List" ? "beatList" : "beatBounce", path, run.noteDist(bt, t), 0, rig.pickupY, 0, null);
+        put(mode === "List" ? "beatList" : "beatBounce", path, run.noteDist(bt, t), 0, rig.pickupY, mode === "List" ? spin : 0, null);
       }
       for (const n of run.visible(t)) {
         const ahead = n.mode === "Freefly" && !n.strum ? 5 : 3;
         if (n.strum && n.len > 0) {
           // a hold's end bar, where the hold ends
           const te = n.t + n.len;
-          if (n.mode !== "Freefly" && te >= t - 0.15 && te <= t + 3) put(n.mode === "List" ? "endList" : "endBounce", path, run.noteDist(te, t), 0, 0, 0, n);
+          if (n.mode !== "Freefly" && te >= t - 0.15 && te <= t + 3) put(n.mode === "List" ? "endList" : "endBounce", path, run.noteDist(te, t), 0, 0, n.mode === "List" ? spin : 0, n);
         }
         if (n.t < t - 0.15 || n.t > t + ahead) continue;
         const d = run.noteDist(n.t, t);
@@ -161,12 +173,13 @@ export async function createNotes(cache, rig) {
           continue;
         }
         if (n.strum) {
-          put(n.len > 0 ? (n.mode === "List" ? "holdList" : "holdBounce") : n.mode === "List" ? "strumList" : "strumBounce", path, d, 0, 0, 0, n);
+          const list = n.mode === "List";
+          put(n.len > 0 ? (list ? "holdList" : "holdBounce") : list ? "strumList" : "strumBounce", path, d, 0, 0, list ? spin : 0, n, list ? -spin : 0);
           continue;
         }
         const kind = isTurn(n.color) ? (n.color === 4 ? "turnL" : "turnR") : KEYS[n.color] || "left";
         const lane = n.lane ?? 1;
-        if (n.mode === "List") put(kind, path, d, 0, rig.pickupY, ((lane - listLane) * 2 * Math.PI) / 3, n);
+        if (n.mode === "List") put(kind, path, d, 0, rig.pickupY, spin + lane * THIRD, n, -spin);
         else put(kind, path, d, rig.pickupLaneX * (lane - 1), rig.pickupY, 0, n);
       }
     },
