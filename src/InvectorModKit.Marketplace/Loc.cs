@@ -112,6 +112,9 @@ namespace InvectorModKit.Marketplace
             ["hint_tabs"] = new[] { "Tabs", "Onglets", "Tabs", "Schede", "Pestañas", "Abas", "Karty", "Вкладки", "タブ", "탭", "标签页" },
             ["hint_back"] = new[] { "Back", "Retour", "Zurück", "Indietro", "Volver", "Voltar", "Wstecz", "Назад", "戻る", "뒤로", "返回" },
             ["hint_move"] = new[] { "Move", "Naviguer", "Bewegen", "Muovi", "Mover", "Mover", "Ruch", "Перемещение", "移動", "이동", "移动" },
+            ["notes_count"] = new[] { "{0} notes", "{0} notes", "{0} Noten", "{0} note", "{0} notas", "{0} notas", "{0} nut", "{0} нот", "{0} ノーツ", "노트 {0}개", "{0} 个音符" },
+            ["excerpt_playing"] = new[] { "Excerpt playing", "Extrait en lecture", "Ausschnitt läuft", "Estratto in riproduzione", "Fragmento en reproducción", "Trecho tocando", "Fragment odtwarzany", "Отрывок играет", "試聴中", "미리듣기 재생 중", "正在试听" },
+            ["delete_chart"] = new[] { "Delete the chart…", "Supprimer le chart…", "Chart löschen…", "Elimina il chart…", "Eliminar el chart…", "Excluir o chart…", "Usuń chart…", "Удалить чарт…", "チャートを削除…", "차트 삭제…", "删除谱面…" },
             ["hints"] = new[]
             {
                 "ESC  Close      TAB  Switch tab      F  Search      ENTER or DOUBLE-CLICK  Main action      ← →  Actions",

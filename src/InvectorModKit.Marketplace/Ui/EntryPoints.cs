@@ -39,7 +39,7 @@ namespace InvectorModKit.Marketplace.Ui
                     submit = () =>
                     {
                         AudioModule.AudioProvider.Play(AudioShortcut.SFX_MENU_CONFIRM);
-                        MarketplaceModal.Open(MarketplacePlugin.Instance);
+                        MarketplaceScreen.Open(MarketplacePlugin.Instance);
                     },
                 };
             _menuItem.label = Loc.T("menu_label"); // follows the game's language
@@ -74,11 +74,11 @@ namespace InvectorModKit.Marketplace.Ui
                     submit = () =>
                     {
                         AudioModule.AudioProvider.Play(AudioShortcut.SFX_MENU_CONFIRM);
-                        MarketplaceModal.Open(MarketplacePlugin.Instance, modal =>
+                        MarketplaceScreen.Open(MarketplacePlugin.Instance, modal =>
                         {
                             if (Updates.State == Updates.Step.Ready) { modal.Status(Loc.T("update_ready")); return; }
                             modal.Confirm(Loc.T("update_confirm", Updates.Available.Version),
-                                () => MarketplacePlugin.Instance.StartCoroutine(Updates.Download(text => { if (MarketplaceModal.IsOpen) modal.Status(text); })));
+                                () => MarketplacePlugin.Instance.StartCoroutine(Updates.Download(text => { if (MarketplaceScreen.IsOpen) modal.Status(text); })));
                         });
                     },
                 };
@@ -128,7 +128,7 @@ namespace InvectorModKit.Marketplace.Ui
             if (icon && key) icon.sprite = key;
             else if (label) label.text = "[M]  " + Loc.T("title");
             var button = go.GetComponent<Button>();
-            if (button) button.onClick.AddListener(() => MarketplaceModal.Open(MarketplacePlugin.Instance));
+            if (button) button.onClick.AddListener(() => MarketplaceScreen.Open(MarketplacePlugin.Instance));
             // Our own size, from our content (the game's hints get theirs from InputIndicatorItem, which a copy lacks).
             float width = (icon && key ? 55 + 15 : 0) + (label ? label.preferredWidth : 200);
             ((RectTransform)go.transform).sizeDelta = new Vector2(width, 55);
@@ -158,7 +158,7 @@ namespace InvectorModKit.Marketplace.Ui
         private static bool MenuLayoutUpdate() => !Open;
 
         /// <summary>The marketplace is open: the menus underneath take no input.</summary>
-        private static bool Open => ScreenInput.Active || MarketplaceModal.IsOpen;
+        private static bool Open => ScreenInput.Active || MarketplaceScreen.IsOpen;
 
         private static bool Pass(HelloThere.Applications.ApplicationState state)
         {

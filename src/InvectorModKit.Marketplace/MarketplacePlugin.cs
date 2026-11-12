@@ -69,8 +69,8 @@ namespace InvectorModKit.Marketplace
             MainThread.Pump();
             try
             {
-                if (!Ui.MarketplaceModal.IsOpen && UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.M) && Ui.EntryPoints.CanOpenHere)
-                    Ui.MarketplaceModal.Open(this);
+                if (!Ui.MarketplaceScreen.IsOpen && UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.M) && Ui.EntryPoints.CanOpenHere)
+                    Ui.MarketplaceScreen.Open(this);
             }
             catch (Exception e)
             {

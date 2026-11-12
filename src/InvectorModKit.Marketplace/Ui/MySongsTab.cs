@@ -14,7 +14,7 @@ namespace InvectorModKit.Marketplace.Ui
     /// <summary>"Mes morceaux": your custom songs, to publish (with the link of their video), withdraw, or open in the level editor.</summary>
     internal sealed class MySongsTab : ITab
     {
-        private readonly MarketplaceModal _m;
+        private readonly MarketplaceScreen _m;
         private readonly GameObject _root;
         private readonly ScrollRect _scroll;
         private readonly RectTransform _content;
@@ -32,7 +32,7 @@ namespace InvectorModKit.Marketplace.Ui
         public GameObject LastRow => _lastRow ? _lastRow : FirstItem;
         private GameObject _lastRow;
 
-        public MySongsTab(MarketplaceModal m)
+        public MySongsTab(MarketplaceScreen m)
         {
             _m = m;
             _root = new GameObject("Mine", typeof(RectTransform));
@@ -44,7 +44,7 @@ namespace InvectorModKit.Marketplace.Ui
             var help = GameUi.Text(_root.transform, "Help", m.Regular, 22, TextAnchor.MiddleLeft, GameUi.Muted);
             help.text = Loc.T("mine_help");
             GameUi.Place(help, -310, 212, 780, 60);
-            (_scroll, _content) = MarketplaceModal.MakeList(_root.transform, -310, -70, 780, 500);
+            (_scroll, _content) = MarketplaceScreen.MakeList(_root.transform, -310, -70, 780, 500);
             _empty = GameUi.Text(_scroll.transform, "Empty", m.Regular, 28, TextAnchor.MiddleCenter, GameUi.Muted);
             GameUi.Place(_empty, 0, 0, 700, 200);
 
@@ -60,7 +60,7 @@ namespace InvectorModKit.Marketplace.Ui
             GameUi.Place(_status, 415, -170, 550, 100);
             _publish = m.MakeButton(_root.transform, Loc.T("publish"), 280, -255, 270, 64, () => Publish(_selected));
             _withdraw = m.MakeButton(_root.transform, Loc.T("withdraw"), 560, -255, 270, 64, () => Withdraw(_selected), 24);
-            _folder = m.MakeButton(_root.transform, Loc.T("open_folder"), 280, -325, 270, 56, BrowseTab.OpenFolder, 24);
+            _folder = m.MakeButton(_root.transform, Loc.T("open_folder"), 280, -325, 270, 56, MarketplaceScreen.OpenFolder, 24);
             _editor = m.MakeButton(_root.transform, Loc.T("level_editor"), 560, -325, 270, 56, () => OpenInEditor(_selected), 24);
             _publish.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnRight = _withdraw, selectOnDown = _folder };
             _withdraw.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = _publish, selectOnDown = _editor };
@@ -144,11 +144,15 @@ namespace InvectorModKit.Marketplace.Ui
 
         public void SetStatus(string text) => _status.text = text;
 
+        // Excerpts and search come with this tab's redesign (stage 2).
+        public void Listen() { }
+        public void Search() { }
+
         public void Tick()
         {
             var selected = GameUi.Selected;
             var row = _rows.FirstOrDefault(r => r.Root == selected);
-            if (row != null) { MarketplaceModal.KeepVisible(_scroll, (RectTransform)row.Root.transform); _lastRow = row.Root; }
+            if (row != null) { MarketplaceScreen.KeepVisible(_scroll, (RectTransform)row.Root.transform); _lastRow = row.Root; }
             if (Time.unscaledTime >= _nextRefresh)
             {
                 _nextRefresh = Time.unscaledTime + 2f;
@@ -168,7 +172,7 @@ namespace InvectorModKit.Marketplace.Ui
                 row.Set(s.Title, s.Artist, Note(s), s.Duration, s.Cover);
                 _rows.Add(row);
             }
-            MarketplaceModal.ChainNavigation(_rows.Select(r => (Selectable)r.Button).ToList(), _publish);
+            MarketplaceScreen.ChainNavigation(_rows.Select(r => (Selectable)r.Button).ToList(), _publish);
             _empty.text = _songs.Count == 0 ? Loc.T("no_songs") : "";
             if (_rows.Count > 0) GameUi.Select(_rows[0].Root);
             else ShowDetails(null, false);
@@ -197,7 +201,7 @@ namespace InvectorModKit.Marketplace.Ui
             _info.text = $"{(int)s.Duration / 60}:{(int)s.Duration % 60:00}  ·  {Path.GetFileName(s.AudioPath)}\n" +
                          (!own ? Loc.T("installed_from", s.MarketplaceAuthor) : published != null ? Loc.T("published_long") : Loc.T("not_published"));
             _publish.gameObject.SetActive(own);
-            MarketplaceModal.SetLabel(_publish, published != null ? Loc.T("update") : Loc.T("publish"));
+            MarketplaceScreen.SetLabel(_publish, published != null ? Loc.T("update") : Loc.T("publish"));
             _publish.interactable = !_busy;
             _withdraw.gameObject.SetActive(own && published != null);
         }
