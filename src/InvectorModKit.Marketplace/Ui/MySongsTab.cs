@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -10,7 +11,7 @@ using UnityEngine.UI;
 
 namespace InvectorModKit.Marketplace.Ui
 {
-    /// <summary>"Mes morceaux": your custom songs, to publish (with the link of their video) or withdraw.</summary>
+    /// <summary>"Mes morceaux": your custom songs, to publish (with the link of their video), withdraw, or open in the level editor.</summary>
     internal sealed class MySongsTab : ITab
     {
         private readonly MarketplaceModal _m;
@@ -19,7 +20,7 @@ namespace InvectorModKit.Marketplace.Ui
         private readonly RectTransform _content;
         private readonly Text _title, _artist, _info, _status, _empty;
         private readonly Image _cover;
-        private readonly ButtonWithEvents _publish, _withdraw, _folder;
+        private readonly ButtonWithEvents _publish, _withdraw, _folder, _editor;
         private readonly List<SongRow> _rows = new List<SongRow>();
         private List<LocalSong> _songs = new List<LocalSong>();
         private LocalSong _selected;
@@ -60,9 +61,11 @@ namespace InvectorModKit.Marketplace.Ui
             _publish = m.MakeButton(_root.transform, Loc.T("publish"), 280, -255, 270, 64, () => Publish(_selected));
             _withdraw = m.MakeButton(_root.transform, Loc.T("withdraw"), 560, -255, 270, 64, () => Withdraw(_selected), 24);
             _folder = m.MakeButton(_root.transform, Loc.T("open_folder"), 280, -325, 270, 56, BrowseTab.OpenFolder, 24);
+            _editor = m.MakeButton(_root.transform, Loc.T("level_editor"), 560, -325, 270, 56, () => OpenInEditor(_selected), 24);
             _publish.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnRight = _withdraw, selectOnDown = _folder };
-            _withdraw.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = _publish };
-            _folder.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnUp = _publish };
+            _withdraw.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = _publish, selectOnDown = _editor };
+            _folder.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnUp = _publish, selectOnRight = _editor };
+            _editor.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnUp = _publish, selectOnLeft = _folder };
             _root.SetActive(false);
         }
 
@@ -294,6 +297,34 @@ namespace InvectorModKit.Marketplace.Ui
                 RefreshNotes();
                 ShowDetails(s, keepStatus: true);
             });
+        }
+
+        /// <summary>Where the mod's installer puts the level editor (EditorInstaller.DefaultDir).</summary>
+        private static string EditorExe => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "InvectorLevelEditor", "InvectorLevelEditor.exe");
+
+        /// <summary>
+        /// Opens the song in the level editor (the editor alone with none selected). An editor already open takes the
+        /// song and comes to the front, after asking about its unsaved changes; the game picks up the saved chart.
+        /// </summary>
+        private void OpenInEditor(LocalSong s)
+        {
+            string exe = EditorExe;
+            if (!File.Exists(exe))
+            {
+                _status.text = Loc.T("editor_missing");
+                return;
+            }
+            try
+            {
+                string song = s == null || string.IsNullOrEmpty(s.AudioPath) ? "" : "\"" + s.AudioPath + "\"";
+                Process.Start(new ProcessStartInfo(exe, song) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exe) });
+                _status.text = Loc.T("editor_opening");
+            }
+            catch (Exception e)
+            {
+                _status.text = Loc.T("editor_failed", e.GetBaseException().Message);
+            }
         }
 
         private void RefreshNotes()

@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
@@ -33,8 +34,12 @@ namespace InvectorModKit.ChartEditor.Host
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "InvectorModKit", "LevelEditor"));
         private string _gameDataDir;
 
-        public MainForm()
+        /// <summary>A song to open, from the command line or a later start; the page takes it with host.takeSong.</summary>
+        private string _waitingSong;
+
+        public MainForm(string song = null, EditorInstance instance = null)
         {
+            _waitingSong = song;
             Text = "Invector Level Editor";
             BackColor = Background;
             ClientSize = new Size(1560, 920);
@@ -62,8 +67,31 @@ namespace InvectorModKit.ChartEditor.Host
                 ["event"] = "gameData",
                 ["data"] = new JObject { ["state"] = state.ToString().ToLowerInvariant() },
             }.ToString(Newtonsoft.Json.Formatting.None));
-            Load += async (_, __) => await Start();
+            Load += async (_, __) =>
+            {
+                instance?.Listen(s => BeginInvoke(new Action(() => ComeForward(s))));
+                await Start();
+            };
         }
+
+        /// <summary>A later start of the editor (the game's "Level editor" button): this window comes to the front and opens its song.</summary>
+        private void ComeForward(string song)
+        {
+            if (WindowState == FormWindowState.Minimized) ShowWindow(Handle, Restore);
+            SetForegroundWindow(Handle);
+            Activate();
+            if (string.IsNullOrEmpty(song)) return;
+            _waitingSong = song;
+            Post("{\"event\":\"songWaiting\"}");
+        }
+
+        private const int Restore = 9; // SW_RESTORE: back to maximized or normal, as it was
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr window, int command);
+
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr window);
 
         private async Task Start()
         {
@@ -229,6 +257,12 @@ namespace InvectorModKit.ChartEditor.Host
                     // Served from the page's own origin (a folder mapping is another origin, which fetch may not read).
                     _audioPath = Path.GetFullPath((string)p["audioPath"]);
                     return new JValue($"https://{AppHost}/audio/{Uri.EscapeDataString(Path.GetFileName(_audioPath))}?v={File.GetLastWriteTimeUtc(_audioPath).Ticks}");
+                }
+                case "host.takeSong":
+                {
+                    string song = _waitingSong;
+                    _waitingSong = null;
+                    return song == null ? JValue.CreateNull() : new JValue(song);
                 }
                 case "host.gameData":
                     return new JObject { ["state"] = _gameData.State.ToString().ToLowerInvariant() };

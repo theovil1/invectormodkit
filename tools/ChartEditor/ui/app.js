@@ -74,6 +74,8 @@ class App {
     if (this.settings.hasToken) call("me").then((me) => { this.me = me; this.renderAccount(); }).catch(() => {});
     on("closing", () => this.requestClose());
     on("fonts", () => skin.loadFonts().then(() => { this.timeline.draw(); this.markPreview(); }));
+    on("songWaiting", () => this.takeSong());
+    if (inHost) this.takeSong();
     if (!this.settings.gameFound) this.status(t("gameNotFound"));
   }
 
@@ -269,6 +271,12 @@ class App {
       this.closeModal();
       this.status(t("error", e.message), true);
     }
+  }
+
+  /** The song the game's "Level editor" button handed over, if any: it opens (after asking about unsaved changes). */
+  async takeSong() {
+    const path = await call("host.takeSong").catch(() => null);
+    if (path) await this.openSong(path);
   }
 
   chartFile() { return m.toFile(this.editor.doc); }
