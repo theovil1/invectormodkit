@@ -98,6 +98,7 @@ namespace InvectorModKit.Marketplace.Ui
             text.fontSize = size;
             if (style == ButtonStyle.Main || style == ButtonStyle.Tab) text.font = Bold ?? text.font;
             text.text = label;
+            WordFit.Add(text);
             if (style == ButtonStyle.Danger) text.color = DangerText;
             if (style == ButtonStyle.Main) SetColors(button, Accent);
             button.onClick.AddListener(() =>

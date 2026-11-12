@@ -31,6 +31,8 @@ namespace InvectorModKit.Marketplace
 
         private ConfigEntry<string> _server;
         private ConfigEntry<bool> _checkUpdates;
+        /// <summary>F6 in the marketplace shows it in the next language, to check the translations.</summary>
+        internal static ConfigEntry<bool> LanguageCycling;
 
         private void Awake()
         {
@@ -46,6 +48,7 @@ namespace InvectorModKit.Marketplace
             Ui.Community.DiscordUrl = Config.Bind("Community", "Discord", "https://discord.gg/9wXNm5NM26", "Invite link of the InvectorModKit Discord (empty: no Discord button).").Value.Trim();
             gameObject.AddComponent<Ui.CornerBadge>();
             _checkUpdates = Config.Bind("Updates", "Check", true, "Look for a newer version of the mod at start (GitHub Releases) and offer it in the main menu.");
+            LanguageCycling = Config.Bind("Debug", "LanguageCycling", false, "F6 in the marketplace shows it in the next of its 11 languages (to check translations; the game's language is not changed).");
             if (_checkUpdates.Value) Updates.Check();
             Startup();
         }

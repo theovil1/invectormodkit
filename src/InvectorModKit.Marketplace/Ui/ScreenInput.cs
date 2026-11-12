@@ -80,12 +80,13 @@ namespace InvectorModKit.Marketplace.Ui
         // ----- the game's input module, held while the screen is open
 
         private Rewired.Integration.UnityUI.RewiredStandaloneInputModule _module;
-        private bool _moduleMouse, _moduleNavigation;
+        private bool _moduleMouse, _moduleNavigation, _taken;
         private Vector3 _lastMouse;
         private readonly List<RaycastResult> _hits = new List<RaycastResult>();
 
         public void Take()
         {
+            _taken = true;
             Active = true;
             _lastMouse = Input.mousePosition;
             if (EventSystem.current == null) return;
@@ -99,8 +100,11 @@ namespace InvectorModKit.Marketplace.Ui
             _module.allowMouseInput = false;
         }
 
+        /// <summary>Once: a screen being destroyed must not give back what the next one (opened the same frame) took.</summary>
         public void GiveBack()
         {
+            if (!_taken) return;
+            _taken = false;
             Active = false;
             if (_module) _module.allowMouseInput = _moduleMouse;
             if (EventSystem.current) EventSystem.current.sendNavigationEvents = _moduleNavigation;

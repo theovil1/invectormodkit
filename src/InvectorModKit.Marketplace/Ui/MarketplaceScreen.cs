@@ -141,9 +141,10 @@ namespace InvectorModKit.Marketplace.Ui
         private void BuildTopBar()
         {
             var title = UiKit.Text(transform, "Title", TextRole.Title);
-            title.resizeTextForBestFit = false;
-            title.fontSize = 54;
+            title.resizeTextMaxSize = title.fontSize = 54;
+            title.resizeTextMinSize = 30; // "マーケットプレイス" shrinks rather than lose its end
             title.text = Loc.T("title");
+            WordFit.Add(title);
             title.alignment = TextAnchor.MiddleLeft;
             Top(title, Side, 24, 380, 66);
 
@@ -166,9 +167,16 @@ namespace InvectorModKit.Marketplace.Ui
             }
             _signIn = UiKit.Button(transform, Loc.T("sign_in"), ButtonStyle.Secondary, SignIn);
             TopRight(_signIn, right, 26, 240, 62);
+            // From the tabs to the buttons on the right: a long name or language shrinks and wraps there, never over a tab.
             _account = UiKit.Text(transform, "Account", TextRole.Muted);
             _account.alignment = TextAnchor.MiddleRight;
-            TopRight(_account, right, 26, 420, 62);
+            var account = _account.rectTransform;
+            account.anchorMin = new Vector2(0, 1);
+            account.anchorMax = new Vector2(1, 1);
+            account.pivot = new Vector2(1, 1);
+            var mine = (RectTransform)_mineTab.transform;
+            account.offsetMin = new Vector2(mine.anchoredPosition.x + mine.sizeDelta.x + 24, -26 - 62);
+            account.offsetMax = new Vector2(-right, -26);
         }
 
         private static void Top(Component c, float left, float top, float width, float height) => UiKit.At(c, left, top, width, height);
@@ -230,6 +238,13 @@ namespace InvectorModKit.Marketplace.Ui
         private void Update()
         {
             FitScaler();
+            if (MarketplacePlugin.LanguageCycling != null && MarketplacePlugin.LanguageCycling.Value && UnityEngine.Input.GetKeyDown(KeyCode.F6))
+            {
+                Loc.Override = (Loc.Column + 1) % Loc.Languages;
+                Shut();
+                Open(MarketplacePlugin.Instance);
+                return;
+            }
             Input.Typing = (_current != null && _current.Typing) || _prompt.Visible;
             Input.Read();
             Input.Mouse(transform);
@@ -371,6 +386,7 @@ namespace InvectorModKit.Marketplace.Ui
             text.resizeTextMaxSize = fontSize;
             text.fontSize = fontSize;
             text.text = label;
+            WordFit.Add(text);
             button.onClick.AddListener(() =>
             {
                 try { onClick(); }
@@ -524,7 +540,7 @@ namespace InvectorModKit.Marketplace.Ui
     {
         private readonly GameObject _root;
         private readonly Text _question;
-        private readonly ButtonWithEvents _yes;
+        private readonly ButtonWithEvents _yes, _no;
         private Action _onYes;
 
         public bool Visible => _root.activeSelf;
@@ -549,7 +565,7 @@ namespace InvectorModKit.Marketplace.Ui
             GameUi.Place(_question, 0, 60, 860, 190);
 
             _yes = GameUi.Find<ButtonWithEvents>(box.gameObject, "Answer Yes");
-            var no = GameUi.Find<ButtonWithEvents>(box.gameObject, "Answer No");
+            var no = _no = GameUi.Find<ButtonWithEvents>(box.gameObject, "Answer No");
             GameUi.Place(_yes, -165, -115, 300, 84);
             GameUi.Place(no, 165, -115, 300, 84);
             MarketplaceScreen.StyleButton(_yes, Loc.T("confirm"), 34, () => Answer(true));
@@ -561,11 +577,11 @@ namespace InvectorModKit.Marketplace.Ui
 
         public void Ask(string question, Action onYes)
         {
-            _question.text = question;
+            _question.text = InvectorModKit.Marketplace.Client.LabelText.SentencePerLine(question);
             _onYes = onYes;
             _root.SetActive(true);
             _root.transform.SetAsLastSibling();
-            GameUi.Select(_yes.gameObject);
+            GameUi.Select(_no.gameObject); // removing and deleting: Enter alone must not do it
         }
 
         public void Answer(bool yes)

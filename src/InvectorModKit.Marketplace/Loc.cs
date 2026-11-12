@@ -9,7 +9,14 @@ namespace InvectorModKit.Marketplace
     /// </summary>
     internal static class Loc
     {
-        private static int Column
+        /// <summary>A language shown instead of the game's (0..10), for checking translations; null: the game's.</summary>
+        public static int? Override { get; set; }
+
+        public const int Languages = 11;
+
+        public static int Column => Override ?? GameColumn;
+
+        private static int GameColumn
         {
             get
             {
@@ -83,7 +90,7 @@ namespace InvectorModKit.Marketplace
             ["tab_mine"] = new[] { "MY SONGS", "MES MORCEAUX", "MEINE SONGS", "I MIEI BRANI", "MIS CANCIONES", "MINHAS MÚSICAS", "MOJE UTWORY", "МОИ ТРЕКИ", "マイソング", "내 곡", "我的歌曲" },
             ["tab_discover"] = new[] { "DISCOVER", "DÉCOUVRIR", "ENTDECKEN", "SCOPRI", "DESCUBRIR", "DESCOBRIR", "ODKRYWAJ", "ОБЗОР", "見つける", "둘러보기", "发现" },
             ["filter_all"] = new[] { "All", "Tous", "Alle", "Tutti", "Todos", "Todos", "Wszystkie", "Все", "すべて", "전체", "全部" },
-            ["filter_not_installed"] = new[] { "Not installed", "Pas installés", "Nicht installiert", "Non installati", "No instalados", "Não instalados", "Niezainstalowane", "Не установлены", "未インストール", "미설치", "未安装" },
+            ["filter_not_installed"] = new[] { "Not installed", "Pas installés", "Nicht installiert", "Non installati", "No instalados", "Não instalados", "Do instalacji", "Не установлены", "未インストール", "미설치", "未安装" },
             ["filter_installed"] = new[] { "Installed", "Installés", "Installiert", "Installati", "Instalados", "Instalados", "Zainstalowane", "Установлены", "インストール済み", "설치됨", "已安装" },
             ["difficulty_any"] = new[] { "Any difficulty", "Toutes difficultés", "Jede Schwierigkeit", "Qualsiasi difficoltà", "Cualquier dificultad", "Qualquer dificuldade", "Każdy poziom", "Любая сложность", "すべての難易度", "모든 난이도", "任意难度" },
             ["main_install"] = new[] { "INSTALL", "INSTALLER", "INSTALLIEREN", "INSTALLA", "INSTALAR", "INSTALAR", "ZAINSTALUJ", "УСТАНОВИТЬ", "インストール", "설치", "安装" },
@@ -165,7 +172,7 @@ namespace InvectorModKit.Marketplace
             ["install"] = new[] { "INSTALL", "INSTALLER", "INSTALLIEREN", "INSTALLA", "INSTALAR", "INSTALAR", "ZAINSTALUJ", "УСТАНОВИТЬ", "インストール", "설치", "安装" },
             ["open_youtube"] = new[] { "OPEN ON YOUTUBE", "OUVRIR SUR YOUTUBE", "AUF YOUTUBE ÖFFNEN", "APRI SU YOUTUBE", "ABRIR EN YOUTUBE", "ABRIR NO YOUTUBE", "OTWÓRZ W YOUTUBE", "ОТКРЫТЬ НА YOUTUBE", "YouTubeで開く", "YouTube에서 열기", "在 YouTube 打开" },
             ["remove_game"] = new[] { "REMOVE FROM GAME", "RETIRER DU JEU", "AUS DEM SPIEL ENTFERNEN", "RIMUOVI DAL GIOCO", "QUITAR DEL JUEGO", "REMOVER DO JOGO", "USUŃ Z GRY", "УБРАТЬ ИЗ ИГРЫ", "ゲームから削除", "게임에서 삭제", "从游戏中移除" },
-            ["remove_game_confirm"] = new[] { "Remove “{0}” ({1}) from your songs? The chart stays on the marketplace: installing it again fetches the song again.", "Retirer « {0} » ({1}) de tes morceaux ? Le chart reste sur le marketplace : le réinstaller retéléchargera la chanson.", "„{0}“ ({1}) aus deinen Songs entfernen? Der Chart bleibt im Marketplace: eine Neuinstallation lädt den Song erneut.", "Rimuovere «{0}» ({1}) dai tuoi brani? Il chart resta sul marketplace: reinstallandolo scarichi di nuovo la canzone.", "¿Quitar «{0}» ({1}) de tus canciones? El chart sigue en el marketplace: al reinstalarlo se descarga la canción otra vez.", "Remover “{0}” ({1}) das suas músicas? O chart fica no marketplace: reinstalar baixa a música de novo.", "Usunąć „{0}” ({1}) z twoich utworów? Chart zostaje na marketplace: jego reinstalacja ponownie pobiera utwór.", "Убрать «{0}» ({1}) из ваших песен? Чарт остаётся на маркетплейсе: переустановка снова скачает песню.", "「{0}」（{1}）を曲から削除しますか？チャートはマーケットプレイスに残ります。再インストールで曲を再ダウンロードします。", "삭제 후 재설치하면 곡을 다시 내려받습니다. 「{0}」（{1}）을(를) 삭제할까요?", "从你的歌曲中移除「{0}」（{1}）吗？谱面保留在市场上：重新安装会再次下载这首歌。" },
+            ["remove_game_confirm"] = new[] { "Remove “{0}” ({1}) from your songs? The chart stays on the marketplace: installing it again fetches the song again.", "Retirer « {0} » ({1}) de tes morceaux ? Le chart reste sur le marketplace : le réinstaller retéléchargera la chanson.", "„{0}“ ({1}) aus deinen Songs entfernen? Der Chart bleibt im Marketplace: eine Neuinstallation lädt den Song erneut.", "Rimuovere «{0}» ({1}) dai tuoi brani? Il chart resta sul marketplace: reinstallandolo scarichi di nuovo la canzone.", "¿Quitar «{0}» ({1}) de tus canciones? El chart sigue en el marketplace: al reinstalarlo se descarga la canción otra vez.", "Remover “{0}” ({1}) das suas músicas? O chart fica no marketplace: reinstalar baixa a música de novo.", "Usunąć „{0}” ({1}) z twoich utworów? Chart zostaje na marketplace: jego reinstalacja ponownie pobiera utwór.", "Убрать «{0}» ({1}) из ваших песен? Чарт остаётся на маркетплейсе: переустановка снова скачает песню.", "「{0}」（{1}）を曲から削除しますか？チャートはマーケットプレイスに残ります。再インストールで曲を再ダウンロードします。", "「{0}」（{1}）을(를) 내 곡에서 제거할까요? 차트는 마켓플레이스에 남아 있고, 다시 설치하면 곡을 다시 내려받습니다.", "从你的歌曲中移除「{0}」（{1}）吗？谱面保留在市场上：重新安装会再次下载这首歌。" },
             ["removed_game"] = new[] { "Removed from your songs: you can install it again here whenever you want.", "Retiré de tes morceaux : tu peux le réinstaller ici quand tu veux.", "Aus deinen Songs entfernt: Du kannst ihn hier jederzeit neu installieren.", "Rimosso dai tuoi brani: puoi reinstallarlo qui quando vuoi.", "Quitada de tus canciones: puedes reinstalarla aquí cuando quieras.", "Removida das suas músicas: você pode reinstalá-la aqui quando quiser.", "Usunięty z twoich utworów: możesz go tu ponownie zainstalować w każdej chwili.", "Убрано из ваших треков: можно снова установить здесь в любой момент.", "曲から削除しました。ここからいつでも再インストールできます。", "곡 목록에서 삭제되었습니다. 언제든 여기서 다시 설치할 수 있습니다.", "已从歌曲中移除：随时可以在这里重新安装。" },
             ["add_link_question"] = new[] { "Which video should I download?", "Quelle vidéo télécharger ?", "Welches Video soll ich herunterladen?", "Quale video scarico?", "¿Qué vídeo descargo?", "Qual vídeo baixar?", "Który film pobrać?", "Какое видео скачать?", "どの動画をダウンロードしますか？", "어떤 영상을 내려받을까요?", "要下载哪个视频？" },
             ["mine"] = new[] { "YOUR CHART", "TON CHART", "DEIN CHART", "IL TUO CHART", "TU CHART", "SEU CHART", "TWÓJ CHART", "ВАШ ЧАРТ", "自分のチャート", "내 차트", "你的谱面" },

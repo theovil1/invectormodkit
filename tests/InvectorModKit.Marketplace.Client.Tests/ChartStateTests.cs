@@ -52,7 +52,7 @@ public class ChartStateTests
     public void State_InstalledSaysWhere()
     {
         var b = MainButton.For(new ChartFacts { Installed = true, InstalledVersion = 1, LatestVersion = 1 });
-        Assert.Equal((MainKind.Installed, "main_installed", "main_installed_sub"), (b.Kind, b.LabelKey, b.SubKey));
+        Assert.Equal((MainKind.Installed, false, "main_installed", "main_installed_sub"), (b.Kind, b.Enabled, b.LabelKey, b.SubKey));
     }
 
     [Fact]
