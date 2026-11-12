@@ -261,3 +261,27 @@ With the owner's leave (asked with Task 8): deploy this branch's plugins (`dotne
 - [ ] **Step 4: Controls.** The whole Discover flow with the keyboard only, the mouse only, and the controller if the owner has one plugged in (else say it was not checked).
 - [ ] **Step 5: Labels.** Screenshot Discover and the main button states in the 11 languages (the game's language option); no label touches or leaves its button. Fix and repeat until clean.
 - [ ] **Step 6: Wrap up.** Push the branch, open the pull request ready (summary, how it was tested with the results above, checklist), verify the merge locally as for earlier pull requests, report to the owner with the screenshots; merge only once the owner agrees.
+
+## Task 8 findings (2026-11-12)
+
+Reproduced in the game (song select, today's marketplace open with M):
+
+- **R changed the ship behind the window** ("Chant d'étoiles" became "Vieux Croiseur" after two presses). Cause:
+  `ShipSelector.Update` reads `RewiredInputHelper.GetButtonDownAll(58)` (UI_ChangeShip) itself, outside the state's
+  `Update` that the marketplace blocks. Block: a Harmony prefix on `ShipSelector.Update` returning false while the
+  screen is open.
+- Q and E (worlds, actions 60 and 59), S (sorting, 63), the difficulty and the song list did not move: the state
+  `Update` prefixes and `EventSystem.sendNavigationEvents = false` hold.
+- The song select's preview music keeps playing behind the window: Task 10's `MenuAudio`.
+- `MenuLayout.Update` reads Unity's legacy `Input` ("Fire1", "Fire2", "Vertical") on its own. No instance was seen
+  reacting (it belongs to the console menu stack), but it would leak the same way: blocked too, as a precaution.
+- Every other input reader in the decompiled game is either a state's `Update` (blocked), gameplay, or icon refresh
+  (`UIIndicatorList`).
+
+Keyboard bindings seen in song select: Q / E worlds, R ship, S sorting, Esc back, Enter confirm, arrows difficulty.
+No controller was plugged in, so the physical buttons behind the UI actions could not be read. The screen uses the
+game's UI actions for the controller: tabs UI_PrevSelection (60) / UI_NextSelection (59), listen UI_ToggleSorting (63),
+search UI_ChangeShip (58), main UI_Ok, back UI_Cancel, and draws each one's picture with
+`ControllerIconMapCollection`, so the key bar always shows the real button. These actions are read only while a
+controller is the last device used; with the keyboard, the screen reads its own keys (Enter, Esc, Space, F, Tab,
+arrows), so R or S never trigger a screen action.
