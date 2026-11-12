@@ -18,7 +18,7 @@ function range(c) {
   return [c.scalar ?? 0, c.scalar ?? 0];
 }
 
-const SHAPES = { 0: "sphere", 1: "sphere", 2: "sphere", 3: "sphere", 4: "cone", 7: "cone", 8: "cone", 9: "cone", 10: "circle", 11: "circle", 12: "edge" };
+const SHAPES = { 0: "sphere", 1: "sphere", 2: "sphere", 3: "sphere", 4: "cone", 5: "box", 7: "cone", 8: "cone", 9: "cone", 10: "circle", 11: "circle", 12: "edge", 18: "rectangle" };
 const xyz = (o, d = 0) => (o ? [o.x ?? d, o.y ?? d, o.z ?? d] : [d, d, d]);
 const axes = (m) => (m && m.enabled ? { x: curveTables(m.x), y: curveTables(m.y), z: curveTables(m.z) } : null);
 
@@ -71,6 +71,10 @@ export function particleSpec(system, renderer, material) {
   return {
     count,
     birth,
+    // a looping system emits for as long as it plays (a rate, no burst)
+    loop: !burst && birth > 0 && !!system.looping,
+    // ParticleSystem.scalingMode: 0 Hierarchy and 1 Local scale the particles too, 2 Shape only the emitter's shape
+    scaling: system.scalingMode ?? 0,
     life: range(I.startLifetime),
     speed: range(I.startSpeed),
     size: range(I.startSize),
@@ -101,4 +105,22 @@ export function particleMaterial(material) {
   const gain = (material && material.floats && material.floats._EmissionGain) || 0;
   const tex = material && material.textures && material.textures._MainTex ? material.textures._MainTex.ref : null;
   return { tint: tint.slice(0, 3), c: tint.slice(0, 3).map(toLinear), a: tint[3] ?? 1, gain, e: Math.exp(5 * gain), tex };
+}
+
+/**
+ * The linear colour a Sonic Ether additive material adds for a white, opaque texel: its shader scales its output,
+ * alpha too, by exp(5 x gain) (twice each), and alpha then scales the colour (SrcAlpha One), as for the particles.
+ */
+export function additiveColor(material) {
+  const m = particleMaterial(material), k = 4 * m.e * m.e * m.a;
+  return m.c.map((v) => v * k);
+}
+
+/**
+ * How a system's transform scale applies to its emitter's shape and to its particles' size: `scale` its even part,
+ * `scale3` its scale per axis (Unity axes), which a Shape scaling system applies to its shape alone.
+ */
+export function emitterScales(spec, scale, scale3 = null) {
+  if (spec.scaling === 2) return { shapeScale: scale3 || scale, sizeScale: 1 };
+  return { shapeScale: scale, sizeScale: scale };
 }

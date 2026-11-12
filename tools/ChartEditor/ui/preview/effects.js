@@ -5,7 +5,7 @@
 // grow when a frame needs more, and are refilled every frame.
 import * as THREE from "three";
 import { isTurn } from "../model.js";
-import { particleSpec, particleMaterial, findNode } from "./particlespec.js";
+import { particleSpec, particleMaterial, findNode, emitterScales } from "./particlespec.js";
 import { emit } from "./particles.js";
 import { SHIP_SCALE } from "./ship.js";
 import { trailSets, haloLevels } from "./fxspec.js";
@@ -112,18 +112,18 @@ export async function createEffects(cache, rig, level) {
     if (!json) return { systems: [], flashes: [], color: [1, 1, 1], scale: 1, halo: null };
     const list = [], flashes = [];
     const local = (n) => ({ p: [n.position[0], n.position[1], -n.position[2]], q: UQ(...n.rotation), s: n.scale[0] });
-    const visit = (node, parent) => {
+    const visit = (node, parent, names) => {
       const l = local(node), r = qrotate(parent.q, l.p);
       const w = { p: [0, 1, 2].map((i) => parent.p[i] + parent.s * r[i]), q: qmul(parent.q, l.q), s: parent.s * l.s };
-      const spec = specOf(node);
-      if (spec && systems(node, spec)) list.push({ spec, p: w.p, q: w.q, scale: w.s });
+      const spec = specOf(node), path = [...names, node.name];
+      if (spec && systems(node, spec, path)) list.push({ spec, p: w.p, q: w.q, scale: w.s, s3: node.scale.map((v) => v * parent.s) });
       // a mesh particle is drawn in its emitter's space (alignment Local), so it also takes the emitter's uneven
       // scale; the even part already scales its size (sizeScale)
       else if (spec && meshes(node, spec)) flashes.push({ spec, p: w.p, q: w.q, scale: w.s, s3: node.scale.map((v) => (node.scale[0] ? v / node.scale[0] : 1)) });
-      for (const c of node.children) visit(c, w);
+      for (const c of node.children) visit(c, w, path);
     };
     const rootT = { ...local(json.root), p: [0, 0, 0] };
-    for (const c of json.root.children) visit(c, rootT);
+    for (const c of json.root.children) visit(c, rootT, []);
     const pickup = json.root.components.find((c) => c.class === "Pickup");
     const color = pickup ? [pickup.fields.color.r, pickup.fields.color.g, pickup.fields.color.b] : [0.929, 0.738, 0];
     const halo = json.root.components.some((c) => c.class === "PickupStatesPickup") ? haloLevels(json.root) : null;
@@ -132,9 +132,14 @@ export async function createEffects(cache, rig, level) {
   const pickupFx = {}, strumFx = {};
   for (const [k, n] of Object.entries(PICKUPS)) pickupFx[k] = effectsOf(n, PICKUP_SYSTEMS);
   for (const [k, n] of Object.entries(STRUMS)) strumFx[k] = effectsOf(n, STRUM_SYSTEMS, STRUM_FLASHES);
+  // the sparks of the bar that follows the ship along a hold, looping while it is held: [below level 2, from level 2]
+  const fillFx = {};
+  for (const [mode, name] of [["List", "PickupStrumHoldFiller, List, All Platforms"], ["Bounce", "PickupStrumHoldFiller, Bounce, All Platforms"]]) {
+    fillFx[mode] = ["Level0", "Level2"].map((holder) => effectsOf(name, (node, spec, names) => spec.mode === "points" && names.includes(holder)));
+  }
 
   // textures of every particle system, one Points draw per texture
-  const allSpecs = [...shipBurst, ...strumBurst, landBurst, ...Object.values(pickupFx).flatMap((f) => f.systems.map((s) => s.spec)), ...Object.values(strumFx).flatMap((f) => f.systems.map((s) => s.spec))].filter(Boolean);
+  const allSpecs = [...shipBurst, ...strumBurst, landBurst, ...Object.values(pickupFx).flatMap((f) => f.systems.map((s) => s.spec)), ...Object.values(strumFx).flatMap((f) => f.systems.map((s) => s.spec)), ...Object.values(fillFx).flat().flatMap((f) => f.systems.map((s) => s.spec))].filter(Boolean);
   const texRefs = new Set([...allSpecs.map((s) => s.mat.tex), ...Object.values(switched).map((m) => m.tex)].filter(Boolean));
   const points = new Map();
   for (const ref of texRefs) {
@@ -193,21 +198,29 @@ export async function createEffects(cache, rig, level) {
     ribbons.set(ref, buffers);
   }
 
-  // hold walls: the hold walls' triangle is the tunnel's, scaled by their sizes
-  const holdWalls = level.holdWalls || null, holdMat = holdWalls && holdWalls.material;
-  const holdTex = holdMat && holdMat.textures && holdMat.textures._MainTex ? await cache.texture(holdMat.textures._MainTex.ref) : null;
-  if (holdTex) { holdTex.wrapS = holdTex.wrapT = THREE.RepeatWrapping; holdTex.needsUpdate = true; }
-  const hc = (holdMat && holdMat.colors && holdMat.colors._color) || [1, 0.714, 0.494, 0.502];
-  const holdUniforms = { map: { value: holdTex }, color: { value: new THREE.Color().setRGB(hc[0], hc[1], hc[2], THREE.SRGBColorSpace) }, alpha: { value: hc[3] }, scroll: { value: 0 } };
-  const holdBuffers = new Buffers({ position: 3, hold: 3 }, 4096);
-  const holdMesh = new THREE.Mesh(holdBuffers.geometry, new THREE.ShaderMaterial({ uniforms: holdUniforms, vertexShader: HOLD_VERT, fragmentShader: HOLD_FRAG, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
-  holdMesh.frustumCulled = false;
-  if (holdTex) root.add(holdMesh);
-  const scrollU = holdMat && holdMat.colors && holdMat.colors._ScrollUV ? holdMat.colors._ScrollUV[0] : -15;
-  const wallScale = holdWalls && level.tunnel && holdWalls.size && level.tunnel.size ? holdWalls.size / level.tunnel.size : 1900 / 1790;
-  const tri = rig.tri.map(([x, y]) => [x * wallScale, y * wallScale]);
-  const listFaces = [[tri[0], tri[1]], [tri[1], tri[2]], [tri[2], tri[0]]];
-  const bounceFaces = [[[tri[1][0] * 0.76, tri[1][1] + 1.725], [tri[2][0] * 0.76, tri[2][1] + 1.725]]];
+  // hold walls (TobleroneWalls): the tunnel's three walls and the road's one, each with its material and its own size,
+  // width and height for the tunnel's triangle (whose corners rig.tri gives at the tunnel's size). The game lays the
+  // road's wall 1.3 below the road, which shows through its transparent road; the preview's road is opaque, so the
+  // road's wall is drawn on the road's surface
+  const tunnelSize = (level.tunnel && level.tunnel.size) || 1790, roadY = level.road && typeof level.road.offsetY === "number" ? level.road.offsetY : rig.roadY;
+  async function wallSet(walls, three) {
+    const mat = walls && walls.material;
+    const tex = mat && mat.textures && mat.textures._MainTex ? await cache.texture(mat.textures._MainTex.ref) : null;
+    if (!tex) return null;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.needsUpdate = true;
+    const hc = (mat.colors && mat.colors._color) || [1, 0.714, 0.494, 0.502];
+    const uniforms = { map: { value: tex }, color: { value: new THREE.Color().setRGB(hc[0], hc[1], hc[2], THREE.SRGBColorSpace) }, alpha: { value: hc[3] }, scroll: { value: 0 } };
+    const buffers = new Buffers({ position: 3, hold: 3 }, 4096);
+    const mesh = new THREE.Mesh(buffers.geometry, new THREE.ShaderMaterial({ uniforms, vertexShader: HOLD_VERT, fragmentShader: HOLD_FRAG, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+    mesh.frustumCulled = false;
+    root.add(mesh);
+    const k = (walls.size || 1900) / tunnelSize, w = walls.widthScale ?? 1, dy = walls.yOffset || 0;
+    const corner = ([x, y], wide) => [x * k * (wide ? w : 1), Math.max(y * k + dy, three ? -Infinity : roadY + 0.02)];
+    const top = corner(rig.tri[0], false), left = corner(rig.tri[1], true), right = corner(rig.tri[2], true);
+    return { buffers, uniforms, mesh, scroll: mat.colors && mat.colors._ScrollUV ? mat.colors._ScrollUV[0] : -15, faces: three ? [[top, left], [left, right], [right, top]] : [[left, right]] };
+  }
+  const wallSets = { List: await wallSet(level.holdWalls, true), Bounce: await wallSet(level.holdWallsBounce || level.holdWalls, false) };
 
   // halos (pooled planes, a material per pickup and level) and the landing glow
   const haloPool = [], haloMats = new Map();
@@ -234,7 +247,7 @@ export async function createEffects(cache, rig, level) {
   root.add(glow);
 
   const frameQ = (f) => qfromBasis(f.right, f.up, f.back);
-  const compose = (frame, sys, scale = 1) => ({ o: frame.o.map((v, i) => v + qrotate(frame.q, sys.p)[i]), q: qmul(frame.q, sys.q), shapeScale: sys.scale * scale, sizeScale: sys.scale * scale });
+  const compose = (frame, sys, scale = 1) => ({ o: frame.o.map((v, i) => v + qrotate(frame.q, sys.p)[i]), q: qmul(frame.q, sys.q), ...emitterScales(sys.spec, sys.scale * scale, sys.s3 && scale === 1 ? sys.s3 : null) });
   const keyOf = (n) => (isTurn(n.color) ? (n.color === 4 ? "turnL" : "turnR") : KEYS[n.color] || "left");
   const drawSize = new THREE.Vector2(), camFwdV = new THREE.Vector3();
 
@@ -244,7 +257,7 @@ export async function createEffects(cache, rig, level) {
       for (const p of points.values()) p.buffers.reset();
       for (const r of ribbons.values()) r.reset();
       for (const m of flashSets.values()) m.count = 0;
-      holdBuffers.reset();
+      for (const ws of Object.values(wallSets)) if (ws) ws.buffers.reset();
       const height = renderer.getDrawingBufferSize(drawSize).y;
       const out = (tex, p, c, size, maxSize) => { const set = points.get(tex); if (set) set.buffers.push(p, c, size, maxSize * height); };
       const walkerD = path.start + run.distAt(t), wf = path.frameAt(walkerD), wq = frameQ(wf);
@@ -303,6 +316,24 @@ export async function createEffects(cache, rig, level) {
       }
       for (let i = halos; i < haloPool.length; i++) haloPool[i].visible = false;
 
+      // a held hold's bar (notes.js) sprays its sparks from where it is, for as long as it is shown
+      for (const n of run.notes) {
+        if (n.t > t) break;
+        const te = n.t + n.len;
+        if (!n.strum || !(n.len > 0) || n.mode === "Freefly" || t > te + 0.15) continue;
+        const list = n.mode === "List";
+        // the bar's frame at a time: at the ship until the hold ends, then where it was left
+        const barAt = (time) => {
+          const f = path.frameAt(path.start + run.distAt(Math.min(time, te)) + rig.hitAhead);
+          return { o: f.p, q: list ? qmul(frameQ(f), qfromAxisAngle([0, 0, 1], ship.spin(time))) : frameQ(f) };
+        };
+        const f = path.frameAt(path.start + run.noteDist(Math.min(t, te), t));
+        const base = { o: f.p, q: list ? qmul(frameQ(f), qfromAxisAngle([0, 0, 1], spinNow)) : frameQ(f) };
+        const fx = fillFx[list ? "List" : "Bounce"][run.levelAt(t) >= 2 ? 1 : 0];
+        // a system simulated in the world leaves its sparks where the bar was when they were born
+        fx.systems.forEach((sys, i) => emit(sys.spec, sys.spec.world ? (birth) => compose(barAt(n.t + birth), sys) : compose(base, sys), t - n.t, Math.round(n.t * 1000) + 97 * (i + 1), out));
+      }
+
       // the landing flash under the ship, in the colour of the last pickup, a quarter second (not in Freefly)
       let last = null;
       for (const n of run.notes) { if (n.t > t) break; if (t - n.t < 0.25) last = n; }
@@ -348,23 +379,23 @@ export async function createEffects(cache, rig, level) {
 
       // the hold walls: lit between a hold's start and end along the track, from its spawn until 1 s after its end; the
       // List ones turn with the tunnel (PlacePickupsOnPath.UpdateStrumholds)
-      holdUniforms.scroll.value = (scrollU * t) / 20;
       const sc = Math.cos(spinNow), sn = Math.sin(spinNow);
-      const turned = listFaces.map((face) => face.map(([x, y]) => [x * sc - y * sn, x * sn + y * sc]));
-      if (holdTex) {
-        for (const n of run.notes) {
-          if (n.t > t + 5) break;
-          if (!n.strum || !n.len || n.mode === "Freefly" || n.t + n.len + 1 < t) continue;
-          const f0 = run.noteDist(n.t, t), f1 = run.noteDist(n.t + n.len, t);
-          const segs = Math.max(1, Math.ceil((f1 - f0) / 2));
-          for (const [p, q] of n.mode === "List" ? turned : bounceFaces) {
-            for (let j = 0; j < segs; j++) {
-              const fa = f0 + ((f1 - f0) * j) / segs, fb = f0 + ((f1 - f0) * (j + 1)) / segs;
-              const A = path.place([p[0], p[1], 0], path.start + fa), B = path.place([q[0], q[1], 0], path.start + fa);
-              const C = path.place([p[0], p[1], 0], path.start + fb), D = path.place([q[0], q[1], 0], path.start + fb);
-              holdBuffers.push(A, [fa, 0, f1]); holdBuffers.push(B, [fa, 1, f1]); holdBuffers.push(C, [fb, 0, f1]);
-              holdBuffers.push(B, [fa, 1, f1]); holdBuffers.push(D, [fb, 1, f1]); holdBuffers.push(C, [fb, 0, f1]);
-            }
+      for (const ws of Object.values(wallSets)) if (ws) ws.uniforms.scroll.value = (ws.scroll * t) / 20;
+      for (const n of run.notes) {
+        if (n.t > t + 5) break;
+        if (!n.strum || !n.len || n.mode === "Freefly" || n.t + n.len + 1 < t) continue;
+        const ws = wallSets[n.mode === "List" ? "List" : "Bounce"];
+        if (!ws) continue;
+        const faces = n.mode === "List" ? ws.faces.map((face) => face.map(([x, y]) => [x * sc - y * sn, x * sn + y * sc])) : ws.faces;
+        const f0 = run.noteDist(n.t, t), f1 = run.noteDist(n.t + n.len, t);
+        const segs = Math.max(1, Math.ceil((f1 - f0) / 2));
+        for (const [p, q] of faces) {
+          for (let j = 0; j < segs; j++) {
+            const fa = f0 + ((f1 - f0) * j) / segs, fb = f0 + ((f1 - f0) * (j + 1)) / segs;
+            const A = path.place([p[0], p[1], 0], path.start + fa), B = path.place([q[0], q[1], 0], path.start + fa);
+            const C = path.place([p[0], p[1], 0], path.start + fb), D = path.place([q[0], q[1], 0], path.start + fb);
+            ws.buffers.push(A, [fa, 0, f1]); ws.buffers.push(B, [fa, 1, f1]); ws.buffers.push(C, [fb, 0, f1]);
+            ws.buffers.push(B, [fa, 1, f1]); ws.buffers.push(D, [fb, 1, f1]); ws.buffers.push(C, [fb, 0, f1]);
           }
         }
       }
@@ -373,7 +404,7 @@ export async function createEffects(cache, rig, level) {
       for (const p of points.values()) { p.material.uniforms.projScale.value = projScale; p.buffers.commit(); }
       for (const r of ribbons.values()) r.commit();
       for (const m of flashSets.values()) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
-      holdBuffers.commit();
+      for (const ws of Object.values(wallSets)) if (ws) ws.buffers.commit();
     },
     dispose() {
       root.traverse((o) => {
@@ -381,8 +412,6 @@ export async function createEffects(cache, rig, level) {
         if (o.material) o.material.dispose(); // not their textures: the cache's
       });
       for (const m of haloMats.values()) { if (m.map) m.map.dispose(); m.dispose(); } // the halo maps are copies
-      holdMesh.geometry.dispose();
-      holdMesh.material.dispose();
       haloGeo.dispose();
       glowTex.dispose();
     },

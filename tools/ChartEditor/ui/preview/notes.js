@@ -8,6 +8,7 @@
 import * as THREE from "three";
 import { isTurn } from "../model.js";
 import { qfromBasis } from "./math.js";
+import { scrollMaterials, scrollTo } from "./materials.js";
 
 const KEYS = ["left", "right", "down", "up"]; // model.js colours 0-3
 const PREFABS = {
@@ -16,10 +17,14 @@ const PREFABS = {
   strumList: "Pickup Strum, List OPTIMIZED", strumBounce: "Pickup Strum, Bounce OPTIMIZED",
   holdList: "Pickup StrumHold Start, List OPTIMIZED", holdBounce: "Pickup StrumHold Start, Bounce OPTIMIZED",
   endList: "PickupStrumHoldEnd, List, All Platforms", endBounce: "PickupStrumHoldEnd, Bounce, All Platforms",
+  fillList: "PickupStrumHoldFiller, List, All Platforms", fillBounce: "PickupStrumHoldFiller, Bounce, All Platforms",
   beatList: "BeatLine, List", beatBounce: "BeatLine, Bounce", air: "PickupAir, All Platforms OPTIMIZED",
 };
 // only what the game shows at rest (the rest plays when a note is taken, failed or spawned)
-const AT_REST_HIDDEN = /Failed|Star|Effects|Particles|Level Up|Activated|Activate Shockwave|Spawn Circle|^Symbol$|Fake AA|Level Pickup Effect/i;
+// (a hold start's "Fake AA" glow stays: it is the only one switched on at rest, and makes a hold's bar glow)
+const AT_REST_HIDDEN = /Failed|Star|Effects|Particles|Level Up|Activated|Activate Shockwave|Spawn Circle|^Symbol$|Level Pickup Effect/i;
+// the sprites drawn: a level-up pickup's text, the glow of the bar that follows the ship along a hold
+const SPRITES = /^(Level Up Text|StrumHoldGlowLine)$/;
 const NOTE_GLOW = 0.6, BEAT_GLOW = 6; // the prototype's emissive scales for the pickups and the beat lines
 const THIRD = (2 * Math.PI) / 3; // a List lane's turn
 // Pickup.KeepRotation: the parts a List pickup keeps upright while it turns with the tunnel (the strums' label); the
@@ -50,8 +55,9 @@ export async function createNotes(cache, rig) {
     const obj = cache.object(name), pickup = obj && obj.root.components.find((c) => c.class === "Pickup");
     const tint = /^(left|right|down|up|turnL|turnR)$/.test(k) && pickup ? pickup.fields.color : null;
     templates[k] = await cache.prefab(name, {
-      key: "note-" + k, glow: /^beat/.test(k) ? BEAT_GLOW : NOTE_GLOW, tint,
-      hide: (n) => AT_REST_HIDDEN.test(n), sprites: (n) => n === "Level Up Text",
+      // the hold's bar glows by its shaders' own gain: the white-hot band the game shows along a hold
+      key: "note-" + k, glow: /^beat/.test(k) ? BEAT_GLOW : NOTE_GLOW, tint, gain: /^fill/.test(k),
+      hide: (n) => AT_REST_HIDDEN.test(n), sprites: (n) => SPRITES.test(n),
     });
   }
   // the turns' guide arrows (crunched textures the preview cannot read) get a flat arrow in the turn colour
@@ -62,6 +68,8 @@ export async function createNotes(cache, rig) {
     });
   }
   // the Freefly gate's spawn animation (Airpickup Spawn, 4 s; gates spawn 5 s ahead) leaves its inner mesh at 9.55, not 14
+  // the textures that scroll with time (a hold start's glow, the hold bar's)
+  const scrolling = Object.values(templates).flatMap((t) => scrollMaterials(t));
   const inside = templates.air.getObjectByName("Base Mesh Inside");
   if (inside) inside.scale.setScalar(9.55);
 
@@ -77,7 +85,7 @@ export async function createNotes(cache, rig) {
       holder.add(inner);
       const keep = [];
       obj.traverse((o) => { if (o !== obj && KEEP_UPRIGHT.test(o.name)) keep.push(o); });
-      holder.userData = { inner, obj, outline: null, kind, keep };
+      holder.userData = { inner, obj, outline: null, kind, keep, levels: [obj.getObjectByName("Level0"), obj.getObjectByName("Level2")] };
       if (/^(left|right|down|up)$/.test(kind)) addIcon(obj, kind);
       root.add(holder);
       pool.push(holder);
@@ -145,6 +153,7 @@ export async function createNotes(cache, rig) {
     setSelection(fn) { isSelected = fn || (() => false); },
     update(run, ship, path, t) {
       used = {};
+      scrollTo(scrolling, t);
       for (const pool of Object.values(pools)) for (const h of pool) h.visible = false;
       const spin = ship.spin(t); // the List tunnel's turn
       // beat lines, 1 s ahead (not in Freefly)
@@ -162,6 +171,15 @@ export async function createNotes(cache, rig) {
           // a hold's end bar, where the hold ends
           const te = n.t + n.len;
           if (n.mode !== "Freefly" && te >= t - 0.15 && te <= t + 3) put(n.mode === "List" ? "endList" : "endBounce", path, run.noteDist(te, t), 0, 0, n.mode === "List" ? spin : 0, n);
+          // while it is held, the hold's bar follows the ship (Steering.HoldStrum moves a PickupStrumHoldFiller to the
+          // current time); released at the end, it stays there and slides away. Its effects are the score level's:
+          // Level0 below level 2, Level2 from it (Pickup.UpdateStrumHoldLevelEffects)
+          if (n.mode !== "Freefly" && t >= n.t && t <= te + 0.15) {
+            const list = n.mode === "List", h = put(list ? "fillList" : "fillBounce", path, run.noteDist(Math.min(t, te), t), 0, 0, list ? spin : 0, null);
+            const two = run.levelAt(t) >= 2, [l0, l2] = h.userData.levels;
+            if (l0) l0.visible = !two;
+            if (l2) l2.visible = two;
+          }
         }
         if (n.t < t - 0.15 || n.t > t + ahead) continue;
         const d = run.noteDist(n.t, t);

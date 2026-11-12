@@ -1,6 +1,7 @@
 // The game's shaders as three.js materials, from a material as the game data cache writes it ({ name, shader,
 // colors, floats, textures: { name: { ref, scale, offset } } }). The constants were read from the compiled shaders.
 import * as THREE from "three";
+import { additiveColor } from "./particlespec.js";
 
 const rgb = (c, k = 1) => new THREE.Color(c[0] * k, c[1] * k, c[2] * k);
 
@@ -9,7 +10,7 @@ const rgb = (c, k = 1) => new THREE.Color(c[0] * k, c[1] * k, c[2] * k);
  * `glow` scales emissive output above 1 (bloom); `tint` is the pickup's own colour (Pickup.color), which colours its
  * outline and ground ring.
  */
-export function materialFor(info, texture, { glow = 1, tint = null } = {}) {
+export function materialFor(info, texture, { glow = 1, tint = null, gain = false } = {}) {
   const shader = info.shader || "", tex = info.textures || {}, col = info.colors || {};
   const map = (k) => (tex[k] && tex[k].ref ? texture(tex[k].ref) : null);
   const hasVC = /VertexColors/i.test(shader);
@@ -28,10 +29,16 @@ export function materialFor(info, texture, { glow = 1, tint = null } = {}) {
     // Sonic Ether "AdditiveMask": a grey mask (its own tiling) scales the output, e.g. the Freefly gate's sweep
     const mask = /AdditiveMask/i.test(shader) ? placed("_MaskTex") : null;
     if (mask) mask.colorSpace = THREE.NoColorSpace;
-    return new THREE.MeshBasicMaterial({
-      map: placed("_MainTex"), alphaMap: mask, color: rgb(tc, 2 * tc[3] * glow), vertexColors: hasVC && !tint, transparent: true,
+    // `gain`: the shader's own brightness (additiveColor), for parts not calibrated by eye as the pickups were
+    const color = gain && !tint ? new THREE.Color(...additiveColor(info)) : rgb(tc, 2 * tc[3] * glow);
+    const m = new THREE.MeshBasicMaterial({
+      map: placed("_MainTex"), alphaMap: mask, color, vertexColors: hasVC && !tint, transparent: true,
       blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
     });
+    // a scrolling shader moves its texture by _ScrollUV x _Time.x (the song time / 20), as the hold walls' shader does:
+    // the owner of the material moves it (scrollMaterials)
+    if (/Scroll/i.test(shader) && col._ScrollUV && m.map) m.userData.scroll = { uv: [col._ScrollUV[0], col._ScrollUV[1]], from: m.map.offset.toArray() };
+    return m;
   }
   if (/Emissive/i.test(shader) && hasVC) {
     // Sonic Ether "Textured Unlit VertexColors": the atlas is a grey emission mask, the vertex colour gives the hue;
@@ -76,3 +83,18 @@ export function materialFor(info, texture, { glow = 1, tint = null } = {}) {
 
 /** Unity's built-in materials (the default particle material): plain additive white. */
 export const builtinMaterial = () => new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+
+/** The materials under `root` that scroll their texture with time (see materialFor). */
+export function scrollMaterials(root) {
+  const found = new Set();
+  root.traverse((o) => { for (const m of [].concat(o.material || [])) if (m && m.userData && m.userData.scroll) found.add(m); });
+  return [...found];
+}
+
+/** Moves scrolling materials' textures to song time t. */
+export function scrollTo(materials, t) {
+  for (const m of materials) {
+    const { uv, from } = m.userData.scroll;
+    m.map.offset.set(from[0] + (uv[0] * t) / 20, from[1] + (uv[1] * t) / 20);
+  }
+}

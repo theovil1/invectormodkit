@@ -151,7 +151,7 @@ export async function loadGameCache(renderer, base = "/game/") {
       t.needsUpdate = true;
       mat.map = t;
       const c = fields.m_Color;
-      if (c && mat.color) mat.color.multiply(new THREE.Color(c.r, c.g, c.b));
+      if (c && mat.color) mat.color.multiply(new THREE.Color(c.r, c.g, c.b)).multiplyScalar(opts.gain ? c.a ?? 1 : 1); // with the shader's gain, the colour's alpha scales it too
     }
     return new THREE.Mesh(geo, mat);
   }
@@ -173,6 +173,9 @@ export async function loadGameCache(renderer, base = "/game/") {
         const mats = await Promise.all((renderer.fields.m_Materials || []).map((m) => material(m, opts)));
         const mesh = new THREE.Mesh(geo, mats.length > 1 ? mats : mats[0] || new THREE.MeshBasicMaterial());
         mesh.name = node.name + ":mesh";
+        // Sonic Ether particle shaders multiply by the mesh's vertex colours (a glow fading out at its rim); taken where
+        // the shader's own gain is (opts.gain), the pickups' looks being matched by eye without them
+        if (opts.gain && geo.attributes.color) for (const m of mats) if (m && m.blending === THREE.AdditiveBlending) { m.vertexColors = true; m.needsUpdate = true; }
         g.add(mesh);
       }
     }
@@ -186,7 +189,10 @@ export async function loadGameCache(renderer, base = "/game/") {
   }
 
   const templates = new Map();
-  /** A copy of a prefab, built once per set of options: { key, glow, tint, hide(name), sprites(name) } (sprites: which sprite renderers to draw). */
+  /**
+   * A copy of a prefab, built once per set of options: { key, glow, tint, gain, hide(name), sprites(name) } (sprites:
+   * which sprite renderers to draw; gain: additive parts glow by their shader's gain, see materialFor).
+   */
   async function prefab(name, opts = {}) {
     const key = name + "|" + (opts.key || "");
     if (!templates.has(key)) {
