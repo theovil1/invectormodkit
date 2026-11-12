@@ -139,6 +139,79 @@ public class GameDataIntegrationTests : IClassFixture<GameDataBuildFixture>
     }
 
     [GameFact]
+    public void VoidAndSpaceLevels()
+    {
+        foreach (string world in GameDataRecipe.Worlds) Assert.True(File.Exists(Path.Combine(build.Dir, "levels", world + ".json")), world);
+        foreach (var (world, start, length, fly) in new[] { ("void", 210f, 2562.75f, 17), ("space", 1400f, 4391.99f, 27) })
+        {
+            var level = build.Json($"levels/{world}.json");
+            Assert.Equal(start, (float)level["start"], 2);
+            Assert.Equal(length, (float)level["length"], 2);
+            Assert.Equal(fly, level["fly"].Count());
+            int curves = level["rot"].Count();
+            Assert.Equal(20 * curves, level["acc"].Count());
+            // 3 points a curve, plus the last one unless the path loops back to its first point (space does)
+            Assert.Contains(level["pos"].Count(), new[] { 3 * curves, 3 * curves + 1 });
+        }
+    }
+
+    [GameFact]
+    public void RollClips()
+    {
+        foreach (var (file, length) in new[] { ("RollRightLong", 1.567f), ("coaster_RollRightLong2Turns", 1.933f), ("coaster_RollRightLong3Turns", 2.6f) })
+        {
+            var clip = build.Json($"clips/{file}.json");
+            Assert.Equal(length, (float)clip["length"], 3);
+            Assert.Contains(clip["tracks"], t => (string)t["attribute"] == "rotation");
+        }
+        foreach (string file in new[] { "Airpickup_Spawn_Legacy", "Airpickup_ActivateEffect_Legacy" })
+            Assert.NotEmpty(build.Json($"clips/{file}.json")["tracks"]);
+    }
+
+    [GameFact]
+    public void CoasterAnimator() => Assert.NotEmpty(build.Json("objects/Coaster_Animator.json")["fields"]["m_TOS"]);
+
+    [GameFact]
+    public void ControlLookMaterials()
+    {
+        var entries = build.Json("settings.json")["scriptables"]["MaterialsDatabase"][0]["fields"]["materialPerControlType"];
+        float[] LeftColor(int controlType)
+        {
+            var material = entries.Single(e => (int)e["controlType"] == controlType)["materialPickupLeft"];
+            var color = material["colors"]["_TintColor"] ?? material["colors"]["_Color"];
+            return color.Select(v => (float)v).ToArray();
+        }
+        var xbox = LeftColor(2); // ControlType.XBOX: X is blue
+        Assert.True(xbox[2] > xbox[0] && xbox[2] > xbox[1], string.Join(", ", xbox));
+        var playstation = LeftColor(1); // ControlType.Playstation: square is pink
+        Assert.True(playstation[0] > playstation[1] && playstation[2] > playstation[1], string.Join(", ", playstation));
+    }
+
+    [GameFact]
+    public void WalkerComponents()
+    {
+        // These names come from the spec: if the game names one differently, tell the owner rather than editing them here.
+        var walker = build.Json("settings.json")["walker"];
+        foreach (string cls in GameDataRecipe.WalkerClasses) Assert.True(walker[cls] != null && walker[cls].Any(), cls);
+        var tree = build.Json("objects/PlayerWalkerGlobal.json")["root"];
+        foreach (string name in new[] { "PickupParticles", "StrumParticles", "PickupParticlesLand" })
+        {
+            var node = FindNode(tree, name);
+            Assert.True(node != null, name);
+            // PickupParticles holds one system per level (Level0 to Level3) in its children
+            Assert.True(Nodes(node).Any(n => Component(n, "ParticleSystem") != null), name);
+        }
+    }
+
+    [GameFact]
+    public void NoWarnings()
+    {
+        // crunched textures are a non-goal of the spec: they are expected warnings
+        var warnings = build.Report.Warnings.Where(w => !w.Contains("crunched")).ToList();
+        Assert.True(warnings.Count == 0, string.Join("\n", warnings));
+    }
+
+    [GameFact]
     public void LogsTheBuild()
     {
         var files = Directory.GetFiles(build.Dir, "*", SearchOption.AllDirectories);

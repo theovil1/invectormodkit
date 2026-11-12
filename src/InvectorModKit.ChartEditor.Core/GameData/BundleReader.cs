@@ -150,6 +150,10 @@ namespace InvectorModKit.ChartEditor
             return null;
         }
 
+        /// <summary>The first object of a class (an AnimationClip, an AnimatorController) with that m_Name; null if none.</summary>
+        public AssetRef FindNamed(string bundle, int typeId, string name) =>
+            Assets(bundle, typeId).FirstOrDefault(a => Read(a)["m_Name"].AsString == name);
+
         /// <summary>MonoBehaviours whose script class has that name (ScriptableObjects included).</summary>
         public IEnumerable<AssetRef> FindScripts(string bundle, string className) =>
             Assets(bundle, MonoBehaviourType).Where(m => ScriptClass(m) == className);

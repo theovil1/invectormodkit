@@ -50,6 +50,7 @@ namespace InvectorModKit.ChartEditor
             public SortedSet<string> MissingFiles = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
             public int Missing;
             public bool Capped;
+            public bool Walk = true;
         }
 
         Document doc;
@@ -78,10 +79,14 @@ namespace InvectorModKit.ChartEditor
             return result;
         }
 
-        /// <summary>A single object (a ScriptableObject, an AnimatorController) with the objects it references.</summary>
-        public JObject WriteObject(AssetRef asset)
+        /// <summary>
+        /// A single object (a ScriptableObject, a level component, an AnimatorController). With walk false, references
+        /// to other GameObjects, components and scripts stay plain references instead of filling the "assets" map
+        /// (a scene's objects would otherwise pull in the whole scene); materials, meshes and textures are kept either way.
+        /// </summary>
+        public JObject WriteObject(AssetRef asset, bool walk = true)
         {
-            doc = new Document();
+            doc = new Document { Walk = walk };
             doc.Own.Add(reader.Id(asset));
             var field = reader.Read(asset);
             string name = field["m_Name"].IsDummy ? null : field["m_Name"].AsString;
@@ -115,7 +120,7 @@ namespace InvectorModKit.ChartEditor
                 case SpriteType: return Inline(id, () => Sprite(target, id));
                 case MonoScriptType: return new JValue(reader.Read(target)["m_ClassName"].AsString);
             }
-            if (WalkTypes.Contains(target.TypeId) && recipeBundles.Contains(target.Bundle))
+            if (doc.Walk && WalkTypes.Contains(target.TypeId) && recipeBundles.Contains(target.Bundle))
             {
                 if (doc.Queued.Contains(id)) return Ref(id);
                 if (doc.Queued.Count < MaxAssets)
