@@ -154,6 +154,20 @@ namespace InvectorModKit.Marketplace
                 "이 곡(연결된 영상의 버전)을 CustomSongs 폴더에 넣으세요. 차트가 자동으로 맞춰집니다.",
                 "将这首歌（关联视频的版本）放入 CustomSongs 文件夹：谱面会自动对齐。",
             },
+            ["other_version"] = new[]
+            {
+                "Your copy of this song is not the version {0} charted: the chart can't line up with it, so it plays with an automatic chart.",
+                "Ta copie de ce morceau n'est pas la version chartée par {0} : le chart ne peut pas s'y caler, elle se joue avec un chart automatique.",
+                "Deine Kopie dieses Songs ist nicht die Version von {0}: Der Chart passt nicht dazu, sie läuft mit einem automatischen Chart.",
+                "La tua copia di questo brano non è la versione di {0}: il chart non può allinearsi, si gioca con un chart automatico.",
+                "Tu copia de esta canción no es la versión de {0}: el chart no puede ajustarse, se juega con un chart automático.",
+                "Sua cópia desta música não é a versão de {0}: o chart não consegue se alinhar, ela toca com um chart automático.",
+                "Twoja kopia tego utworu to inna wersja niż u {0}: chart nie może się dopasować, gra się z automatycznym chartem.",
+                "Ваша копия трека не совпадает с версией {0}: чарт не может подстроиться, трек играется с автоматическим чартом.",
+                "お持ちのこの曲は {0} のバージョンと違うため、チャートを合わせられません。自動チャートで遊べます。",
+                "가지고 있는 이 곡은 {0}님의 버전과 달라 차트를 맞출 수 없습니다. 자동 차트로 플레이됩니다.",
+                "你的这首歌与 {0} 所用的版本不同，谱面无法对齐，将改用自动谱面。",
+            },
             ["installed_done"] = new[] { "Installed! It's in song select, under Custom Songs.", "Installé ! Il est dans la sélection, section Custom Songs.", "Installiert! Du findest ihn in der Songauswahl unter Custom Songs.", "Installato! Lo trovi nella selezione brani, in Custom Songs.", "¡Instalado! Está en la selección de canciones, en Custom Songs.", "Instalado! Está na seleção de músicas, em Custom Songs.", "Zainstalowano! Znajdziesz go w wyborze utworów, w sekcji Custom Songs.", "Установлено! Ищите в выборе треков, раздел Custom Songs.", "インストールしました！曲選択のCustom Songsにあります。", "설치 완료! 곡 선택의 Custom Songs에 있습니다.", "已安装！在选歌界面的 Custom Songs 中。" },
             ["downloading"] = new[] { "Downloading the chart…", "Téléchargement du chart…", "Chart wird heruntergeladen…", "Download del chart…", "Descargando el chart…", "Baixando o chart…", "Pobieranie chartu…", "Загрузка чарта…", "チャートをダウンロード中…", "차트 다운로드 중…", "正在下载谱面…" },
             ["downloaded"] = new[]

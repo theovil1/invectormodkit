@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
 
 namespace InvectorModKit.Charting.Audio
@@ -11,10 +12,30 @@ namespace InvectorModKit.Charting.Audio
         public bool IsMatch;
         /// <summary>Local time = reference time + Offset (seconds).</summary>
         public double Offset;
-        /// <summary>Correlation of the two attack envelopes at that offset (0..1).</summary>
+        /// <summary>Mean correlation of the song's 20 s stretches at that offset, each within ±0.1 s of it (0..1).</summary>
         public double Score;
         /// <summary>Share of 20 s stretches of the song found at that same offset (1 = same version throughout).</summary>
         public double Consistency;
+        /// <summary>Offset measured in each stretch found in place: (reference time of its middle, offset), in time order.</summary>
+        public IReadOnlyList<(double Time, double Offset)> Anchors = new (double, double)[0];
+
+        /// <summary>
+        /// Local time - reference time at that point of the song: follows two copies whose timelines drift apart
+        /// (linear between stretches, the nearest stretch's offset past either end, Offset without stretches).
+        /// </summary>
+        public double OffsetAt(double referenceTime)
+        {
+            if (Anchors.Count == 0) return Offset;
+            if (referenceTime <= Anchors[0].Time) return Anchors[0].Offset;
+            for (int i = 1; i < Anchors.Count; i++)
+            {
+                var (t1, o1) = Anchors[i];
+                if (referenceTime > t1) continue;
+                var (t0, o0) = Anchors[i - 1];
+                return o0 + (o1 - o0) * (referenceTime - t0) / (t1 - t0);
+            }
+            return Anchors[Anchors.Count - 1].Offset;
+        }
 
         public override string ToString() => $"{(IsMatch ? "match" : "no match")} offset {Offset:0.000}s score {Score:0.00} consistency {Consistency:0.00}";
     }
@@ -36,7 +57,12 @@ namespace InvectorModKit.Charting.Audio
         private const int MaxLag = 90 * Rate;
         private const int Window = 20 * Rate;
         private const int WindowSearch = 10 * Rate;
-        private const int WindowTolerance = 3;
+        /// <summary>
+        /// How far a stretch may sit from the global alignment and still count as in place: two copies of one
+        /// recording can drift apart by a few tens of ms (frames dropped by an encoder or a decoder), while an
+        /// edited version moves stretches by beats or bars.
+        /// </summary>
+        private const int WindowTolerance = Rate / 10;
         private const double MinConsistency = 0.8;
 
         public double Duration;
@@ -119,31 +145,30 @@ namespace InvectorModKit.Charting.Audio
             }
             if (double.IsNegativeInfinity(bestScore)) return FingerprintMatch.None;
 
-            double before = Score(best - 1), after = Score(best + 1), shift = 0;
-            if (!double.IsNaN(before) && !double.IsNaN(after))
-            {
-                double curve = before - 2 * bestScore + after;
-                if (curve < 0) shift = Math.Max(-0.5, Math.Min(0.5, 0.5 * (before - after) / curve));
-            }
-
-            double consistency = Consistency(r, l, best);
+            var (score, consistency, anchors) = Stretches(r, l, best);
+            if (double.IsNaN(score)) score = bestScore;
             return new FingerprintMatch
             {
-                Offset = (best + shift) / Rate,
-                Score = bestScore,
+                Offset = Peak(Score, best, bestScore) / Rate,
+                Score = score,
                 Consistency = consistency,
-                IsMatch = bestScore >= MatchThreshold && consistency >= MinConsistency,
+                Anchors = anchors,
+                IsMatch = score >= MatchThreshold && consistency >= MinConsistency,
             };
         }
 
         /// <summary>
-        /// Share of the song's 20 s stretches whose own best alignment (searched ±10 s around the global one)
-        /// is the global one. Music repeats every few bars, so a stretch still correlates fairly well a few
-        /// bars off; what tells an edited version apart is that each stretch fits better somewhere else.
+        /// The song's 20 s stretches against the global alignment: their mean correlation within ±0.1 s of it
+        /// (NaN when no stretch says anything), the share whose own best alignment (searched ±10 s around)
+        /// is that one, and the exact offset of each of those. Music repeats every few bars, so a stretch still
+        /// correlates fairly well a few bars off; what tells an edited version apart is that each stretch fits
+        /// better somewhere else.
         /// </summary>
-        private static double Consistency(double[] r, double[] l, int lag)
+        private static (double Score, double Consistency, List<(double Time, double Offset)> Anchors) Stretches(double[] r, double[] l, int lag)
         {
             int considered = 0, consistent = 0;
+            double sum = 0;
+            var anchors = new List<(double Time, double Offset)>();
             for (int w0 = 0; w0 + Window <= r.Length; w0 += Window)
             {
                 int inside = Math.Min(w0 + Window + lag, l.Length) - Math.Max(w0 + lag, 0);
@@ -153,16 +178,31 @@ namespace InvectorModKit.Charting.Audio
                 if (energy < 0.05 * Window) continue; // near silence: says nothing either way
 
                 double atLag = double.NegativeInfinity, elsewhere = double.NegativeInfinity;
+                int atK = lag;
                 for (int k = lag - WindowSearch; k <= lag + WindowSearch; k++)
                 {
                     double s = WindowScore(r, l, w0, k);
-                    if (Math.Abs(k - lag) <= WindowTolerance) atLag = Math.Max(atLag, s);
-                    else elsewhere = Math.Max(elsewhere, s);
+                    if (Math.Abs(k - lag) > WindowTolerance) elsewhere = Math.Max(elsewhere, s);
+                    else if (s > atLag) { atLag = s; atK = k; }
                 }
                 considered++;
-                if (atLag > elsewhere) consistent++;
+                if (double.IsNegativeInfinity(atLag)) continue;
+                sum += atLag;
+                if (atLag <= elsewhere) continue;
+                consistent++;
+                int start = w0;
+                anchors.Add(((w0 + Window / 2.0) / Rate, Peak(k => WindowScore(r, l, start, k), atK, atLag) / Rate));
             }
-            return considered == 0 ? 0 : consistent / (double)considered;
+            return considered == 0 ? (double.NaN, 0, anchors) : (sum / considered, consistent / (double)considered, anchors);
+        }
+
+        /// <summary>Where a correlation peaks around its best lag k, between frames (parabola through k-1, k, k+1).</summary>
+        private static double Peak(Func<int, double> score, int k, double atK)
+        {
+            double before = score(k - 1), after = score(k + 1);
+            if (double.IsNaN(before) || double.IsNaN(after) || double.IsInfinity(before) || double.IsInfinity(after)) return k;
+            double curve = before - 2 * atK + after;
+            return curve < 0 ? k + Math.Max(-0.5, Math.Min(0.5, 0.5 * (before - after) / curve)) : k;
         }
 
         private static double WindowScore(double[] r, double[] l, int w0, int k)

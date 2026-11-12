@@ -47,6 +47,9 @@ namespace InvectorModKit.CustomSongs
         /// </summary>
         public static void RequestMarketplaceMatch() => CustomSongsPlugin.RequestMarketplaceMatch();
 
+        /// <summary>That check is asked for or still running: a song may not carry its marketplace chart yet.</summary>
+        public static bool MarketplaceMatchPending => CustomSongsPlugin.MarketplaceMatchPending;
+
         /// <summary>Main thread: re-reads title, artist and cover of the listed songs (a picture may have appeared next to an audio file).</summary>
         public static void RequestMetadataReload() => CustomSongsPlugin.RequestMetadataReload();
 

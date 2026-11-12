@@ -52,10 +52,13 @@ namespace InvectorModKit.Charting.Marketplace
             };
         }
 
-        /// <summary>The author's chart placed on the matched audio, marked as coming from the marketplace.</summary>
+        /// <summary>
+        /// The author's chart placed on the matched audio, stretch by stretch where the two copies drift apart,
+        /// marked as coming from the marketplace.
+        /// </summary>
         public Chart ChartFor(FingerprintMatch match)
         {
-            var chart = ChartJson.Deserialize(File.ReadAllText(Path.Combine(Directory, ChartFile))).Shifted(match.Offset);
+            var chart = ChartJson.Deserialize(File.ReadAllText(Path.Combine(Directory, ChartFile))).Warped(match.OffsetAt);
             chart.Generator = null;
             chart.Source = new ChartSource { MarketplaceId = Id, Version = Version, Author = Author };
             return chart;

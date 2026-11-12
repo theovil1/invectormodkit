@@ -299,12 +299,15 @@ namespace InvectorModKit.Marketplace.Ui
             if (waiting)
             {
                 // While a fetch runs (audio_fetching) the drop hint only shows once it's quiet, and a stale
-                // hint or failure from an earlier attempt disappears once the chart is installed.
-                if (_statusKey != "audio_fetching" && (_statusKey == "" || _statusKey == "downloading" || _statusKey == "downloaded"))
+                // hint or failure from an earlier attempt disappears once the chart is installed. A copy of the
+                // song that stays without the chart is another version: said instead of a silent automatic chart.
+                if (_statusKey != "audio_fetching" && IsOtherVersion(c))
+                    SetStatus(Loc.T("other_version", c.Author), "other_version");
+                else if (_statusKey != "audio_fetching" && (_statusKey == "" || _statusKey == "downloading" || _statusKey == "downloaded"))
                     SetStatus(Loc.T("drop_hint"), "drop_hint");
                 if (installed && _justDownloaded) { SetStatus(Loc.T("installed_done"), "installed_done"); _justDownloaded = false; }
             }
-            else if (_statusKey == "drop_hint" || _statusKey == "audio_failed")
+            else if (_statusKey == "drop_hint" || _statusKey == "audio_failed" || _statusKey == "other_version")
                 SetStatus("", "");
             var session = MarketplacePlugin.Session.Current;
             bool canRemove = session != null && (session.Role == "admin" || session.Name == c.Author);
@@ -318,6 +321,20 @@ namespace InvectorModKit.Marketplace.Ui
             _audioPanel.gameObject.SetActive(!showBoard);
             _boardPanel.gameObject.SetActive(showBoard);
             if (showBoard) LoadBoard(c);
+        }
+
+        /// <summary>
+        /// The song file this chart goes with (CustomSongs/Artist - Title, fetched or the player's own) is charted,
+        /// every check against the waiting charts is done, and it still doesn't carry this chart: its audio is
+        /// another version than the author's, so it plays with an automatic chart.
+        /// </summary>
+        private static bool IsOtherVersion(ChartSummary c)
+        {
+            if (CustomSongsApi.MarketplaceMatchPending) return false;
+            string file = AudioFetch.Existing(CustomSongsApi.SongsFolder, c.Artist, c.Title);
+            if (file == null) return false;
+            string path = Path.GetFullPath(file);
+            return CustomSongsApi.Songs().Any(s => s.Ready && s.MarketplaceId != c.Id && string.Equals(Path.GetFullPath(s.AudioPath), path, StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>Top 3 of the difficulty chosen in the game, for the installed version (else the latest), and my rank.</summary>
