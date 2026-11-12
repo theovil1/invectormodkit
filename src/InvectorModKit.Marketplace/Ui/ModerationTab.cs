@@ -300,7 +300,7 @@ namespace InvectorModKit.Marketplace.Ui
         private static int Reports(Item i) => i.Reported?.Reports ?? i.Chart?.Reports ?? 0;
 
         private static string RowLine(Item i) =>
-            Artist(i) + "  ·  " + Loc.T("by_author_short", Author(i)) + (Reports(i) > 0 ? "  ·  " + Loc.T("pub_reports", Reports(i)) : "");
+            Artist(i) + "  ·  " + Loc.T("by_author_short", Author(i)) + (Reports(i) > 0 ? "  ·  " + Loc.Count("pub_reports", Reports(i)) : "");
 
         private static string Date(long? ms) =>
             ms == null || ms <= 0 ? "?" : DateTimeOffset.FromUnixTimeMilliseconds(ms.Value).LocalDateTime.ToString("yyyy-MM-dd");
@@ -369,14 +369,14 @@ namespace InvectorModKit.Marketplace.Ui
             if (i.Player != null)
             {
                 var u = i.Player;
-                _sheet.SetSong(u.Name, "", null, Loc.T("mod_banned_since", Date(u.BannedAt)) + "\n" + Loc.T("mod_player_counts", u.Charts, u.Scores));
+                _sheet.SetSong(u.Name, "", null, Loc.T("mod_banned_since", Date(u.BannedAt)) + "\n" + Loc.Count("mod_player_charts", u.Charts) + "  ·  " + Loc.Count("mod_player_scores", u.Scores));
                 _reports.text = "";
             }
             else
             {
                 var lines = new List<string> { Loc.T("by_author_short", Author(i)) + "  ·  v" + (i.Chart?.Version ?? i.Reported.Version) };
                 if (Hidden(i)) lines.Add(Loc.T("hidden_admin_note"));
-                lines.Add((i.Chart != null ? Loc.T("pub_installs", i.Chart.Downloads) + "  ·  " : "") + Loc.T("pub_reports", Reports(i)));
+                lines.Add((i.Chart != null ? Loc.Count("pub_installs", i.Chart.Downloads) + "  ·  " : "") + Loc.Count("pub_reports", Reports(i)));
                 _sheet.SetSong(Title(i), Artist(i), null, string.Join("\n", lines));
                 _reports.text = i.Reported == null ? "" : string.Join("\n", i.Reported.Details.Select(d => Loc.T("mod_report_line", Date(d.At), d.Name, d.Reason)));
             }

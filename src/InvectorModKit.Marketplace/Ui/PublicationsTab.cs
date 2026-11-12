@@ -282,7 +282,7 @@ namespace InvectorModKit.Marketplace.Ui
         {
             switch (p.View?.Row ?? PublicationRow.UpToDate)
             {
-                case PublicationRow.Hidden: return Loc.T("pub_hidden", p.Chart.Reports ?? 0);
+                case PublicationRow.Hidden: return Loc.Count("pub_hidden", p.Chart.Reports ?? 0);
                 case PublicationRow.NotOnThisPc: return Loc.T("pub_not_on_pc");
                 case PublicationRow.Changed: return Loc.T("pub_changed");
                 default: return Loc.T("pub_up_to_date");
@@ -291,8 +291,8 @@ namespace InvectorModKit.Marketplace.Ui
 
         private static string RowLine(Pub p)
         {
-            string line = Loc.T("pub_row", p.Chart.Version, State(p)) + "  ·  " + Loc.T("pub_installs", p.Chart.Downloads);
-            return p.Chart.Players == null ? line : line + "  ·  " + Loc.T("pub_players", p.Chart.Players.Value);
+            string line = Loc.T("pub_row", p.Chart.Version, State(p)) + "  ·  " + Loc.Count("pub_installs", p.Chart.Downloads);
+            return p.Chart.Players == null ? line : line + "  ·  " + Loc.Count("pub_players", p.Chart.Players.Value);
         }
 
         private void RefreshRows()
@@ -364,9 +364,9 @@ namespace InvectorModKit.Marketplace.Ui
         private string Info(Pub p)
         {
             var c = p.Chart;
-            var stats = new List<string> { Loc.T("pub_installs", c.Downloads) };
-            if (c.Players != null) stats.Add(Loc.T("pub_players", c.Players.Value));
-            if (c.Reports != null) stats.Add(Loc.T("pub_reports", c.Reports.Value));
+            var stats = new List<string> { Loc.Count("pub_installs", c.Downloads) };
+            if (c.Players != null) stats.Add(Loc.Count("pub_players", c.Players.Value));
+            if (c.Reports != null) stats.Add(Loc.Count("pub_reports", c.Reports.Value));
             string video = _videoTitle != null ? Loc.T("quoted", _videoTitle) : c.YoutubeUrl;
             return Loc.T("pub_row", c.Version, State(p)) + "\n" + string.Join("  ·  ", stats) + "\n" + video;
         }
