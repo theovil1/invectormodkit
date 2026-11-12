@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.3.0](https://github.com/theovil1/invectormodkit/compare/v0.2.0...v0.3.0) (2026-11-12)
+
+
+### Features
+
+* **editor:** pull a strum into a hold from a handle on the timeline ([#14](https://github.com/theovil1/invectormodkit/issues/14)) ([f4f448c](https://github.com/theovil1/invectormodkit/commit/f4f448c5090f8736c528b5789010f8f3aacf6b3f))
+* **editor:** show the game's view in the level editor's 3D preview ([#11](https://github.com/theovil1/invectormodkit/issues/11)) ([4bf1061](https://github.com/theovil1/invectormodkit/commit/4bf10612e7ee6388488453dd52420da12ace07bc))
+* **installer:** install the level editor by default ([#9](https://github.com/theovil1/invectormodkit/issues/9)) ([b425d42](https://github.com/theovil1/invectormodkit/commit/b425d42d44004d35e8c39b8dba818b231a1c8fb2))
+* **marketplace:** full-screen marketplace with the Discover tab (stage 1 of 3) ([#17](https://github.com/theovil1/invectormodkit/issues/17)) ([a24061c](https://github.com/theovil1/invectormodkit/commit/a24061c1ceea5dd535e908aee1927370658effb1))
+* **marketplace:** moderation in the game (stage 3 of 3) ([#19](https://github.com/theovil1/invectormodkit/issues/19)) ([7d2c633](https://github.com/theovil1/invectormodkit/commit/7d2c63339fa44f4ae08c807509f79430ee3679f6))
+* **marketplace:** My library and My publications (stage 2 of 3) ([#18](https://github.com/theovil1/invectormodkit/issues/18)) ([a1f4fbb](https://github.com/theovil1/invectormodkit/commit/a1f4fbbf8bddb3af5b729b93c25fd4aa5679bc59))
+* **marketplace:** open a song in the level editor from the game ([#15](https://github.com/theovil1/invectormodkit/issues/15)) ([bd2da54](https://github.com/theovil1/invectormodkit/commit/bd2da540cfd69a009daf197211e7729677679705))
+
+
+### Bug Fixes
+
+* **editor:** rewind in sync with the notes ([#8](https://github.com/theovil1/invectormodkit/issues/8)) ([d7ee562](https://github.com/theovil1/invectormodkit/commit/d7ee5622372af3e692ba25c932cf222c1a4ce047))
+* **editor:** skip sprites without a rectangle when exporting the editor skin ([#13](https://github.com/theovil1/invectormodkit/issues/13)) ([09ea212](https://github.com/theovil1/invectormodkit/commit/09ea212899409528d598d9abe304ac212207b5c0))
+* **marketplace:** details found while testing the new marketplace ([#20](https://github.com/theovil1/invectormodkit/issues/20)) ([5dbe500](https://github.com/theovil1/invectormodkit/commit/5dbe500864e152b65e58d10438df4dd1989ad589))
+* **marketplace:** install charts on copies of a song that drift slightly ([#10](https://github.com/theovil1/invectormodkit/issues/10)) ([12f5b8d](https://github.com/theovil1/invectormodkit/commit/12f5b8dfe96d2caaff4d9c46f1281cba8878b2fd))
+* **marketplace:** show the Discord logo without a glow ([#16](https://github.com/theovil1/invectormodkit/issues/16)) ([e6dbd17](https://github.com/theovil1/invectormodkit/commit/e6dbd17eb774951ebfdd11be698271aec952c06b))
+
 ## [0.2.0](https://github.com/theovil1/invectormodkit/compare/v0.1.0...v0.2.0) (2026-10-22)
 
 
