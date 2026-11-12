@@ -48,7 +48,7 @@ namespace InvectorModKit.Marketplace.Client
             if (f.Installed)
                 return f.LatestVersion > f.InstalledVersion
                     ? Make(MainKind.Update, true, "main_update", "main_update_sub")
-                    : Make(MainKind.Installed, true, "main_installed", "main_installed_sub");
+                    : Make(MainKind.Installed, false, "main_installed", "main_installed_sub"); // says where it is; nothing to press
             if (f.Downloaded)
             {
                 var retry = Make(MainKind.Retry, true, "main_retry", f.OtherVersion ? "other_version" : "main_retry_sub");

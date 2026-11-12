@@ -19,6 +19,9 @@ namespace InvectorModKit.Marketplace.Ui
         /// <summary>The screen is open: the menus underneath must not react to anything.</summary>
         public static bool Active { get; set; }
 
+        /// <summary>A mouse click is being delivered (rows tell a click, which selects, from Enter, which acts).</summary>
+        public static bool MouseClicking { get; private set; }
+
         /// <summary>The search field has the keys: only text, Backspace, Enter and Esc count.</summary>
         public bool Typing { get; set; }
 
@@ -89,7 +92,8 @@ namespace InvectorModKit.Marketplace.Ui
             _moduleNavigation = EventSystem.current.sendNavigationEvents;
             EventSystem.current.sendNavigationEvents = false;
             _module = EventSystem.current.currentInputModule as Rewired.Integration.UnityUI.RewiredStandaloneInputModule;
-            MarketplacePlugin.Log.LogInfo($"Marketplace input: module {(EventSystem.current.currentInputModule ? EventSystem.current.currentInputModule.GetType().Name : "none")}, mouse {(_module != null ? _module.allowMouseInput.ToString() : "n/a")}");
+            // The game's module only feeds the mouse to the Rewired player of the current menu, which may not own it:
+            // the screen reads the mouse itself (Mouse) and the module sends none.
             if (_module == null) return;
             _moduleMouse = _module.allowMouseInput;
             _module.allowMouseInput = false;
@@ -103,15 +107,22 @@ namespace InvectorModKit.Marketplace.Ui
             _module = null;
         }
 
-        /// <summary>The mouse, over <paramref name="root"/> only: hover selects, a click presses, the wheel scrolls what is under it.</summary>
+        /// <summary>
+        /// The mouse, over <paramref name="root"/> only: hovering a button selects it, a click presses it, the wheel
+        /// scrolls what is under it. Clicks come from Rewired, which keeps a press and release made within one frame
+        /// (Unity's own Input lost clicks made without moving the mouse).
+        /// </summary>
         public void Mouse(Transform root)
         {
             var position = Input.mousePosition;
             bool moved = (position - _lastMouse).sqrMagnitude > 1f;
             _lastMouse = position;
-            bool click = Input.GetMouseButtonDown(0);
+            bool click;
+            try { click = Rewired.ReInput.isReady ? Rewired.ReInput.controllers.Mouse.GetButtonDown(0) : Input.GetMouseButtonDown(0); }
+            catch (Exception) { click = Input.GetMouseButtonDown(0); }
             float wheel = Input.mouseScrollDelta.y;
-            if ((!moved && !click && wheel == 0) || EventSystem.current == null || !Cursor.visible) return;
+            if ((!moved && !click && wheel == 0) || EventSystem.current == null) return;
+            if (!click && !Cursor.visible) return;
 
             var data = new PointerEventData(EventSystem.current) { position = position, button = PointerEventData.InputButton.Left, scrollDelta = Input.mouseScrollDelta };
             _hits.Clear();
@@ -123,8 +134,18 @@ namespace InvectorModKit.Marketplace.Ui
             if (moved && usable && GameUi.Selected != selectable.gameObject) GameUi.Select(selectable.gameObject);
             if (click && usable)
             {
+                // A whole click (down, up, click, exit): a lone click event left buttons stuck in a pressed look.
                 GameUi.Select(selectable.gameObject);
-                ExecuteEvents.Execute(selectable.gameObject, data, ExecuteEvents.pointerClickHandler);
+                var target = selectable.gameObject;
+                MouseClicking = true;
+                try
+                {
+                    ExecuteEvents.Execute(target, data, ExecuteEvents.pointerDownHandler);
+                    ExecuteEvents.Execute(target, data, ExecuteEvents.pointerUpHandler);
+                    ExecuteEvents.Execute(target, data, ExecuteEvents.pointerClickHandler);
+                    ExecuteEvents.Execute(target, data, ExecuteEvents.pointerExitHandler);
+                }
+                finally { MouseClicking = false; }
             }
             if (wheel != 0) ExecuteEvents.ExecuteHierarchy(hit, data, ExecuteEvents.scrollHandler);
         }

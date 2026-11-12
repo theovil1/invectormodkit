@@ -496,7 +496,7 @@ namespace InvectorModKit.Marketplace.Ui
             {
                 try
                 {
-                    bool mouse = UnityEngine.Input.GetMouseButtonUp(0) || UnityEngine.Input.GetMouseButton(0);
+                    bool mouse = ScreenInput.MouseClicking || UnityEngine.Input.GetMouseButtonUp(0) || UnityEngine.Input.GetMouseButton(0);
                     if (!mouse) { onClick(); return; }
                     if (Time.unscaledTime - _lastClick < 0.35f) { _lastClick = -1; onClick(); }
                     else _lastClick = Time.unscaledTime;
@@ -532,6 +532,7 @@ namespace InvectorModKit.Marketplace.Ui
         public Confirmation(MarketplaceScreen screen)
         {
             _root = GameUi.Clone(GameUi.DialogTemplate, screen.transform, "Confirmation", stillImage: true);
+            UiKit.Fill((RectTransform)_root.transform); // its dark backdrop over the whole screen
             var group = _root.GetComponent<CanvasGroup>();
             if (group) { group.alpha = 1; group.interactable = true; group.blocksRaycasts = true; }
             var backdrop = GameUi.Find<Image>(_root, "Background");

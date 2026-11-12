@@ -23,6 +23,7 @@ namespace InvectorModKit.Marketplace.Ui
         public TextPrompt(MarketplaceScreen modal)
         {
             _root = GameUi.Clone(GameUi.DialogTemplate, modal.transform, "Prompt", stillImage: true);
+            UiKit.Fill((RectTransform)_root.transform); // its dark backdrop over the whole screen
             var group = _root.GetComponent<CanvasGroup>();
             if (group) { group.alpha = 1; group.interactable = true; group.blocksRaycasts = true; }
             var backdrop = GameUi.Find<Image>(_root, "Background");
