@@ -26,7 +26,7 @@ dotnet test tests/InvectorModKit.Charting.Tests
 dotnet test tests/InvectorModKit.Marketplace.Client.Tests
 dotnet test tests/InvectorModKit.ChartEditor.Tests
 dotnet test tests/InvectorModKit.Installer.Tests
-cd tools/ChartEditor/ui; node --test tests/model.test.js tests/i18n.test.js   # run from that folder
+cd tools/ChartEditor/ui; node --test tests/model.test.js tests/i18n.test.js tests/audio.test.js tests/keys.test.js   # run from that folder
 ./tools/release.ps1 -Version <x.y.z>   # builds the installer and zips into artifacts/, never publishes
 ```
 

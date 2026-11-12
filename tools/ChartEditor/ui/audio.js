@@ -1,5 +1,5 @@
-// The song: decoded once for the waveform, played by an <audio> element (slower speeds keep the pitch), with
-// claps on the notes and a metronome scheduled a little ahead on a WebAudio clock.
+// The song: decoded once for the waveform, played from those samples by an <audio> element (slower speeds keep
+// the pitch), with claps on the notes and a metronome scheduled a little ahead on a WebAudio clock.
 
 const BUCKET = 128; // samples per waveform bucket at the finest level
 
@@ -27,15 +27,21 @@ export class AudioEngine {
     this.pause();
     const response = await fetch(url);
     if (!response.ok) throw new Error("audio: HTTP " + response.status);
-    const data = await response.arrayBuffer();
-    // Played from memory: seeking needs no range requests.
-    if (this._blobUrl) URL.revokeObjectURL(this._blobUrl);
-    this._blobUrl = URL.createObjectURL(new Blob([data]));
-    this.el.src = this._blobUrl;
-    const buffer = await this.ctx.decodeAudioData(data.slice(0));
+    const buffer = await this.ctx.decodeAudioData(await response.arrayBuffer());
     this.duration = buffer.duration;
     this.sampleRate = buffer.sampleRate;
     this.levels = buildPeaks(buffer);
+    // Played from the decoded samples, as WAV in memory: a compressed file (a variable bitrate MP3 above all) seeks
+    // to a slightly wrong place, up to half a second away from the waveform and the notes.
+    const channels = [];
+    for (let c = 0; c < buffer.numberOfChannels; c++) channels.push(buffer.getChannelData(c));
+    if (this._blobUrl) URL.revokeObjectURL(this._blobUrl);
+    this._blobUrl = URL.createObjectURL(new Blob([encodeWav(channels, buffer.sampleRate)], { type: "audio/wav" }));
+    await new Promise((resolve, reject) => {
+      this.el.addEventListener("loadedmetadata", resolve, { once: true });
+      this.el.addEventListener("error", () => reject(new Error("audio: cannot play the song")), { once: true });
+      this.el.src = this._blobUrl;
+    });
     this.seek(0);
   }
 
@@ -132,6 +138,33 @@ export class AudioEngine {
     }
     return { min, max };
   }
+}
+
+/** A 16-bit PCM WAV file of `channels` (Float32Arrays of the same length), interleaved. */
+export function encodeWav(channels, sampleRate) {
+  const count = channels.length, frames = channels[0].length, bytes = frames * count * 2;
+  const wav = new ArrayBuffer(44 + bytes), v = new DataView(wav);
+  const text = (at, s) => { for (let i = 0; i < s.length; i++) v.setUint8(at + i, s.charCodeAt(i)); };
+  text(0, "RIFF");
+  v.setUint32(4, 36 + bytes, true);
+  text(8, "WAVEfmt ");
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true);
+  v.setUint16(22, count, true);
+  v.setUint32(24, sampleRate, true);
+  v.setUint32(28, sampleRate * count * 2, true);
+  v.setUint16(32, count * 2, true);
+  v.setUint16(34, 16, true);
+  text(36, "data");
+  v.setUint32(40, bytes, true);
+  const pcm = new Int16Array(wav, 44);
+  for (let i = 0, k = 0; i < frames; i++) {
+    for (let c = 0; c < count; c++) {
+      const s = Math.max(-1, Math.min(1, channels[c][i]));
+      pcm[k++] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    }
+  }
+  return wav;
 }
 
 /** Min/max of the mono mix per BUCKET samples, then halved level by level. */
