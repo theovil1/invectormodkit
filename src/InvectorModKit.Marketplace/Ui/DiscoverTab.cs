@@ -52,7 +52,8 @@ namespace InvectorModKit.Marketplace.Ui
         private float _boardAt;
         private HashSet<string> _installed = new HashSet<string>();
         private readonly HashSet<string> _downloading = new HashSet<string>(), _fetching = new HashSet<string>();
-        private readonly Dictionary<string, double> _progress = new Dictionary<string, double>();
+        // Written by yt-dlp's output thread while the screen reads it.
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, double> _progress = new System.Collections.Concurrent.ConcurrentDictionary<string, double>();
         private readonly Dictionary<string, string> _errors = new Dictionary<string, string>();
         private string _status;
         private GameObject _lastRow;

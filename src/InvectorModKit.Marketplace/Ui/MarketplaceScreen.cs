@@ -302,6 +302,7 @@ namespace InvectorModKit.Marketplace.Ui
         {
             if (_instance == this) _instance = null;
             Input.GiveBack();
+            Excerpts?.Dispose(); // the last excerpt clip goes with the screen
         }
 
         private void Shut()
