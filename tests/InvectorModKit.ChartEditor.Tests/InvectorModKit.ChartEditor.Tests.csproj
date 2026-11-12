@@ -20,6 +20,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The game plugin's pure helpers for the editor's skin (the plugin itself needs the game's assemblies). -->
+    <Compile Include="..\..\src\InvectorModKit.CustomSongs\EditorSkinRegion.cs" Link="Linked\EditorSkinRegion.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 
