@@ -280,7 +280,11 @@ namespace InvectorModKit.Marketplace.Ui
                 var it = item;
                 var row = _s.MakeRow(_content, Main, () => Select(it));
                 if (it.Player != null) row.Set(it.Player.Name, Loc.T("mod_banned_since", Date(it.Player.BannedAt)), "", 0, null);
-                else row.Set(Title(it), RowLine(it), Hidden(it) ? Loc.T("tag_hidden") : "", 0, null);
+                else
+                {
+                    row.Set(Title(it), RowLine(it), Hidden(it) ? Loc.T("tag_hidden") : "", 0, null);
+                    Thumbnails.Get(VideoId(it), sprite => { if (row.Root) row.Set(Title(it), RowLine(it), Hidden(it) ? Loc.T("tag_hidden") : "", 0, sprite); });
+                }
                 _rows.Add(row);
             }
             _empty.text = _error ?? (_items.Count == 0 ? Loc.T("mod_nothing") : "");
@@ -296,6 +300,7 @@ namespace InvectorModKit.Marketplace.Ui
         private static string Author(Item i) => i.Chart?.Author ?? i.Reported.Author;
         private static string AuthorSteamId(Item i) => i.Chart?.AuthorSteamId ?? i.Reported.AuthorSteamId;
         private static string ChartId(Item i) => i.Chart?.Id ?? i.Reported.Id;
+        private static string VideoId(Item i) => i.Chart?.YoutubeId ?? i.Reported?.YoutubeId; // none from a server before covers
         private static bool Hidden(Item i) => i.Chart?.Hidden ?? i.Reported.Hidden;
         private static int Reports(Item i) => i.Reported?.Reports ?? i.Chart?.Reports ?? 0;
 
@@ -378,6 +383,7 @@ namespace InvectorModKit.Marketplace.Ui
                 if (Hidden(i)) lines.Add(Loc.T("hidden_admin_note"));
                 lines.Add((i.Chart != null ? Loc.Count("pub_installs", i.Chart.Downloads) + "  ·  " : "") + Loc.Count("pub_reports", Reports(i)));
                 _sheet.SetSong(Title(i), Artist(i), null, string.Join("\n", lines));
+                Thumbnails.Get(VideoId(i), sprite => { if (_selected == i) _sheet.SetCover(sprite); });
                 _reports.text = i.Reported == null ? "" : string.Join("\n", i.Reported.Details.Select(d => Loc.T("mod_report_line", Date(d.At), d.Name, d.Reason)));
             }
             RefreshSheet();
