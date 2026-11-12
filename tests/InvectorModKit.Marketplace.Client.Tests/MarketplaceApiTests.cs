@@ -31,6 +31,23 @@ public class MarketplaceApiTests
         """;
 
     [Fact]
+    public async Task Search_ReadsPreviewTime()
+    {
+        string withPreview = Summary.Replace("\"downloads\":7", "\"downloads\":7,\"preview\":61.5");
+        var http = new FakeTransport().Reply(200, $$"""{"items":[{{withPreview}}],"page":0,"more":false}""");
+        var page = await new MarketplaceApi("https://m.test/", http).SearchAsync("", ChartSort.Recent, 0);
+        Assert.Equal(61.5, page.Items[0].Preview);
+    }
+
+    [Fact]
+    public async Task Search_PreviewMissingIsNull()
+    {
+        var http = new FakeTransport().Reply(200, $$"""{"items":[{{Summary}}],"page":0,"more":false}""");
+        var page = await new MarketplaceApi("https://m.test/", http).SearchAsync("", ChartSort.Recent, 0);
+        Assert.Null(page.Items[0].Preview);
+    }
+
+    [Fact]
     public async Task Search_BuildsQueryAndParses()
     {
         var http = new FakeTransport().Reply(200, $$"""{"items":[{{Summary}}],"page":1,"more":true}""");

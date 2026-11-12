@@ -39,7 +39,7 @@ namespace InvectorModKit.Marketplace.Ui
                     submit = () =>
                     {
                         AudioModule.AudioProvider.Play(AudioShortcut.SFX_MENU_CONFIRM);
-                        MarketplaceModal.Open(MarketplacePlugin.Instance);
+                        MarketplaceScreen.Open(MarketplacePlugin.Instance);
                     },
                 };
             _menuItem.label = Loc.T("menu_label"); // follows the game's language
@@ -74,11 +74,11 @@ namespace InvectorModKit.Marketplace.Ui
                     submit = () =>
                     {
                         AudioModule.AudioProvider.Play(AudioShortcut.SFX_MENU_CONFIRM);
-                        MarketplaceModal.Open(MarketplacePlugin.Instance, modal =>
+                        MarketplaceScreen.Open(MarketplacePlugin.Instance, modal =>
                         {
                             if (Updates.State == Updates.Step.Ready) { modal.Status(Loc.T("update_ready")); return; }
                             modal.Confirm(Loc.T("update_confirm", Updates.Available.Version),
-                                () => MarketplacePlugin.Instance.StartCoroutine(Updates.Download(text => { if (MarketplaceModal.IsOpen) modal.Status(text); })));
+                                () => MarketplacePlugin.Instance.StartCoroutine(Updates.Download(text => { if (MarketplaceScreen.IsOpen) modal.Status(text); })));
                         });
                     },
                 };
@@ -128,7 +128,7 @@ namespace InvectorModKit.Marketplace.Ui
             if (icon && key) icon.sprite = key;
             else if (label) label.text = "[M]  " + Loc.T("title");
             var button = go.GetComponent<Button>();
-            if (button) button.onClick.AddListener(() => MarketplaceModal.Open(MarketplacePlugin.Instance));
+            if (button) button.onClick.AddListener(() => MarketplaceScreen.Open(MarketplacePlugin.Instance));
             // Our own size, from our content (the game's hints get theirs from InputIndicatorItem, which a copy lacks).
             float width = (icon && key ? 55 + 15 : 0) + (label ? label.preferredWidth : 200);
             ((RectTransform)go.transform).sizeDelta = new Vector2(width, 55);
@@ -149,9 +149,20 @@ namespace InvectorModKit.Marketplace.Ui
         [HarmonyPatch(typeof(StateSelectSongMultiplayer), nameof(StateSelectSongMultiplayer.Update)), HarmonyPrefix]
         private static bool SongSelectMultiUpdate(StateSelectSongMultiplayer __instance) => Pass(__instance);
 
+        // The ship selector reads "change ship" (R, or the controller's) in its own Update, outside the state's: it
+        // switched the ship behind the marketplace. The console menu layout reads Unity's input on its own the same way.
+        [HarmonyPatch(typeof(ShipSelector), "Update"), HarmonyPrefix]
+        private static bool ShipSelectorUpdate() => !Open;
+
+        [HarmonyPatch(typeof(MenuLayout), nameof(MenuLayout.Update)), HarmonyPrefix]
+        private static bool MenuLayoutUpdate() => !Open;
+
+        /// <summary>The marketplace is open: the menus underneath take no input.</summary>
+        private static bool Open => ScreenInput.Active || MarketplaceScreen.IsOpen;
+
         private static bool Pass(HelloThere.Applications.ApplicationState state)
         {
-            if (!MarketplaceModal.IsOpen) return true;
+            if (!Open) return true;
             // Same as ApplicationState.Update: the cursor shows while the mouse is the last device used.
             bool mouse = Rewired.ReInput.isReady && Rewired.ReInput.controllers.GetLastActiveControllerType() == Rewired.ControllerType.Mouse;
             if (Cursor.visible != mouse)

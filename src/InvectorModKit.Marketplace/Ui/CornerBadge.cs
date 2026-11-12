@@ -82,7 +82,7 @@ namespace InvectorModKit.Marketplace.Ui
         private void Update()
         {
             if (!_canvas) return;
-            bool show = ModKit.StatusCornerEnabled && !Playing() && !MarketplaceModal.IsOpen;
+            bool show = ModKit.StatusCornerEnabled && !Playing() && !MarketplaceScreen.IsOpen;
             if (_canvas.enabled != show) _canvas.enabled = show;
             if (!show) { _hovered = false; return; }
 

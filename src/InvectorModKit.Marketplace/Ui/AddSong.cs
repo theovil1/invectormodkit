@@ -30,7 +30,7 @@ namespace InvectorModKit.Marketplace.Ui
         {
             string videoId = IdOf(link);
             if (videoId == null) return;
-            MarketplaceModal.Close();
+            MarketplaceScreen.Close();
             var previous = GameUi.Selected; // the menu item the player will come back to
             var dialog = GameUi.DialogTemplate;
             var canvas = GameUi.StartMenu != null ? GameUi.StartMenu.transform.parent : null;
@@ -70,7 +70,7 @@ namespace InvectorModKit.Marketplace.Ui
             if (backdrop) backdrop.color = new Color(0, 0, 0, 0.94f);
             var box = (RectTransform)transform.Find("QuestionBox");
             GameUi.Place(box, 0, 0, 900, 320);
-            MarketplaceModal.AddFill(box);
+            MarketplaceScreen.AddFill(box);
             _status = GameUi.Find<Text>(box.gameObject, "Text");
             _status.alignment = TextAnchor.MiddleCenter;
             _status.resizeTextForBestFit = true;
@@ -91,7 +91,7 @@ namespace InvectorModKit.Marketplace.Ui
             if (no) Destroy(no.gameObject);
             _ok = GameUi.Find<ButtonWithEvents>(box.gameObject, "Answer Yes");
             GameUi.Place(_ok, 0, -80, 280, 74);
-            MarketplaceModal.StyleButton(_ok, Loc.T("ok"), 32, Close);
+            MarketplaceScreen.StyleButton(_ok, Loc.T("ok"), 32, Close);
             _ok.gameObject.SetActive(false);
             _navigationEvents = !EventSystem.current || EventSystem.current.sendNavigationEvents;
             TurnNavigation(false);

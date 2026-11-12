@@ -18,6 +18,10 @@ namespace InvectorModKit.CustomSongs
         /// <summary>Notes per difficulty (Casual, Normal, Hard, Ultra) of the chart being played; empty before it is ready.</summary>
         public int[] Notes = new int[0];
         public double Duration;
+        /// <summary>The excerpt song select plays (a wav of a few seconds from <see cref="PreviewStart"/>), null until made.</summary>
+        public string PreviewPath;
+        /// <summary>Where that excerpt starts in the song (seconds).</summary>
+        public double PreviewStart;
         /// <summary>Song-select cover (null until the song is listed).</summary>
         public UnityEngine.Sprite Cover;
         /// <summary>Charted and playable.</summary>
@@ -39,7 +43,12 @@ namespace InvectorModKit.CustomSongs
                 BoardPrefix = s.Level != null ? s.Level.highscoreTablePrefix : 0,
                 Notes = s.Chart == null ? new int[0] : System.Enum.GetValues(typeof(InvectorModKit.Charting.Difficulty)).Cast<InvectorModKit.Charting.Difficulty>().Select(d => s.Chart[d].Count).ToArray(),
                 Duration = s.Duration, Ready = s.State == SongState.Ready, Cover = s.Music != null ? s.Music.ArtistImage : null,
+                PreviewPath = s.PreviewPath != null && System.IO.File.Exists(s.PreviewPath) ? s.PreviewPath : null,
+                PreviewStart = s.Chart != null ? s.Chart.PreviewStart : 0,
             }).ToList();
+
+        /// <summary>The mixer group the game's song previews play through, so the marketplace's excerpts follow the music volume; null until resolved.</summary>
+        public static UnityEngine.Audio.AudioMixerGroup PreviewMixerGroup => GameAssets.PreviewGroup;
 
         /// <summary>
         /// After a download: checks the songs already on disk against the charts waiting for their audio, in

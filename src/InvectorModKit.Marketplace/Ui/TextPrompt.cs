@@ -20,16 +20,17 @@ namespace InvectorModKit.Marketplace.Ui
 
         public bool Visible => _root.activeSelf;
 
-        public TextPrompt(MarketplaceModal modal)
+        public TextPrompt(MarketplaceScreen modal)
         {
             _root = GameUi.Clone(GameUi.DialogTemplate, modal.transform, "Prompt", stillImage: true);
+            UiKit.Fill((RectTransform)_root.transform); // its dark backdrop over the whole screen
             var group = _root.GetComponent<CanvasGroup>();
             if (group) { group.alpha = 1; group.interactable = true; group.blocksRaycasts = true; }
             var backdrop = GameUi.Find<Image>(_root, "Background");
             if (backdrop) backdrop.color = new Color(0, 0, 0, 0.8f);
             var box = (RectTransform)_root.transform.Find("QuestionBox");
             GameUi.Place(box, 0, 0, 1040, 440);
-            MarketplaceModal.AddFill(box);
+            MarketplaceScreen.AddFill(box);
 
             _question = GameUi.Find<Text>(box.gameObject, "Text");
             _question.alignment = TextAnchor.MiddleCenter;
@@ -55,8 +56,8 @@ namespace InvectorModKit.Marketplace.Ui
             var cancel = GameUi.Find<ButtonWithEvents>(box.gameObject, "Answer No");
             GameUi.Place(_ok, -165, -130, 300, 84);
             GameUi.Place(cancel, 165, -130, 300, 84);
-            MarketplaceModal.StyleButton(_ok, Loc.T("ok"), 34, Submit);
-            MarketplaceModal.StyleButton(cancel, Loc.T("cancel"), 34, Close);
+            MarketplaceScreen.StyleButton(_ok, Loc.T("ok"), 34, Submit);
+            MarketplaceScreen.StyleButton(cancel, Loc.T("cancel"), 34, Close);
             _ok.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnRight = cancel };
             cancel.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = _ok };
             _root.SetActive(false);

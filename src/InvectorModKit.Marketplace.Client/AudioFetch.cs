@@ -38,9 +38,46 @@ namespace InvectorModKit.Marketplace.Client
         /// </summary>
         public static string BuildArgs(string youtubeId, string outputWithoutExtension, string ffmpegLocation) => Arguments(new[]
         {
-            "-x", "--audio-format", "vorbis", "--no-playlist", "--no-mtime",
+            "-x", "--audio-format", "vorbis", "--no-playlist", "--no-mtime", "--newline",
             "--ffmpeg-location", ffmpegLocation, "-o", outputWithoutExtension, "https://youtu.be/" + youtubeId,
         });
+
+        private static readonly System.Text.RegularExpressions.Regex Percent =
+            new System.Text.RegularExpressions.Regex(@"^\[download\]\s+(\d+(?:\.\d+)?)%");
+
+        /// <summary>
+        /// Why yt-dlp failed, as a Loc key the player understands (the video is gone or blocked, no internet, the
+        /// mod's audio tools are missing), or null when its output says nothing known.
+        /// </summary>
+        public static string ReasonOf(string output)
+        {
+            string o = (output ?? "").ToLowerInvariant();
+            if (o.Contains("ffmpeg not found") || o.Contains("ffprobe and ffmpeg not found")) return "reason_tools_missing";
+            if (o.Contains("in your country") || o.Contains("geo restrict") || o.Contains("geo-restrict")) return "reason_video_blocked";
+            if (o.Contains("video unavailable") || o.Contains("private video") || o.Contains("has been removed") || o.Contains("not available")) return "reason_video_gone";
+            if (o.Contains("getaddrinfo") || o.Contains("urlopen error") || o.Contains("failed to resolve") || o.Contains("timed out") || o.Contains("unable to download")) return "reason_no_internet";
+            return null;
+        }
+
+        /// <summary>yt-dlp's progress on one output line ("[download]  42.3% of …"), 0..1, or null for any other line.</summary>
+        public static double? ProgressOf(string line)
+        {
+            var m = Percent.Match(line ?? "");
+            return m.Success ? double.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) / 100 : (double?)null;
+        }
+
+        /// <summary>
+        /// The yt-dlp command to get only <paramref name="start"/> to <paramref name="end"/> seconds of the video as an ogg:
+        /// a chart's excerpt, a few seconds to fetch instead of the whole song.
+        /// </summary>
+        public static string BuildSectionArgs(string youtubeId, string outputWithoutExtension, string ffmpegLocation, double start, double end) => Arguments(new[]
+        {
+            "-x", "--audio-format", "vorbis", "--no-playlist", "--no-mtime", "--newline",
+            "--download-sections", "*" + Seconds(start) + "-" + Seconds(end),
+            "--ffmpeg-location", ffmpegLocation, "-o", outputWithoutExtension, "https://youtu.be/" + youtubeId,
+        });
+
+        private static string Seconds(double s) => s.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
 
         /// <summary>One command line with paths quoted the way the process creator expects.</summary>
         public static string Arguments(string[] args) => string.Join(" ", args.Select(Quote));
@@ -79,7 +116,8 @@ namespace InvectorModKit.Marketplace.Client
         }
 
         /// <summary>Runs yt-dlp (which calls ffmpeg), feeding its last lines as progress (yt-dlp's own progress bars).</summary>
-        public static void Download(string ytDlpPath, string argsLine, Action<string> log = null)
+        /// <param name="line">Each output line as it comes (progress), from another thread.</param>
+        public static void Download(string ytDlpPath, string argsLine, Action<string> log = null, Action<string> line = null)
         {
             using var process = new Process
             {
@@ -95,7 +133,12 @@ namespace InvectorModKit.Marketplace.Client
             };
             object gate = new object();
             string tail = "";
-            DataReceivedEventHandler collect = (_, e) => { if (e.Data != null) lock (gate) tail = tail + e.Data + "\n"; };
+            DataReceivedEventHandler collect = (_, e) =>
+            {
+                if (e.Data == null) return;
+                lock (gate) tail = tail + e.Data + "\n";
+                try { line?.Invoke(e.Data); } catch { }
+            };
             process.OutputDataReceived += collect;
             process.ErrorDataReceived += collect;
             Log(log, ytDlpPath + " " + argsLine);
@@ -109,8 +152,10 @@ namespace InvectorModKit.Marketplace.Client
             }
             if (process.ExitCode != 0)
             {
-                lock (gate) Log(log, tail.Length > 600 ? "…" + tail.Substring(tail.Length - 600) : tail);
-                throw new AudioFetchException($"yt-dlp failed (exit {process.ExitCode})");
+                string output;
+                lock (gate) output = tail;
+                Log(log, output.Length > 600 ? "…" + output.Substring(output.Length - 600) : output);
+                throw new AudioFetchException($"yt-dlp failed (exit {process.ExitCode})") { Reason = ReasonOf(output) };
             }
         }
 
@@ -174,5 +219,8 @@ namespace InvectorModKit.Marketplace.Client
     public sealed class AudioFetchException : Exception
     {
         public AudioFetchException(string message) : base(message) { }
+
+        /// <summary>A Loc key saying why in plain words (<see cref="AudioFetch.ReasonOf"/>), or null.</summary>
+        public string Reason { get; set; }
     }
 }

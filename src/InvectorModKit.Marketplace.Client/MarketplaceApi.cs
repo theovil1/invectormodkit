@@ -216,6 +216,7 @@ namespace InvectorModKit.Marketplace.Client
                 UpdatedAt = (long?)o["updatedAt"] ?? 0,
                 Downloads = (int?)o["downloads"] ?? 0,
                 Hidden = (bool?)o["hidden"] ?? false,
+                Preview = (double?)o["preview"],
             };
         }
     }
