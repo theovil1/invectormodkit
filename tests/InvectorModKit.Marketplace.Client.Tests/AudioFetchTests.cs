@@ -58,6 +58,17 @@ public class AudioFetchTests : IDisposable
     }
 
     [Fact]
+    public void Reason_SaysWhyInPlainWords()
+    {
+        Assert.Equal("reason_video_gone", AudioFetch.ReasonOf("ERROR: [youtube] abc: Video unavailable. This video has been removed by the uploader"));
+        Assert.Equal("reason_video_gone", AudioFetch.ReasonOf("ERROR: [youtube] abc: Private video. Sign in if you've been granted access"));
+        Assert.Equal("reason_video_blocked", AudioFetch.ReasonOf("ERROR: [youtube] abc: The uploader has not made this video available in your country"));
+        Assert.Equal("reason_no_internet", AudioFetch.ReasonOf("ERROR: [youtube] abc: Unable to download API page: <urlopen error [Errno 11001] getaddrinfo failed>"));
+        Assert.Equal("reason_tools_missing", AudioFetch.ReasonOf("ERROR: Postprocessing: ffprobe and ffmpeg not found. Please install or provide the path"));
+        Assert.Null(AudioFetch.ReasonOf("ERROR: something new"));
+    }
+
+    [Fact]
     public void Args_PrintProgressOnNewLines()
     {
         Assert.Contains("--newline", AudioFetch.BuildArgs("id", "out", "tools"));

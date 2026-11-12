@@ -618,7 +618,7 @@ namespace InvectorModKit.Marketplace.Ui
             catch (Exception e)
             {
                 MarketplacePlugin.Log.LogError("Audio fetch failed: " + e);
-                _errors[c.Id] = e.GetBaseException().Message;
+                _errors[c.Id] = e.GetBaseException() is AudioFetchException f && f.Reason != null ? Loc.T(f.Reason) : Loc.T("reason_unknown");
             }
             finally
             {
