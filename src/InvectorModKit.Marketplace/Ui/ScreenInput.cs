@@ -50,6 +50,9 @@ namespace InvectorModKit.Marketplace.Ui
                 Ok = enter;
                 Back = escape;
                 Typed = Input.inputString ?? "";
+                bool control = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+                if (control && Input.GetKeyDown(KeyCode.V))
+                    Typed += (GUIUtility.systemCopyBuffer ?? "").Replace("\r", "").Replace("\n", "").Trim();
                 return;
             }
             bool pad = UsingController();
