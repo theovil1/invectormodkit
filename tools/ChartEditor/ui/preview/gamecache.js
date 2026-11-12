@@ -176,7 +176,7 @@ export async function loadGameCache(renderer, base = "/game/") {
         g.add(mesh);
       }
     }
-    if (sprite && sprite.fields.m_Enabled !== 0 && sprite.fields.m_Sprite) {
+    if (sprite && sprite.fields.m_Enabled !== 0 && sprite.fields.m_Sprite && opts.sprites && opts.sprites(node.name)) {
       const mesh = await spritePlane(sprite.fields, opts);
       mesh.name = node.name + ":sprite";
       g.add(mesh);
@@ -186,7 +186,7 @@ export async function loadGameCache(renderer, base = "/game/") {
   }
 
   const templates = new Map();
-  /** A copy of a prefab, built once per set of options: { glow, tint, hide(name) }. */
+  /** A copy of a prefab, built once per set of options: { key, glow, tint, hide(name), sprites(name) } (sprites: which sprite renderers to draw). */
   async function prefab(name, opts = {}) {
     const key = name + "|" + (opts.key || "");
     if (!templates.has(key)) {

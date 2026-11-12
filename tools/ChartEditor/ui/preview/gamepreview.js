@@ -9,6 +9,7 @@ import { prepareRun } from "./run.js";
 import { prepareShip } from "./ship.js";
 import { cameraPose } from "./camera.js";
 import { createTrack } from "./track.js";
+import { createNotes } from "./notes.js";
 
 const WORLD = "void"; // fixed until the preview settings (part 3)
 const SHIP_SCALE = 2.1; // the ship prefab's mount (x1.4) inside the walker's ShipCoaster (x1.5): the prototype's measure
@@ -67,6 +68,9 @@ export class GamePreview {
     this.scene.add(this.shipMount);
     this.track = await createTrack(this.cache, this.rig, this.path, this.level);
     this.scene.add(this.track.root);
+    this.notes = await createNotes(this.cache, this.rig);
+    this.notes.setSelection(this.isSelected);
+    this.scene.add(this.notes.root);
     window.gamePreview = this; // the console's view of the stats and options
   }
 
@@ -86,7 +90,10 @@ export class GamePreview {
     if (this.doc) this.setChart(this.doc, this.diff);
   }
 
-  setSelection(isSelected) { this.isSelected = isSelected; }
+  setSelection(isSelected) {
+    this.isSelected = isSelected;
+    if (this.notes) this.notes.setSelection(isSelected);
+  }
 
   resize(width, height) {
     this.renderer.setSize(width, height, false);
@@ -106,6 +113,7 @@ export class GamePreview {
       this.shipMount.position.set(...w.pos);
       this.shipMount.quaternion.set(...w.q);
       this.track.update(t);
+      this.notes.update(this.run, this.shipCtl, this.path, t);
     }
     this.renderer.render(this.scene, this.camera);
     this.stats.frameMs = performance.now() - t0;

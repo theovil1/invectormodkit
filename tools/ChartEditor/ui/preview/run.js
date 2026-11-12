@@ -90,6 +90,7 @@ export function prepareRun(doc, diff, rig, { tier = null } = {}) {
   const sectionIndex = (t) => sectionIndexAt(doc, t);
 
   return {
+    doc,
     notes,
     levels,
     sections,
