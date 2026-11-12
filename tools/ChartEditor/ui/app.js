@@ -660,7 +660,8 @@ class App {
     if (!this.editor) return;
     const doc = this.editor.doc;
     const beat = (time - doc.firstBeat) / m.secondsPerBeat(doc);
-    $("status-info").textContent = `${fmt(time)} · ${t("beat")} ${(Math.floor(beat / 4) + 1)}.${(((Math.floor(beat) % 4) + 4) % 4) + 1} · ${t("mode" + m.modeAt(doc, Math.max(0, time)))}`;
+    const hint = h && h.note && h.note.strum && !(h.note.len > 0) ? ` · ${t("holdHint")}` : "";
+    $("status-info").textContent = `${fmt(time)} · ${t("beat")} ${(Math.floor(beat / 4) + 1)}.${(((Math.floor(beat) % 4) + 4) % 4) + 1} · ${t("mode" + m.modeAt(doc, Math.max(0, time)))}${hint}`;
   }
 
   // ----- menus and dialogs
