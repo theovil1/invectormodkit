@@ -46,7 +46,7 @@ jobs:
           node-version: 20
       - name: Level editor tests
         working-directory: tools/ChartEditor/ui
-        run: node --test tests/model.test.js tests/i18n.test.js
+        run: node --test
 
   pr-title:
     name: pr-title
