@@ -224,6 +224,12 @@ namespace InvectorModKit.Marketplace.Ui
                 // The same song, read again (pinned, published, its chart regenerated): the sheet follows.
                 _selected = _entries[again];
                 if (_selected.Song != null) _sheet.SetInfo(Info(_selected.Song));
+                else
+                {
+                    var d = _selected.Download; // its video's title is known once yt-dlp has read it
+                    _sheet.SetSong(d.Title, "YouTube", null, d.Link);
+                    Thumbnails.Get(d.VideoId, sprite => { if (_selected?.Download == d) _sheet.SetCover(sprite); });
+                }
                 RefreshSheet();
             }
             else _selected = null;
@@ -325,9 +331,10 @@ namespace InvectorModKit.Marketplace.Ui
                 _sheet.SetSong(s.Title, s.Artist, s.Cover, Info(s));
                 if (CanPublish(s))
                 {
-                    _link = MarketplacePlugin.Session.PublishedLink(s.Id) ?? YoutubeLink.Normalize(GUIUtility.systemCopyBuffer) ?? "";
+                    _link = MarketplacePlugin.Session.PublishedLink(s.Id) ?? "";
                     _checkedId = null;
                     UpdateCheck();
+                    OfferClipboardLink(s);
                 }
             }
             else
@@ -336,6 +343,25 @@ namespace InvectorModKit.Marketplace.Ui
                 Thumbnails.Get(e.Download.VideoId, sprite => { if (_selected == e) _sheet.SetCover(sprite); });
             }
             RefreshSheet();
+        }
+
+        /// <summary>
+        /// A YouTube link on the clipboard fills the empty field only once its video turns out to be this song (a link
+        /// copied for another song must never sit ready behind PUBLISH).
+        /// </summary>
+        private void OfferClipboardLink(LocalSong s)
+        {
+            if (_link.Length > 0) return;
+            string guess = YoutubeLink.Normalize(GUIUtility.systemCopyBuffer);
+            if (guess == null) return;
+            VideoInfo.Get(guess.Substring(guess.IndexOf("v=", StringComparison.Ordinal) + 2), (title, channel) =>
+            {
+                if (!_root || _selected?.Song != s || _link.Length > 0 || _typing || !LinkGuess.IsThisSong(s.Title, title)) return;
+                _link = guess;
+                UpdateLinkField();
+                UpdateCheck();
+                RefreshSheet();
+            });
         }
 
         private static string Info(LocalSong s)
