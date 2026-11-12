@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -21,6 +22,8 @@ namespace InvectorModKit.Marketplace.Ui
     {
         private readonly MonoBehaviour _host;
         private readonly string _dir = Path.Combine(Paths.CachePath, "InvectorModKit", "previews");
+        /// <summary>Videos being fetched, by any screen opened since the game started (a closed screen's fetch goes on).</summary>
+        private static readonly HashSet<string> Running = new HashSet<string>();
         private string _wanted;
         private bool _fetching;
         private Request _next;
@@ -86,6 +89,7 @@ namespace InvectorModKit.Marketplace.Ui
         private async void Fetch(ChartSummary c, ExcerptWindow window, string file, Action<AudioClip, double, double> ready, Action failed)
         {
             _fetching = true;
+            Running.Add(c.YoutubeId);
             try
             {
                 var (ytDlp, ffmpegDir) = AudioFetch.Resolve(MarketplacePlugin.SharedDir);
@@ -95,7 +99,7 @@ namespace InvectorModKit.Marketplace.Ui
                     return;
                 }
                 Directory.CreateDirectory(_dir);
-                string tmpBase = Path.Combine(_dir, "fetch-" + c.YoutubeId);
+                string tmpBase = Path.Combine(_dir, "fetch-" + c.YoutubeId + "-" + Guid.NewGuid().ToString("N").Substring(0, 8)); // its own, if another screen fetches it too
                 string args = AudioFetch.BuildSectionArgs(c.YoutubeId, tmpBase, ffmpegDir, window.Start, window.End);
                 await Task.Run(() => AudioFetch.Download(ytDlp, args));
                 string produced = tmpBase + ".ogg";
@@ -112,6 +116,7 @@ namespace InvectorModKit.Marketplace.Ui
             finally
             {
                 _fetching = false;
+                Running.Remove(c.YoutubeId);
                 var next = _next;
                 _next = null;
                 if (next != null && _host && next.Chart.Id == _wanted) Get(next.Chart, next.Ready, next.Failed);
@@ -152,7 +157,8 @@ namespace InvectorModKit.Marketplace.Ui
             try
             {
                 if (!Directory.Exists(_dir)) return;
-                foreach (var partial in Directory.GetFiles(_dir, "fetch-*")) File.Delete(partial);
+                foreach (var partial in Directory.GetFiles(_dir, "fetch-*"))
+                    if (ExcerptCache.IsLeftover(Path.GetFileName(partial), Running)) File.Delete(partial);
                 var files = new DirectoryInfo(_dir).GetFiles("*.ogg")
                     .Select(f => new CachedFile { Path = f.FullName, Bytes = f.Length, LastUsed = f.LastWriteTimeUtc });
                 foreach (var path in ExcerptCache.ToDelete(files, DateTime.UtcNow)) File.Delete(path);

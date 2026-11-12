@@ -26,6 +26,13 @@ namespace InvectorModKit.Marketplace.Client
         public static string FileName(string youtubeId, double start) =>
             youtubeId + "-" + Math.Round(start, 1).ToString("0.0", CultureInfo.InvariantCulture) + ".ogg";
 
+        /// <summary>
+        /// A file left by a fetch that did not finish ("fetch-&lt;youtube id&gt;..."), unless that video is being fetched now
+        /// (closing and opening the screen again must not delete a running fetch's file).
+        /// </summary>
+        public static bool IsLeftover(string fileName, IEnumerable<string> fetching) =>
+            fileName.StartsWith("fetch-", StringComparison.Ordinal) && !fetching.Any(id => fileName.StartsWith("fetch-" + id, StringComparison.Ordinal));
+
         /// <summary>The files to delete: too old, then the oldest until the rest fits in <see cref="MaxBytes"/>.</summary>
         public static List<string> ToDelete(IEnumerable<CachedFile> files, DateTime now)
         {
