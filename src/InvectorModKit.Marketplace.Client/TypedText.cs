@@ -31,7 +31,10 @@ namespace InvectorModKit.Marketplace.Client
             return changed;
         }
 
-        /// <summary>The field while typing: the text and the caret, the text in the accent colour while it is selected.</summary>
-        public static string Show(string text, bool selected) => (selected ? "<color=#E9B8FF>" + text + "</color>" : text) + "▌";
+        /// <summary>
+        /// The field while typing: the text and the caret; selected, the text in bold and the accent colour (the game
+        /// tints an active field's label black, which hides the colour but not the bold).
+        /// </summary>
+        public static string Show(string text, bool selected) => (selected ? "<b><color=#E9B8FF>" + text + "</color></b>" : text) + "▌";
     }
 }

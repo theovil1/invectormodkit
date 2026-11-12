@@ -38,6 +38,6 @@ public class TypedTextTests
     public void Typed_ShowsTheSelection()
     {
         Assert.Equal("kyiv▌", TypedText.Show("kyiv", false));
-        Assert.Equal("<color=#E9B8FF>kyiv</color>▌", TypedText.Show("kyiv", true));
+        Assert.Equal("<b><color=#E9B8FF>kyiv</color></b>▌", TypedText.Show("kyiv", true));
     }
 }
