@@ -82,7 +82,7 @@ test("a dense moment is cheap", { skip: !HAS_CACHE }, () => {
     specs.push(particleSpec(ps.fields, r.fields, r.fields.m_Materials[0]));
   }
   const times = [];
-  for (let k = 0; k < 8; k++) {
+  for (let k = 0; k < 20; k++) {
     const t0 = performance.now();
     let n = 0;
     for (let p = 0; p < 10; p++) for (const s of specs) emit(s, identity, 0.3, p * 10 + 1, () => n++);
@@ -105,4 +105,12 @@ test("the renderer's mode tells point sprites from mesh particles", { skip: !HAS
   assert.equal(spec(node("objects/Pickup_StrumHold_Start__Bounce_OPTIMIZED.json", "StrumpickupEffect")).mode, "mesh");
   assert.equal(spec(node("objects/Pickup_Strum__List_OPTIMIZED.json", "StrumPickup Effects")).mode, "mesh");
   assert.equal(spec(node("objects/Pickup_Strum__List_OPTIMIZED.json", "LineBokehParticles")).mode, "points");
+  // a mesh particle names its mesh; sprites have none
+  assert.equal(spec(node("objects/Pickup_Strum__List_OPTIMIZED.json", "StrumPickup Effects")).mesh, "assets_shared--8301003112650422039");
+  assert.equal(spec(node("objects/Pickup_Strum__List_OPTIMIZED.json", "LineBokehParticles")).mesh, null);
+  // the strum flash's mesh starts turned -90 degrees about x (3D start rotation, radians, Unity axes)
+  const flash = spec(node("objects/Pickup_StrumHold_Start__Bounce_OPTIMIZED.json", "StrumpickupEffect"));
+  near(flash.rot3d[0], -Math.PI / 2, 1e-5, "x");
+  near(flash.rot3d[1], 0, 1e-9, "y");
+  near(flash.rot3d[2], 0, 1e-9, "z");
 });

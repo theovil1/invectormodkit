@@ -88,6 +88,9 @@ export function particleSpec(system, renderer, material) {
     maxSize: (renderer && renderer.m_MaxParticleSize) || 0.5,
     // how the renderer draws each particle: a camera-facing sprite (billboards, stretched or not) or a mesh
     mode: renderer && renderer.m_RenderMode === 4 ? "mesh" : "points",
+    mesh: renderer && renderer.m_RenderMode === 4 && renderer.m_Mesh && renderer.m_Mesh.ref ? renderer.m_Mesh.ref : null,
+    // the start rotation (radians, Unity axes), per axis when the system sets it in 3D (a mesh particle's turn)
+    rot3d: I.rotation3D ? [range(I.startRotationX)[0], range(I.startRotationY)[0], range(I.startRotation)[0]] : [0, 0, range(I.startRotation)[0]],
     mat: particleMaterial(material),
   };
 }

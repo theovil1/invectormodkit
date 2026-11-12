@@ -16,9 +16,12 @@ const PICKUPS = { left: "XBOX Pickup Left X OPTIMIZED", right: "XBOX Pickup Righ
 const STRUMS = { strumList: "Pickup Strum, List OPTIMIZED", strumBounce: "Pickup Strum, Bounce OPTIMIZED", holdList: "Pickup StrumHold Start, List OPTIMIZED", holdBounce: "Pickup StrumHold Start, Bounce OPTIMIZED" };
 // the systems a taken note plays: an arrow's flash, swirl, multiplier and glow, a turn's flash, swirl and glow (as
 // the prototype read the game, the flash and glow drawn as sprites); a strum's lines of sparks, its systems drawn as
-// sprites (named LineBokehParticles in the tunnel, StrumPickup Effects on the road; its mesh flashes are left out)
+// sprites (named LineBokehParticles in the tunnel, StrumPickup Effects on the road), and its flashes, glowing bars
+// drawn as mesh particles
 const PICKUP_SYSTEMS = (node) => /^(Pickup Effects|TurnPickup Effects|Swirly Particles|Multiplier Particles|Extra Glow)$/.test(node.name);
 const STRUM_SYSTEMS = (node, spec) => spec.mode === "points";
+const STRUM_FLASHES = (node, spec) => spec.mode === "mesh" && !!spec.mesh;
+const FLASH_CAPACITY = 32; // mesh particles of one kind alive at once (a strum flash lives 0.5 s)
 const UQ = (x, y, z, w) => [-x, -y, z, w]; // a Unity quaternion in three's axes
 const TILT = UQ(-0.2588, 0, 0, 0.9659); // the walker's particle levels lean 30 degrees (FollowLocalRotation)
 const FLAT = UQ(-0.7071, 0, 0, 0.7071); // the landing burst lies flat
@@ -104,16 +107,19 @@ export async function createEffects(cache, rig, level) {
    * root's position left out as the preview places prefabs), and its colour, scale and halo. Systems switched off at
    * rest count too: the game switches them on when the note is taken.
    */
-  function effectsOf(name, systems) {
+  function effectsOf(name, systems, meshes = () => false) {
     const json = cache.object(name);
-    if (!json) return { systems: [], color: [1, 1, 1], scale: 1, halo: null };
-    const list = [];
+    if (!json) return { systems: [], flashes: [], color: [1, 1, 1], scale: 1, halo: null };
+    const list = [], flashes = [];
     const local = (n) => ({ p: [n.position[0], n.position[1], -n.position[2]], q: UQ(...n.rotation), s: n.scale[0] });
     const visit = (node, parent) => {
       const l = local(node), r = qrotate(parent.q, l.p);
       const w = { p: [0, 1, 2].map((i) => parent.p[i] + parent.s * r[i]), q: qmul(parent.q, l.q), s: parent.s * l.s };
       const spec = specOf(node);
       if (spec && systems(node, spec)) list.push({ spec, p: w.p, q: w.q, scale: w.s });
+      // a mesh particle is drawn in its emitter's space (alignment Local), so it also takes the emitter's uneven
+      // scale; the even part already scales its size (sizeScale)
+      else if (spec && meshes(node, spec)) flashes.push({ spec, p: w.p, q: w.q, scale: w.s, s3: node.scale.map((v) => (node.scale[0] ? v / node.scale[0] : 1)) });
       for (const c of node.children) visit(c, w);
     };
     const rootT = { ...local(json.root), p: [0, 0, 0] };
@@ -121,11 +127,11 @@ export async function createEffects(cache, rig, level) {
     const pickup = json.root.components.find((c) => c.class === "Pickup");
     const color = pickup ? [pickup.fields.color.r, pickup.fields.color.g, pickup.fields.color.b] : [0.929, 0.738, 0];
     const halo = json.root.components.some((c) => c.class === "PickupStatesPickup") ? haloLevels(json.root) : null;
-    return { systems: list, color, scale: rootT.s, halo };
+    return { systems: list, flashes, color, scale: rootT.s, halo };
   }
   const pickupFx = {}, strumFx = {};
   for (const [k, n] of Object.entries(PICKUPS)) pickupFx[k] = effectsOf(n, PICKUP_SYSTEMS);
-  for (const [k, n] of Object.entries(STRUMS)) strumFx[k] = effectsOf(n, STRUM_SYSTEMS);
+  for (const [k, n] of Object.entries(STRUMS)) strumFx[k] = effectsOf(n, STRUM_SYSTEMS, STRUM_FLASHES);
 
   // textures of every particle system, one Points draw per texture
   const allSpecs = [...shipBurst, ...strumBurst, landBurst, ...Object.values(pickupFx).flatMap((f) => f.systems.map((s) => s.spec)), ...Object.values(strumFx).flatMap((f) => f.systems.map((s) => s.spec))].filter(Boolean);
@@ -139,6 +145,38 @@ export async function createEffects(cache, rig, level) {
     root.add(obj);
     points.set(ref, { buffers, material });
   }
+
+  // mesh particles (the strums' flashes): one instanced mesh per mesh and texture. Their material (Sonic Ether
+  // AdditiveAlwaysRender) draws over everything; alignment Local turns the mesh with its emitter.
+  const flashSets = new Map(), cacheGeometries = new Set();
+  for (const sys of Object.values(strumFx).flatMap((f) => f.flashes)) {
+    const key = sys.spec.mesh + "|" + sys.spec.mat.tex;
+    if (flashSets.has(key)) continue;
+    const geometry = await cache.geometry(sys.spec.mesh);
+    if (!geometry) continue;
+    cacheGeometries.add(geometry);
+    const mesh = new THREE.InstancedMesh(geometry, new THREE.MeshBasicMaterial({ map: sys.spec.mat.tex ? await cache.texture(sys.spec.mat.tex) : null, transparent: true, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }), FLASH_CAPACITY);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mesh.setColorAt(0, new THREE.Color(0, 0, 0)); // makes the instance colour buffer
+    mesh.count = 0;
+    mesh.frustumCulled = false;
+    root.add(mesh);
+    flashSets.set(key, mesh);
+  }
+  const flashMatrix = new THREE.Matrix4(), particleMatrix = new THREE.Matrix4(), flashPos = new THREE.Vector3(), flashQ = new THREE.Quaternion(), flashScale = new THREE.Vector3(), flashColor = new THREE.Color();
+  const zero = new THREE.Vector3();
+  /** A particle's 3D start rotation (Unity Euler radians, applied z, x, then y) in three's axes. */
+  const startTurn = ([x, y, z]) => UQ(...qmul(qmul([0, Math.sin(y / 2), 0, Math.cos(y / 2)], [Math.sin(x / 2), 0, 0, Math.cos(x / 2)]), [0, 0, Math.sin(z / 2), Math.cos(z / 2)]));
+  /** An emit() output that adds mesh particles in their emitter's space (turned `q`, scaled `s3`), with their own turn. */
+  const meshOut = (key, q, s3, turn) => (tex, p, c, size) => {
+    const mesh = flashSets.get(key);
+    if (!mesh || mesh.count >= FLASH_CAPACITY) return;
+    flashMatrix.compose(flashPos.set(p[0], p[1], p[2]), flashQ.set(q[0], q[1], q[2], q[3]), flashScale.set(s3[0], s3[1], s3[2]));
+    particleMatrix.compose(zero, flashQ.set(turn[0], turn[1], turn[2], turn[3]), flashScale.set(size, size, size));
+    mesh.setMatrixAt(mesh.count, flashMatrix.multiply(particleMatrix));
+    mesh.setColorAt(mesh.count, flashColor.setRGB(c[0], c[1], c[2]));
+    mesh.count++;
+  };
 
   // trails: attach points on the ship model (under its OldRoot), ribbons per texture
   const shipJson = cache.object("Ship Beginner"), shipRoot = shipJson ? shipJson.root : null;
@@ -205,6 +243,7 @@ export async function createEffects(cache, rig, level) {
     update(run, ship, path, camera, renderer, t) {
       for (const p of points.values()) p.buffers.reset();
       for (const r of ribbons.values()) r.reset();
+      for (const m of flashSets.values()) m.count = 0;
       holdBuffers.reset();
       const height = renderer.getDrawingBufferSize(drawSize).y;
       const out = (tex, p, c, size, maxSize) => { const set = points.get(tex); if (set) set.buffers.push(p, c, size, maxSize * height); };
@@ -236,6 +275,7 @@ export async function createEffects(cache, rig, level) {
           const fx = strumFx[(n.len > 0 ? "hold" : "strum") + (n.mode === "List" ? "List" : "Bounce")];
           const base = { o: nf.p, q: frameQ(nf) };
           fx.systems.forEach((sys, i) => emit(sys.spec, compose(base, sys), age, seed + 31 * i, out));
+          fx.flashes.forEach((sys, i) => { const f = compose(base, sys); emit(sys.spec, f, age, seed + 61 * i, meshOut(sys.spec.mesh + "|" + sys.spec.mat.tex, f.q, sys.s3, startTurn(sys.spec.rot3d))); });
           continue;
         }
         const key = keyOf(n), col = key.startsWith("turn") ? "turn" : key;
@@ -327,11 +367,12 @@ export async function createEffects(cache, rig, level) {
       const projScale = height / (2 * Math.tan((camera.fov * Math.PI) / 360));
       for (const p of points.values()) { p.material.uniforms.projScale.value = projScale; p.buffers.commit(); }
       for (const r of ribbons.values()) r.commit();
+      for (const m of flashSets.values()) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
       holdBuffers.commit();
     },
     dispose() {
       root.traverse((o) => {
-        if (o.geometry && o.geometry !== haloGeo) o.geometry.dispose();
+        if (o.geometry && o.geometry !== haloGeo && !cacheGeometries.has(o.geometry)) o.geometry.dispose(); // the flash meshes are the cache's
         if (o.material) o.material.dispose(); // not their textures: the cache's
       });
       for (const m of haloMats.values()) { if (m.map) m.map.dispose(); m.dispose(); } // the halo maps are copies
