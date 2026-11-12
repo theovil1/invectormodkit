@@ -49,6 +49,22 @@ public class AudioFetchTests : IDisposable
     }
 
     [Fact]
+    public void Progress_ReadsYtDlpPercent()
+    {
+        Assert.Equal(0.423, AudioFetch.ProgressOf("[download]  42.3% of    3.10MiB at  1.20MiB/s ETA 00:02")!.Value, 3);
+        Assert.Equal(1.0, AudioFetch.ProgressOf("[download] 100% of    3.10MiB in 00:00:02")!.Value, 3);
+        Assert.Null(AudioFetch.ProgressOf("[ExtractAudio] Destination: x.ogg"));
+        Assert.Null(AudioFetch.ProgressOf(null));
+    }
+
+    [Fact]
+    public void Args_PrintProgressOnNewLines()
+    {
+        Assert.Contains("--newline", AudioFetch.BuildArgs("id", "out", "tools"));
+        Assert.Contains("--newline", AudioFetch.BuildSectionArgs("id", "out", "tools", 1, 21));
+    }
+
+    [Fact]
     public void MoveFileIntoSongsFolder()
     {
         Directory.CreateDirectory(_dir);

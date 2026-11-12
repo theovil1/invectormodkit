@@ -12,6 +12,8 @@ namespace InvectorModKit.Marketplace.Client
         /// <summary>The chart is downloaded and waits for its music.</summary>
         public bool Downloaded;
         public bool Downloading, Fetching;
+        /// <summary>The music is on disk and the game is still preparing the song (matching it with the chart).</summary>
+        public bool Matching;
         /// <summary>The player's copy of the song is another version than the author's.</summary>
         public bool OtherVersion;
         /// <summary>0..1 of the current step.</summary>
@@ -42,6 +44,7 @@ namespace InvectorModKit.Marketplace.Client
             if (f.Mine) return Make(MainKind.Mine, false, "main_mine", null);
             if (f.Downloading) return Installing(f, "main_step_chart");
             if (f.Fetching) return Installing(f, "main_step_music");
+            if (f.Matching && !f.Installed) return Installing(f, "main_step_prepare");
             if (f.Installed)
                 return f.LatestVersion > f.InstalledVersion
                     ? Make(MainKind.Update, true, "main_update", "main_update_sub")

@@ -89,6 +89,7 @@ namespace InvectorModKit.Marketplace.Ui
             _moduleNavigation = EventSystem.current.sendNavigationEvents;
             EventSystem.current.sendNavigationEvents = false;
             _module = EventSystem.current.currentInputModule as Rewired.Integration.UnityUI.RewiredStandaloneInputModule;
+            MarketplacePlugin.Log.LogInfo($"Marketplace input: module {(EventSystem.current.currentInputModule ? EventSystem.current.currentInputModule.GetType().Name : "none")}, mouse {(_module != null ? _module.allowMouseInput.ToString() : "n/a")}");
             if (_module == null) return;
             _moduleMouse = _module.allowMouseInput;
             _module.allowMouseInput = false;

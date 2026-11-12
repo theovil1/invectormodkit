@@ -122,6 +122,8 @@ namespace InvectorModKit.Marketplace.Ui
             GameUi.Place(Box, 0, 0, 1500, 880);
 
             Keys = new KeyBar(transform);
+            _addLink.transform.SetParent(Box, false);
+            GameUi.Place(_addLink, 560, 330, 280, 62); // right of My songs' help line, above its sheet
             Player = gameObject.AddComponent<PreviewPlayer>();
             Excerpts = new PreviewCache(this);
 
@@ -150,8 +152,7 @@ namespace InvectorModKit.Marketplace.Ui
             _mineTab = UiKit.Button(transform, Loc.T("tab_mine"), ButtonStyle.Tab, () => Show(_mine));
             Top(_mineTab, 756, 26, 280, 62);
             // Adding a song from a link belongs to My songs (until My library takes it in stage 2).
-            _addLink = UiKit.Button(transform, Loc.T("add_link"), ButtonStyle.Secondary, () => _mine.AddFromLink());
-            Top(_addLink, 1056, 26, 280, 62);
+            _addLink = UiKit.Button(Box ? (Transform)Box : transform, Loc.T("add_link"), ButtonStyle.Secondary, () => _mine.AddFromLink());
 
             _close = UiKit.Button(transform, "X", ButtonStyle.Secondary, Shut);
             TopRight(_close, Side, 26, 66, 62);

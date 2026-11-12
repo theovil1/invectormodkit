@@ -112,8 +112,27 @@ namespace InvectorModKit.Marketplace.Ui
 
         public static void SetLabel(ButtonWithEvents button, string label) => Label(button).text = label;
 
-        /// <summary>A chip or tab that is on: lighter, like the game's selected tabs.</summary>
-        public static void SetSelected(ButtonWithEvents button, bool on) => SetColors(button, on ? new Color(1, 1, 1, 0.35f) : Dark);
+        /// <summary>
+        /// A chip or tab that is on: an accent bar under it and a bright label. Its colours stay the game's: changing
+        /// them while the game's button handles selection left some stuck white.
+        /// </summary>
+        public static void SetSelected(ButtonWithEvents button, bool on)
+        {
+            var bar = button.transform.Find("On");
+            if (bar == null)
+            {
+                var image = GameUi.Image(button.transform, "On", Accent);
+                var rt = (RectTransform)image.transform;
+                rt.anchorMin = new Vector2(0, 0);
+                rt.anchorMax = new Vector2(1, 0);
+                rt.pivot = new Vector2(0.5f, 0);
+                rt.offsetMin = new Vector2(8, 2);
+                rt.offsetMax = new Vector2(-8, 8);
+                bar = image.transform;
+            }
+            bar.gameObject.SetActive(on);
+            Label(button).color = on ? Color.white : new Color(1, 1, 1, 0.62f);
+        }
 
         /// <summary>The button's resting colour (selection and hover keep the game's own).</summary>
         public static void SetColors(ButtonWithEvents button, Color normal)

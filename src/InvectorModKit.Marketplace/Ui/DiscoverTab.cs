@@ -20,6 +20,9 @@ namespace InvectorModKit.Marketplace.Ui
     {
         private const float ListWidth = 840, Gap = 48;
 
+        /// <summary>The sheet's difficulties, Casual to Ultra, as the game numbers them (its enum starts at Normal).</summary>
+        private static readonly global::Difficulty[] GameLevels = { global::Difficulty.Casual, global::Difficulty.Normal, global::Difficulty.Hard, global::Difficulty.Ultra };
+
         private readonly MarketplaceScreen _s;
         private readonly RectTransform _root;
         private readonly ButtonWithEvents _search, _more;
@@ -45,6 +48,7 @@ namespace InvectorModKit.Marketplace.Ui
         private string _excerptFor;
         private bool _excerptStopped;
         private string _boardKey, _mainLabel;
+        private bool _mainEnabled = true;
         private float _boardAt;
         private HashSet<string> _installed = new HashSet<string>();
         private readonly HashSet<string> _downloading = new HashSet<string>(), _fetching = new HashSet<string>();
@@ -108,9 +112,8 @@ namespace InvectorModKit.Marketplace.Ui
             sheetRt.offsetMin = new Vector2(ListWidth + Gap, 0);
             sheetRt.offsetMax = Vector2.zero;
 
-            try { _boardLevel = (int)(ApplicationSession.OnlineUserData != null ? ApplicationSession.OnlineUserData.difficulty : global::Difficulty.Hard); }
+            try { _boardLevel = Math.Max(0, Array.IndexOf(GameLevels, ApplicationSession.OnlineUserData != null ? ApplicationSession.OnlineUserData.difficulty : global::Difficulty.Hard)); }
             catch (Exception) { _boardLevel = 2; }
-            _boardLevel = Mathf.Clamp(_boardLevel, 0, 3);
             UpdateChips();
             UpdateSearchLabel();
             ShowSheet(null);
@@ -168,11 +171,13 @@ namespace InvectorModKit.Marketplace.Ui
         private void UpdateKeys()
         {
             string main = _selected != null ? _mainLabel ?? Loc.T("main_install") : Loc.T("main_install");
-            _s.Keys.Set(new Hint("Keyboard_Return", ScreenInput.ActionOk, main),
-                        new Hint("Keyboard_Space", ScreenInput.ActionListen, Loc.T("hint_listen")),
-                        new Hint("Keyboard_F", ScreenInput.ActionSearch, Loc.T("hint_search")),
-                        new Hint("Keyboard_Tab", ScreenInput.ActionNext, Loc.T("hint_tabs")),
-                        new Hint("Keyboard_Escape", ScreenInput.ActionCancel, Loc.T("hint_back")));
+            var hints = new List<Hint>();
+            if (_mainEnabled) hints.Add(new Hint("Keyboard_Return", ScreenInput.ActionOk, main)); // nothing to press when installed or yours
+            hints.Add(new Hint("Keyboard_Space", ScreenInput.ActionListen, Loc.T("hint_listen")));
+            hints.Add(new Hint("Keyboard_F", ScreenInput.ActionSearch, Loc.T("hint_search")));
+            hints.Add(new Hint("Keyboard_Tab", ScreenInput.ActionNext, Loc.T("hint_tabs")));
+            hints.Add(new Hint("Keyboard_Escape", ScreenInput.ActionCancel, Loc.T("hint_back")));
+            _s.Keys.Set(hints.ToArray());
         }
 
         // ----- search and filters
@@ -394,6 +399,10 @@ namespace InvectorModKit.Marketplace.Ui
             bool installed = local != null, downloaded = MarketplacePlugin.Installs.IsDownloaded(c.Id), fetching = _fetching.Contains(c.Id);
             _progress.TryGetValue(c.Id, out double progress);
             _errors.TryGetValue(c.Id, out string error);
+            bool otherVersion = downloaded && !installed && !fetching && error == null && IsOtherVersion(c);
+            // the music is here (fetched, or the player's own copy) and the game is still preparing the song
+            bool matching = downloaded && !installed && !fetching && error == null && !otherVersion
+                && (CustomSongsApi.MarketplaceMatchPending || AudioFetch.Existing(CustomSongsApi.SongsFolder, c.Artist, c.Title) != null);
             return new ChartFacts
             {
                 Mine = MarketplacePlugin.Session.IsPublishedByMe(c.Id),
@@ -401,7 +410,8 @@ namespace InvectorModKit.Marketplace.Ui
                 Downloaded = downloaded,
                 Downloading = _downloading.Contains(c.Id),
                 Fetching = fetching,
-                OtherVersion = downloaded && !installed && !fetching && error == null && IsOtherVersion(c),
+                OtherVersion = otherVersion,
+                Matching = matching,
                 Progress = progress,
                 FetchError = error,
                 InstalledVersion = local?.MarketplaceVersion ?? 0,
@@ -427,9 +437,10 @@ namespace InvectorModKit.Marketplace.Ui
             var session = MarketplacePlugin.Session.Current;
             bool canDelete = session != null && (session.Role == "admin" || session.Name == c.Author);
             _sheet.SetActions(folder: retry, report: !facts.Mine && !canDelete, removeGame: facts.Installed && !facts.Mine, delete: canDelete);
-            if (label != _mainLabel)
+            if (label != _mainLabel || b.Enabled != _mainEnabled)
             {
                 _mainLabel = label;
+                _mainEnabled = b.Enabled;
                 UpdateKeys();
                 WireSheet();
             }
@@ -497,7 +508,7 @@ namespace InvectorModKit.Marketplace.Ui
 
         private async void LoadBoard(ChartSummary c)
         {
-            var difficulty = (global::Difficulty)_boardLevel;
+            var difficulty = GameLevels[_boardLevel];
             var local = CustomSongsApi.Songs().FirstOrDefault(s => s.MarketplaceId == c.Id && s.MarketplaceVersion > 0);
             int? version = local?.MarketplaceVersion;
             string key = c.Id + "|" + version + "|" + difficulty;
@@ -562,8 +573,6 @@ namespace InvectorModKit.Marketplace.Ui
             }
         }
 
-        private static readonly Regex Percent = new Regex(@"(\d+(?:\.\d+)?)%", RegexOptions.Compiled);
-
         /// <summary>
         /// Fetches the song itself with yt-dlp into CustomSongs: the folder watcher then matches it with the chart. A
         /// failure keeps the chart waiting and its reason, and the sheet offers RETRY and the folder advice.
@@ -593,11 +602,9 @@ namespace InvectorModKit.Marketplace.Ui
                 string tmpBase = Path.Combine(Path.GetTempPath(), "invectormodkit-" + c.Id);
                 string args = AudioFetch.BuildArgs(c.YoutubeId, tmpBase, ffmpegDir);
                 MarketplacePlugin.Log.LogInfo($"Audio fetch: {ytDlp} {args}");
-                await System.Threading.Tasks.Task.Run(() => AudioFetch.Download(ytDlp, args, line =>
+                await System.Threading.Tasks.Task.Run(() => AudioFetch.Download(ytDlp, args, line: line =>
                 {
-                    var m = Percent.Match(line ?? "");
-                    if (m.Success && double.TryParse(m.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double p))
-                        _progress[c.Id] = p / 100;
+                    if (AudioFetch.ProgressOf(line) is double p) _progress[c.Id] = p;
                 }));
                 string produced = tmpBase + ".ogg";
                 if (!File.Exists(produced)) throw new FileNotFoundException("yt-dlp left nothing at " + produced);

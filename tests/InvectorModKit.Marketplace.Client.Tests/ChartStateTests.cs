@@ -27,6 +27,14 @@ public class ChartStateTests
     }
 
     [Fact]
+    public void State_MusicOnDiskShowsPreparing()
+    {
+        // The music is fetched; the game is still preparing the song (matching it with the chart, charting it).
+        var b = MainButton.For(new ChartFacts { Downloaded = true, Matching = true, Progress = 1, LatestVersion = 1 });
+        Assert.Equal((MainKind.Installing, false, 100, "main_step_prepare"), (b.Kind, b.Enabled, b.Percent, b.SubKey));
+    }
+
+    [Fact]
     public void State_FailedFetchOffersRetryWithReason()
     {
         var b = MainButton.For(new ChartFacts { Downloaded = true, FetchError = "Video unavailable", LatestVersion = 1 });

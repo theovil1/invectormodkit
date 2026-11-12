@@ -38,9 +38,19 @@ namespace InvectorModKit.Marketplace.Client
         /// </summary>
         public static string BuildArgs(string youtubeId, string outputWithoutExtension, string ffmpegLocation) => Arguments(new[]
         {
-            "-x", "--audio-format", "vorbis", "--no-playlist", "--no-mtime",
+            "-x", "--audio-format", "vorbis", "--no-playlist", "--no-mtime", "--newline",
             "--ffmpeg-location", ffmpegLocation, "-o", outputWithoutExtension, "https://youtu.be/" + youtubeId,
         });
+
+        private static readonly System.Text.RegularExpressions.Regex Percent =
+            new System.Text.RegularExpressions.Regex(@"^\[download\]\s+(\d+(?:\.\d+)?)%");
+
+        /// <summary>yt-dlp's progress on one output line ("[download]  42.3% of …"), 0..1, or null for any other line.</summary>
+        public static double? ProgressOf(string line)
+        {
+            var m = Percent.Match(line ?? "");
+            return m.Success ? double.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) / 100 : (double?)null;
+        }
 
         /// <summary>
         /// The yt-dlp command to get only <paramref name="start"/> to <paramref name="end"/> seconds of the video as an ogg:
@@ -48,7 +58,7 @@ namespace InvectorModKit.Marketplace.Client
         /// </summary>
         public static string BuildSectionArgs(string youtubeId, string outputWithoutExtension, string ffmpegLocation, double start, double end) => Arguments(new[]
         {
-            "-x", "--audio-format", "vorbis", "--no-playlist", "--no-mtime",
+            "-x", "--audio-format", "vorbis", "--no-playlist", "--no-mtime", "--newline",
             "--download-sections", "*" + Seconds(start) + "-" + Seconds(end),
             "--ffmpeg-location", ffmpegLocation, "-o", outputWithoutExtension, "https://youtu.be/" + youtubeId,
         });
@@ -92,7 +102,8 @@ namespace InvectorModKit.Marketplace.Client
         }
 
         /// <summary>Runs yt-dlp (which calls ffmpeg), feeding its last lines as progress (yt-dlp's own progress bars).</summary>
-        public static void Download(string ytDlpPath, string argsLine, Action<string> log = null)
+        /// <param name="line">Each output line as it comes (progress), from another thread.</param>
+        public static void Download(string ytDlpPath, string argsLine, Action<string> log = null, Action<string> line = null)
         {
             using var process = new Process
             {
@@ -108,7 +119,12 @@ namespace InvectorModKit.Marketplace.Client
             };
             object gate = new object();
             string tail = "";
-            DataReceivedEventHandler collect = (_, e) => { if (e.Data != null) lock (gate) tail = tail + e.Data + "\n"; };
+            DataReceivedEventHandler collect = (_, e) =>
+            {
+                if (e.Data == null) return;
+                lock (gate) tail = tail + e.Data + "\n";
+                try { line?.Invoke(e.Data); } catch { }
+            };
             process.OutputDataReceived += collect;
             process.ErrorDataReceived += collect;
             Log(log, ytDlpPath + " " + argsLine);
