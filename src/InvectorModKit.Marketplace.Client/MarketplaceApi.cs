@@ -109,6 +109,63 @@ namespace InvectorModKit.Marketplace.Client
 
         public Task DeleteAsync(string id) => SendAsync("DELETE", "/charts/" + Uri.EscapeDataString(id));
 
+        // ----- moderation (an admin account's token; the server's admin API)
+
+        public async Task<List<ReportedChart>> ReportsAsync()
+        {
+            var a = (JArray)await SendAsync("GET", "/admin/api/reports").ConfigureAwait(false);
+            return a.Select(t =>
+            {
+                var o = (JObject)t;
+                return new ReportedChart
+                {
+                    Id = (string)o["id"], Title = (string)o["title"], Artist = (string)o["artist"], Author = (string)o["author"],
+                    AuthorSteamId = (string)o["authorSteamId"], Hidden = Flag(o["hidden"]), Version = (int?)o["version"] ?? 1,
+                    Reports = (int?)o["reports"] ?? 0, Last = (long?)o["last"] ?? 0,
+                    Details = ((JArray)o["details"] ?? new JArray()).Select(d => new ReportDetail
+                    {
+                        Reason = (string)d["reason"], Name = (string)d["name"], SteamId = (string)d["steamId"], At = (long?)d["at"] ?? 0,
+                    }).ToList(),
+                };
+            }).ToList();
+        }
+
+        public async Task<List<AdminChart>> AdminChartsAsync(string query)
+        {
+            var a = (JArray)await SendAsync("GET", "/admin/api/charts?q=" + Uri.EscapeDataString(query ?? "")).ConfigureAwait(false);
+            return a.Select(t => new AdminChart
+            {
+                Id = (string)t["id"], Title = (string)t["title"], Artist = (string)t["artist"], Author = (string)t["author"],
+                AuthorSteamId = (string)t["authorSteamId"], Hidden = Flag(t["hidden"]), Version = (int?)t["version"] ?? 1,
+                Downloads = (int?)t["downloads"] ?? 0, Reports = (int?)t["reports"] ?? 0, UpdatedAt = (long?)t["updatedAt"] ?? 0,
+            }).ToList();
+        }
+
+        public async Task<List<AdminUser>> BannedAsync()
+        {
+            var a = (JArray)await SendAsync("GET", "/admin/api/users?banned=1").ConfigureAwait(false);
+            return a.Select(t => new AdminUser
+            {
+                SteamId = (string)t["steamId"], Name = (string)t["name"], Role = (string)t["role"], CreatedAt = (long?)t["createdAt"] ?? 0,
+                BannedAt = (long?)t["bannedAt"], Charts = (int?)t["charts"] ?? 0, Scores = (int?)t["scores"] ?? 0,
+            }).ToList();
+        }
+
+        /// <param name="action">hide, show, clear-reports or delete.</param>
+        public Task ChartActionAsync(string chartId, string action) =>
+            SendAsync("POST", "/admin/api/chart", new JObject { ["id"] = chartId, ["action"] = action });
+
+        /// <param name="version">The board's version and <paramref name="difficulty"/> the number the leaderboard request used.</param>
+        public Task DeleteScoreAsync(string steamId, string chartId, int version, int difficulty) =>
+            SendAsync("POST", "/admin/api/score", new JObject { ["steamId"] = steamId, ["chartId"] = chartId, ["version"] = version, ["difficulty"] = difficulty });
+
+        /// <param name="role">"" (player), publisher, admin or banned.</param>
+        public Task SetRoleAsync(string steamId, string role) =>
+            SendAsync("POST", "/admin/api/user", new JObject { ["steamId"] = steamId, ["role"] = role });
+
+        /// <summary>SQLite gives 0/1 where the public API gives true/false.</summary>
+        private static bool Flag(JToken t) => t != null && (t.Type == JTokenType.Boolean ? (bool)t : t.Type == JTokenType.Integer && (long)t != 0);
+
         /// <summary>The author points their chart at another video; its version, scores and stats stay.</summary>
         public async Task<ChartSummary> ChangeVideoAsync(string chartId, string youtubeUrl) =>
             Summary((JObject)await SendAsync("PATCH", "/charts/" + Uri.EscapeDataString(chartId), new JObject { ["youtubeUrl"] = youtubeUrl }).ConfigureAwait(false));

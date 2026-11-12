@@ -31,6 +31,67 @@ public class MarketplaceApiTests
         """;
 
     [Fact]
+    public async Task Reports_ReadsChartsAndDetails()
+    {
+        var http = new FakeTransport().Reply(200, """
+            [{"id":"abc","title":"Kyiv","artist":"Apashe","author":"Bob","authorSteamId":"76561190000000020","hidden":1,"version":2,"reports":3,"last":1760000000000,
+              "details":[{"chartId":"abc","reason":"wrong video","at":1760000000000,"name":"Alice","steamId":"76561190000000011"}]}]
+            """);
+        var reports = await new MarketplaceApi("https://m.test", http) { Token = "t" }.ReportsAsync();
+        var r = reports[0];
+        Assert.Equal(("abc", "Bob", "76561190000000020", true, 2, 3), (r.Id, r.Author, r.AuthorSteamId, r.Hidden, r.Version, r.Reports));
+        Assert.Equal(("wrong video", "Alice", "76561190000000011", 1760000000000L), (r.Details[0].Reason, r.Details[0].Name, r.Details[0].SteamId, r.Details[0].At));
+        Assert.Equal(("GET", "https://m.test/admin/api/reports", "t"), (http.Sent[0].Method, http.Sent[0].Url, http.Sent[0].Bearer));
+    }
+
+    [Fact]
+    public async Task ChartAction_SendsIdAndAction()
+    {
+        var http = new FakeTransport().Reply(200, """{"ok":true}""");
+        await new MarketplaceApi("https://m.test", http) { Token = "t" }.ChartActionAsync("abc", "hide");
+        var o = JObject.Parse(http.Sent[0].Body);
+        Assert.Equal(("POST", "https://m.test/admin/api/chart", "abc", "hide"), (http.Sent[0].Method, http.Sent[0].Url, (string)o["id"], (string)o["action"]));
+    }
+
+    [Fact]
+    public async Task DeleteScore_SendsBoardNumbers()
+    {
+        var http = new FakeTransport().Reply(200, """{"ok":true}""");
+        await new MarketplaceApi("https://m.test", http) { Token = "t" }.DeleteScoreAsync("76561190000000011", "abc", 3, 2);
+        var o = JObject.Parse(http.Sent[0].Body);
+        Assert.Equal("https://m.test/admin/api/score", http.Sent[0].Url);
+        Assert.Equal(JTokenType.Integer, o["version"].Type);
+        Assert.Equal(("76561190000000011", "abc", 3, 2), ((string)o["steamId"], (string)o["chartId"], (int)o["version"], (int)o["difficulty"]));
+    }
+
+    [Fact]
+    public async Task SetRole_SendsSteamIdAndRole()
+    {
+        var http = new FakeTransport().Reply(200, """{"ok":true}""");
+        await new MarketplaceApi("https://m.test", http) { Token = "t" }.SetRoleAsync("76561190000000011", "banned");
+        var o = JObject.Parse(http.Sent[0].Body);
+        Assert.Equal(("https://m.test/admin/api/user", "76561190000000011", "banned"), (http.Sent[0].Url, (string)o["steamId"], (string)o["role"]));
+    }
+
+    [Fact]
+    public async Task Banned_AsksBannedOnly()
+    {
+        var http = new FakeTransport().Reply(200, """[{"steamId":"76561190000000021","name":"Mallory","role":"banned","createdAt":1,"bannedAt":1760000000000,"charts":2,"scores":5}]""");
+        var users = await new MarketplaceApi("https://m.test", http) { Token = "t" }.BannedAsync();
+        Assert.Equal("https://m.test/admin/api/users?banned=1", http.Sent[0].Url);
+        Assert.Equal(("Mallory", (long?)1760000000000L, 2, 5), (users[0].Name, users[0].BannedAt, users[0].Charts, users[0].Scores));
+    }
+
+    [Fact]
+    public async Task AdminCharts_SearchesAndReads()
+    {
+        var http = new FakeTransport().Reply(200, """[{"id":"abc","title":"Kyiv","artist":"Apashe","hidden":0,"version":1,"downloads":4,"updatedAt":5,"author":"Bob","authorSteamId":"76561190000000020","reports":1}]""");
+        var charts = await new MarketplaceApi("https://m.test", http) { Token = "t" }.AdminChartsAsync("ky iv");
+        Assert.Equal("https://m.test/admin/api/charts?q=ky%20iv", http.Sent[0].Url);
+        Assert.Equal(("abc", false, 4, "76561190000000020", 1), (charts[0].Id, charts[0].Hidden, charts[0].Downloads, charts[0].AuthorSteamId, charts[0].Reports));
+    }
+
+    [Fact]
     public async Task MyCharts_ReadsStats()
     {
         string mine = Summary.Replace("\"downloads\":7", "\"downloads\":7,\"players\":3,\"reports\":1");
