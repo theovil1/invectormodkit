@@ -8,6 +8,8 @@ import { clamp01, hash01, qmul, qfromAxisAngle, qfromEulerYXZ, qfromBasis } from
 const STEER = { Freefly: "Fly", Bounce: "Coast", List: "Roll" }; // each generator's SteerMode
 const rad = (d) => (d * Math.PI) / 180;
 const SHIP_DY = -1; // the prototype's ship height fix, kept as it matched the recorded frames
+/** The ship model's scale: the ship prefab's mount (x1.4) inside the walker's ShipCoaster (x1.5), the prototype's measure. */
+export const SHIP_SCALE = 2.1;
 
 /** A roll clip's rotation track as the unwrapped roll angle (degrees) at 60 frames a second. */
 export function rollAngles(clip) {

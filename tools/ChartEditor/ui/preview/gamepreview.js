@@ -6,13 +6,14 @@ import { loadGameCache } from "./gamecache.js";
 import { readRig } from "./rig.js";
 import { createPath } from "./path.js";
 import { prepareRun } from "./run.js";
-import { prepareShip } from "./ship.js";
+import { prepareShip, SHIP_SCALE } from "./ship.js";
 import { cameraPose } from "./camera.js";
 import { createTrack } from "./track.js";
 import { createNotes } from "./notes.js";
+import { createEffects } from "./effects.js";
+import { createPost } from "./post.js";
 
 const WORLD = "void"; // fixed until the preview settings (part 3)
-const SHIP_SCALE = 2.1; // the ship prefab's mount (x1.4) inside the walker's ShipCoaster (x1.5): the prototype's measure
 
 export class GamePreview {
   /** Loads the game data and returns a ready preview; rejects when the cache cannot be used here. */
@@ -71,6 +72,11 @@ export class GamePreview {
     this.notes = await createNotes(this.cache, this.rig);
     this.notes.setSelection(this.isSelected);
     this.scene.add(this.notes.root);
+    this.effects = await createEffects(this.cache, this.rig, this.level);
+    this.scene.add(this.effects.root);
+    this.post = createPost(this.renderer, this.scene, this.camera);
+    const size = this.renderer.getSize(new THREE.Vector2());
+    this.post.resize(size.x, size.y);
     window.gamePreview = this; // the console's view of the stats and options
   }
 
@@ -97,6 +103,7 @@ export class GamePreview {
 
   resize(width, height) {
     this.renderer.setSize(width, height, false);
+    if (this.post) this.post.resize(width, height);
     this.camera.aspect = width / Math.max(1, height);
     this.camera.updateProjectionMatrix();
   }
@@ -114,13 +121,16 @@ export class GamePreview {
       this.shipMount.quaternion.set(...w.q);
       this.track.update(t);
       this.notes.update(this.run, this.shipCtl, this.path, t);
+      this.effects.update(this.run, this.shipCtl, this.path, this.camera, this.renderer, t);
     }
-    this.renderer.render(this.scene, this.camera);
+    if (this.post) this.post.render(); else this.renderer.render(this.scene, this.camera);
     this.stats.frameMs = performance.now() - t0;
   }
 
   dispose() {
     if (this.track) this.track.dispose();
+    if (this.effects) this.effects.dispose();
+    if (this.post) this.post.dispose();
     this.renderer.dispose();
     if (window.gamePreview === this) window.gamePreview = null;
   }

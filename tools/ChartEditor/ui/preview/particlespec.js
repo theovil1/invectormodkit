@@ -68,9 +68,6 @@ export function particleSpec(system, renderer, material) {
     birth = rate > 0 ? 1 / rate : 0;
   }
   const radius = typeof S.radius === "object" && S.radius ? S.radius.value : S.radius;
-  const tint = (material && material.colors && (material.colors._TintColor || material.colors._Color)) || [1, 1, 1, 1];
-  const gain = (material && material.floats && material.floats._EmissionGain) || 0;
-  const tex = material && material.textures && material.textures._MainTex ? material.textures._MainTex.ref : null;
   return {
     count,
     birth,
@@ -89,6 +86,14 @@ export function particleSpec(system, renderer, material) {
     dampen: system.ClampVelocityModule && system.ClampVelocityModule.enabled ? system.ClampVelocityModule.dampen ?? 0 : 0,
     world: system.moveWithTransform === 1,
     maxSize: (renderer && renderer.m_MaxParticleSize) || 0.5,
-    mat: { tint: tint.slice(0, 3), c: tint.slice(0, 3).map(toLinear), a: tint[3] ?? 1, gain, e: Math.exp(5 * gain), tex },
+    mat: particleMaterial(material),
   };
+}
+
+/** A Sonic Ether additive material as the emulator uses it: tint (sRGB and linear), alpha, emission gain, texture. */
+export function particleMaterial(material) {
+  const tint = (material && material.colors && (material.colors._TintColor || material.colors._Color)) || [1, 1, 1, 1];
+  const gain = (material && material.floats && material.floats._EmissionGain) || 0;
+  const tex = material && material.textures && material.textures._MainTex ? material.textures._MainTex.ref : null;
+  return { tint: tint.slice(0, 3), c: tint.slice(0, 3).map(toLinear), a: tint[3] ?? 1, gain, e: Math.exp(5 * gain), tex };
 }
