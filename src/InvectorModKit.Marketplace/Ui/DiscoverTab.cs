@@ -319,8 +319,13 @@ namespace InvectorModKit.Marketplace.Ui
         {
             var actions = _sheet.ActionButtons();
             var more = _sheet.MoreButtons();
+            var entries = _sheet.EntryButtons();
+            var entryActions = _sheet.EntryActionButtons();
             Selectable level = _sheet.Levels[_boardLevel];
             Selectable back = _lastRow ? _lastRow.GetComponent<Selectable>() : _rows.Count > 0 ? _rows[0].Button : null;
+            // Down from the difficulties: an admin's board lines, the actions on the chosen line, More…'s row, the main button.
+            Selectable belowBoard = entryActions.Count > 0 ? entryActions[0] : more.Count > 0 ? more[0] : _sheet.Main;
+            Selectable belowLevels = entries.Count > 0 ? entries[0] : belowBoard;
             for (int i = 0; i < 4; i++)
                 _sheet.Levels[i].navigation = new Navigation
                 {
@@ -328,15 +333,25 @@ namespace InvectorModKit.Marketplace.Ui
                     selectOnLeft = i > 0 ? _sheet.Levels[i - 1] : back,
                     selectOnRight = i < 3 ? _sheet.Levels[i + 1] : null,
                     selectOnUp = _sheet.CoverButton,
-                    selectOnDown = more.Count > 0 ? more[0] : _sheet.Main,
+                    selectOnDown = belowLevels,
                 };
+            for (int i = 0; i < entries.Count; i++)
+                entries[i].navigation = new Navigation
+                {
+                    mode = Navigation.Mode.Explicit,
+                    selectOnLeft = back,
+                    selectOnUp = i > 0 ? entries[i - 1] : level,
+                    selectOnDown = i + 1 < entries.Count ? entries[i + 1] : belowBoard,
+                };
+            Selectable aboveActions = entries.Count > 0 ? entries[entries.Count - 1] : level;
+            Chain(entryActions, back, aboveActions, more.Count > 0 ? more[0] : _sheet.Main);
             _sheet.CoverButton.navigation = new Navigation { mode = Navigation.Mode.Explicit, selectOnDown = level, selectOnLeft = back };
-            Chain(more, back, level, _sheet.Main);
+            Chain(more, back, entryActions.Count > 0 ? entryActions[0] : aboveActions, _sheet.Main);
             _sheet.Main.navigation = new Navigation
             {
                 mode = Navigation.Mode.Explicit,
                 selectOnLeft = back,
-                selectOnUp = more.Count > 0 ? more[0] : level,
+                selectOnUp = more.Count > 0 ? more[0] : entryActions.Count > 0 ? entryActions[0] : aboveActions,
                 selectOnDown = actions.Count > 0 ? actions[0] : null,
             };
             Chain(actions, back, _sheet.Main, null);
@@ -371,6 +386,8 @@ namespace InvectorModKit.Marketplace.Ui
             _selected = c;
             _status = null;
             _boardKey = null;
+            _sheet.SetBoardEntries(null);
+            _sheet.SetEntryActions(null, null);
             _sheet.SetVisible(c != null);
             if (c == null) return;
             _sheet.SetChart(c, Info(c, null));
@@ -434,7 +451,7 @@ namespace InvectorModKit.Marketplace.Ui
                 : Loc.T(b.SubKey);
             _sheet.SetMain(b, label, sub);
             bool retry = b.Kind == MainKind.Retry;
-            _sheet.SetNote(retry ? Loc.T("folder_advice") : _status, warning: false);
+            _sheet.SetNote(retry ? Loc.T("folder_advice") : _status ?? (c.Hidden ? Loc.T("hidden_admin_note") : null), warning: false);
             var session = MarketplacePlugin.Session.Current;
             bool canDelete = session != null && (session.Role == "admin" || session.Name == c.Author);
             _sheet.SetActions(folder: retry, report: !facts.Mine && !canDelete, removeGame: facts.Installed && !facts.Mine, delete: canDelete);
@@ -461,6 +478,7 @@ namespace InvectorModKit.Marketplace.Ui
 
         private string Tag(ChartSummary c)
         {
+            if (c.Hidden) return Loc.T("tag_hidden"); // only admins are sent hidden charts
             if (MarketplacePlugin.Session.IsPublishedByMe(c.Id)) return Loc.T("mine");
             if (_downloading.Contains(c.Id) || _fetching.Contains(c.Id)) return Loc.T("waiting");
             var local = CustomSongsApi.Songs().FirstOrDefault(s => s.MarketplaceId == c.Id && s.Ready);
@@ -531,11 +549,55 @@ namespace InvectorModKit.Marketplace.Ui
                 }
                 if (board.Me != null && board.Entries.All(e => e.SteamId != board.Me.SteamId))
                     lines.Add("<color=#E9B8FF>" + Loc.T("board_me", board.Me.Rank, board.Me.Score) + "</color>");
+                if (MarketplacePlugin.Session.Current?.CanModerate == true && board.Entries.Count > 0)
+                {
+                    // Admins: each line is a button; choosing one offers to delete that score or ban that player.
+                    int serverDifficulty = MarketplaceLeaderboard.ServerDifficulty(difficulty);
+                    _sheet.SetBoard(header);
+                    _sheet.SetBoardEntries(board.Entries.Select(e => (Loc.T("board_line", e.Rank, e.Name, e.Score, e.Percent),
+                        (Action)(() => ChooseEntry(c, board.Version, serverDifficulty, e)))).ToList());
+                    WireSheet();
+                    return;
+                }
+                _sheet.SetBoardEntries(null);
                 _sheet.SetBoard(string.Join("\n", lines));
             }
             catch (Exception e)
             {
                 if (_root && _boardKey == key) _sheet.SetBoard(header + "\n" + Loc.T("unreachable", e.GetBaseException().Message));
+            }
+        }
+
+        // ----- an admin's actions on a board line
+
+        private void ChooseEntry(ChartSummary c, int version, int serverDifficulty, BoardEntry e)
+        {
+            _sheet.SetEntryActions(
+                () => _s.Confirm(Loc.T("mod_confirm_score", e.Name, e.Score),
+                    () => Moderate(() => MarketplacePlugin.Api.DeleteScoreAsync(e.SteamId, c.Id, version, serverDifficulty))),
+                () => _s.Confirm(Loc.T("mod_confirm_ban", e.Name),
+                    () => Moderate(() => MarketplacePlugin.Api.SetRoleAsync(e.SteamId, "banned"))));
+            WireSheet();
+        }
+
+        /// <summary>Runs an admin call; once the server agreed, the board reloads. A refusal says why on the note line.</summary>
+        private async void Moderate(Func<System.Threading.Tasks.Task> call)
+        {
+            var c = _selected;
+            try
+            {
+                await call();
+                if (!_root) return;
+                _sheet.SetEntryActions(null, null);
+                SetStatus(Loc.T("mod_done"));
+                _boardKey = null;
+                if (c != null && _selected == c) LoadBoard(c);
+            }
+            catch (Exception ex)
+            {
+                if (!_root) return;
+                string refused = ex.GetBaseException() is MarketplaceException m ? ModerationState.Refused(m.Status) : null;
+                SetStatus(refused != null ? Loc.T(refused) : Loc.T("unreachable", ex.GetBaseException().Message));
             }
         }
 
