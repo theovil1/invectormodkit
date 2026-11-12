@@ -151,9 +151,6 @@ namespace InvectorModKit.Marketplace.Ui
                 var rt = label.rectTransform;
                 rt.offsetMin = new Vector2(rt.offsetMin.x + 62, rt.offsetMin.y);
             }
-            var halo = GameUi.Image(button.transform, "Halo", Community.Purple);
-            halo.sprite = Community.Glow;
-            GameUi.Place(halo, -78, 0, 120, 120);
             var logo = GameUi.Image(button.transform, "Logo", Color.white);
             logo.sprite = Community.Logo;
             logo.preserveAspect = true;
@@ -161,7 +158,6 @@ namespace InvectorModKit.Marketplace.Ui
             var pulse = button.gameObject.AddComponent<DiscordPulse>();
             pulse.Logo = logo.rectTransform;
             pulse.LogoImage = logo;
-            pulse.Halo = halo;
             pulse.Float = 3f;
             pulse.HoverColor = Community.Purple; // the game's buttons turn white when selected
             _discord = (button, pulse);

@@ -41,13 +41,10 @@ namespace InvectorModKit.Marketplace.Ui
             var font = Resources.GetBuiltinResource<Font>("Arial.ttf"); // until the game's fonts are loaded
             _status = Corner(GameUi.Text(root.transform, "Status", font, 25, TextAnchor.LowerLeft, new Color(1, 1, 1, 0.66f)), 28, 18, 1000, 36);
 
-            // the Discord button: halo and logo on the left, its words on the right
+            // the Discord button: the logo on the left, its words on the right
             _button = (RectTransform)new GameObject("Discord", typeof(RectTransform)).transform;
             _button.SetParent(root.transform, false);
             Corner(_button, 12, 62, 700, 132);
-            var halo = GameUi.Image(_button, "Halo", Community.Purple);
-            halo.sprite = Community.Glow;
-            Anchor(halo.rectTransform, 84, 66, 300, 300);
             var logo = GameUi.Image(_button, "Logo", Color.white);
             logo.sprite = Community.Logo;
             logo.preserveAspect = true;
@@ -61,7 +58,6 @@ namespace InvectorModKit.Marketplace.Ui
             _pulse = _button.gameObject.AddComponent<DiscordPulse>();
             _pulse.Logo = logo.rectTransform;
             _pulse.LogoImage = logo;
-            _pulse.Halo = halo;
         }
 
         /// <summary>Anchored to the screen's bottom left corner, <paramref name="x"/>/<paramref name="y"/> from it.</summary>
