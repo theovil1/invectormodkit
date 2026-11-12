@@ -60,4 +60,15 @@ public class PendingInstallTests : IDisposable
         Assert.Empty(PendingInstall.Load(_dir));
         Assert.Contains("viva.mp3", File.ReadAllText(Path.Combine(_dir, "a", PendingInstall.InstalledFile)));
     }
+
+    [Fact]
+    public void ChartFor_FollowsTheOffsetAlongTheSong()
+    {
+        // the player's copy drifts from the author's: +1 s around 5 s, +2 s from 15 s on
+        Write("a");
+        var match = new FingerprintMatch { IsMatch = true, Offset = 1.2, Anchors = new[] { (5.0, 1.0), (15.0, 2.0) } };
+        var chart = PendingInstall.Load(_dir).Single().ChartFor(match);
+        Assert.Equal(11.5, chart[Difficulty.Ultra][0].Time, 9);
+        Assert.Equal(62, chart.EndTime, 9);
+    }
 }

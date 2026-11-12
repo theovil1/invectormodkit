@@ -61,6 +61,11 @@ class App {
     await skin.load();
     skin.onChange = () => this.timeline.draw();
     this.dress();
+    // the game data decides which 3D preview the editor shows: ask for its state before the first one
+    on("gameData", (d) => this.gameDataChanged(d.state));
+    if (inHost) {
+      try { this.gameDataChanged((await call("host.gameData")).state); } catch (e) { /* a host without game data */ }
+    }
     await this.startPreview();
     this.translate();
     this.bind();
@@ -80,19 +85,74 @@ class App {
     if (file) $("backdrop").style.backgroundImage = `url("${skin.base + file}")`;
   }
 
+  /** The game's view when the game data is ready (preview/gamepreview.js), else the drawn preview (preview3d.js). */
   async startPreview() {
+    const wrap = $("preview-wrap");
+    new ResizeObserver(() => this.fitPreview()).observe(wrap);
+    if (this.gameDataState === "ready" && (await this.useGamePreview())) return;
+    await this.useDrawnPreview();
+  }
+
+  fitPreview() {
+    if (!this.preview) return;
+    const r = $("preview-wrap").getBoundingClientRect();
+    this.preview.resize(Math.max(1, r.width), Math.max(1, r.height));
+    this.markPreview();
+  }
+
+  /** Puts a preview in place of the current one, on a new canvas (a canvas keeps the WebGL context it was given). */
+  async mountPreview(make) {
+    const old = this.preview;
+    this.preview = null;
+    let canvas = $("preview");
+    if (old) {
+      old.dispose();
+      const fresh = canvas.cloneNode(false);
+      canvas.replaceWith(fresh);
+      canvas = fresh;
+    }
+    this.preview = await make(canvas);
+    this.fitPreview();
+    this.syncPreview();
+    this.renderPreviewHint();
+  }
+
+  async useDrawnPreview() {
     try {
       const { Preview3D } = await import("./preview3d.js");
-      this.preview = new Preview3D($("preview"), { skin: skin.base, manifest: skin.manifest });
-      const wrap = $("preview-wrap");
-      const fit = () => { const r = wrap.getBoundingClientRect(); this.preview.resize(Math.max(1, r.width), Math.max(1, r.height)); this.markPreview(); };
-      new ResizeObserver(fit).observe(wrap);
-      fit();
+      await this.mountPreview((canvas) => new Preview3D(canvas, { skin: skin.base, manifest: skin.manifest }));
     } catch (e) {
       this.preview = null;
       $("preview-hint").textContent = t("noPreview");
       $("preview-hint").classList.remove("hidden");
     }
+  }
+
+  /** The game's view; false (and the drawn preview stays or comes back) when the page cannot use the game data. */
+  async useGamePreview() {
+    if (this._gamePreviewFailed) return false;
+    try {
+      const { GamePreview } = await import("./preview/gamepreview.js");
+      await this.mountPreview((canvas) => GamePreview.create(canvas, { skin }));
+      return true;
+    } catch (e) {
+      await this.gamePreviewFailed(e);
+      return false;
+    }
+  }
+
+  /** The game's view could not load or draw: the drawn preview again, and the status bar says so, once. */
+  async gamePreviewFailed(error) {
+    console.warn("game preview", error);
+    if (!this._gamePreviewFailed) this.status(t("gameDataFailed"), true);
+    this._gamePreviewFailed = true;
+    if (!this.preview || this.preview.usesGameData) await this.useDrawnPreview();
+  }
+
+  renderPreviewHint() {
+    if (!this.preview) return;
+    $("preview-hint").textContent = t("skinHint");
+    $("preview-hint").classList.toggle("hidden", skin.hasModels() || !!this.preview.usesGameData);
   }
 
   /** The 3D view is drawn again on the next frame (it is drawn every frame while playing). */
@@ -136,6 +196,17 @@ class App {
   status(text, error = false) {
     $("status-text").textContent = text || "";
     $("status-text").classList.toggle("error", !!error);
+  }
+
+  /** The game data the 3D preview reads from the installed game: for now the status bar says how its reading goes. */
+  gameDataChanged(state) {
+    if (state === "reading") this.status(t("gameDataReading"));
+    else if (state === "failed") this.status(t("gameDataFailed"), true);
+    else if (state === "ready" && this.gameDataState === "reading") this.status(t("gameDataReady"));
+    const before = this.gameDataState;
+    this.gameDataState = state;
+    // the game data became ready during the session: the game's view takes the drawn preview's place
+    if (state === "ready" && before && before !== "ready" && this.preview && !this.preview.usesGameData) this.useGamePreview();
   }
 
   // ----- wiring
@@ -383,7 +454,12 @@ class App {
           $("zone-name").textContent = t("mode" + mode);
           $("zone-name").style.color = MODE_COLOR[mode];
         }
-        this.preview.render(now);
+        try {
+          this.preview.render(now);
+        } catch (e) {
+          if (this.preview.usesGameData) this.gamePreviewFailed(e);
+          else throw e;
+        }
       }
       requestAnimationFrame(frame);
     };
@@ -414,10 +490,7 @@ class App {
     const has = !!this.editor;
     $("empty").classList.toggle("hidden", has);
     for (const id of ["btn-save", "btn-send", "btn-publish", "btn-play"]) $(id).disabled = !has;
-    if (this.preview) {
-      $("preview-hint").textContent = t("skinHint");
-      $("preview-hint").classList.toggle("hidden", skin.hasModels());
-    }
+    this.renderPreviewHint();
     this.renderDifficulty();
     this.renderGhost();
     this.renderMeta();
