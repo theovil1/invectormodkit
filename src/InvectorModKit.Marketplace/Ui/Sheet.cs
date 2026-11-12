@@ -26,7 +26,9 @@ namespace InvectorModKit.Marketplace.Ui
         private readonly RectTransform _actionsRow, _moreRow;
         private readonly List<ButtonWithEvents> _actions = new List<ButtonWithEvents>(), _more = new List<ButtonWithEvents>();
         private ButtonWithEvents _moreButton;
-        private string _actionsKey, _moreKey;
+        // The buttons are built again only when their labels change; a click runs the action of the item shown now.
+        private readonly ActionRow _actionActs = new ActionRow(), _moreActs = new ActionRow();
+        private string _moreKey;
         private bool _moreOpen;
 
         public Sheet(Transform parent, Action main, Action listen)
@@ -154,10 +156,8 @@ namespace InvectorModKit.Marketplace.Ui
         /// <summary>The actions row; "More…" is added at its end when <see cref="SetMore"/> gave any.</summary>
         public void SetActions(params (string label, Action act, bool danger)[] buttons)
         {
-            string key = string.Join("\n", buttons.Select(b => b.label)) + "|" + (_moreKey ?? "");
-            if (key == _actionsKey) return;
-            _actionsKey = key;
-            Rebuild(_actionsRow, _actions, buttons);
+            if (!_actionActs.Set(buttons.Select(b => b.label), buttons.Select(b => b.act), _moreKey ?? "")) return;
+            Rebuild(_actionsRow, _actions, buttons, _actionActs);
             _moreButton = null;
             if (!string.IsNullOrEmpty(_moreKey))
             {
@@ -169,20 +169,22 @@ namespace InvectorModKit.Marketplace.Ui
         /// <summary>The rarer actions, shown above the main button by "More…" (none: no "More…").</summary>
         public void SetMore(params (string label, Action act, bool danger)[] buttons)
         {
-            string key = string.Join("\n", buttons.Select(b => b.label));
-            if (key == _moreKey) return;
-            _moreKey = key;
-            Rebuild(_moreRow, _more, buttons);
+            if (!_moreActs.Set(buttons.Select(b => b.label), buttons.Select(b => b.act))) return;
+            _moreKey = string.Join("\n", buttons.Select(b => b.label));
+            Rebuild(_moreRow, _more, buttons, _moreActs);
             if (buttons.Length == 0) SetMoreOpen(false);
-            _actionsKey = null; // "More…" comes or goes on the next SetActions
+            _actionActs.Reset(); // "More…" comes or goes on the next SetActions
         }
 
-        private static void Rebuild(RectTransform row, List<ButtonWithEvents> list, (string label, Action act, bool danger)[] buttons)
+        private static void Rebuild(RectTransform row, List<ButtonWithEvents> list, (string label, Action act, bool danger)[] buttons, ActionRow acts)
         {
             foreach (var b in list) UnityEngine.Object.Destroy(b.gameObject);
             list.Clear();
-            foreach (var (label, act, danger) in buttons)
-                list.Add(UiKit.Button(row, label, danger ? ButtonStyle.Danger : ButtonStyle.Secondary, act));
+            for (int i = 0; i < buttons.Length; i++)
+            {
+                int index = i;
+                list.Add(UiKit.Button(row, buttons[i].label, buttons[i].danger ? ButtonStyle.Danger : ButtonStyle.Secondary, () => acts.Invoke(index)));
+            }
         }
 
         public void ToggleMore() => SetMoreOpen(!_moreOpen);
