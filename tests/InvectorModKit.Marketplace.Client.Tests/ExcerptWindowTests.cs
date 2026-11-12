@@ -6,6 +6,15 @@ namespace InvectorModKit.Marketplace.Client.Tests;
 public class ExcerptWindowTests
 {
     [Fact]
+    public void Window_LoopsAtItsEnd()
+    {
+        Assert.False(ExcerptWindow.StartAgain(sourcePlaying: true, time: 110, end: 120));
+        Assert.True(ExcerptWindow.StartAgain(sourcePlaying: true, time: 119.99, end: 120));
+        // An excerpt ending at the song's end: after a frame hitch the clip has run out and the source stopped.
+        Assert.True(ExcerptWindow.StartAgain(sourcePlaying: false, time: 0, end: 120));
+    }
+
+    [Fact]
     public void Window_StartsAtThePreviewTime()
     {
         var w = ExcerptWindow.For(61.5, 240);

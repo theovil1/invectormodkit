@@ -21,9 +21,11 @@ namespace InvectorModKit.Marketplace.Client
         /// <summary>Why the music could not be fetched, or null.</summary>
         public string FetchError;
         public int InstalledVersion, LatestVersion;
+        /// <summary>The marketplace answered that the chart is not there any more (removed, or hidden for this player).</summary>
+        public bool Gone;
     }
 
-    public enum MainKind { Install, Installing, Retry, Installed, Update, Mine }
+    public enum MainKind { Install, Installing, Retry, Installed, Update, Mine, Gone }
 
     /// <summary>
     /// The sheet's one main button: its label says what happens next (install, progress, retry, installed, update),
@@ -46,7 +48,7 @@ namespace InvectorModKit.Marketplace.Client
             if (f.Fetching) return Installing(f, "main_step_music");
             if (f.Matching && !f.Installed) return Installing(f, "main_step_prepare");
             if (f.Installed)
-                return f.LatestVersion > f.InstalledVersion
+                return f.LatestVersion > f.InstalledVersion && !f.Gone
                     ? Make(MainKind.Update, true, "main_update", "main_update_sub")
                     : Make(MainKind.Installed, false, "main_installed", "main_installed_sub"); // says where it is; nothing to press
             if (f.Downloaded)
@@ -55,8 +57,13 @@ namespace InvectorModKit.Marketplace.Client
                 retry.Reason = f.OtherVersion ? null : f.FetchError;
                 return retry;
             }
+            if (f.Gone) return Make(MainKind.Gone, false, "main_gone", "main_gone_sub");
             return Make(MainKind.Install, true, "main_install", "main_install_sub");
         }
+
+        /// <summary>Whether a failed call means the chart is not on the marketplace any more (not a missing version or a network error).</summary>
+        public static bool IsGone(Exception e) =>
+            e?.GetBaseException() is MarketplaceException m && m.Status == 404 && m.Message == "chart not found";
 
         private static MainButton Installing(ChartFacts f, string step)
         {

@@ -43,6 +43,7 @@ namespace InvectorModKit.Marketplace.Ui
         private List<AdminUser> _banned = new List<AdminUser>();
         private ModerationShown _filter = ModerationShown.Reported;
         private string _query = "", _status, _mainLabel, _error;
+        private bool _allSelected; // Ctrl+A in the search field
         private bool _typing, _busy, _loaded, _mainEnabled = true;
         private float _searchAt = -1;
         private int _generation;
@@ -61,6 +62,7 @@ namespace InvectorModKit.Marketplace.Ui
             UiKit.Fill(_root);
 
             _search = UiKit.Button(_root, "", ButtonStyle.Secondary, StartTyping);
+            UiKit.Label(_search).supportRichText = true; // Ctrl+A shows the selection in colour
             UiKit.Label(_search).alignment = TextAnchor.MiddleLeft;
             UiKit.At(_search, 0, 0, ListWidth, 66);
             var chips = new GameObject("Filters", typeof(RectTransform), typeof(HorizontalLayoutGroup)).GetComponent<RectTransform>();
@@ -231,6 +233,7 @@ namespace InvectorModKit.Marketplace.Ui
         private void StartTyping()
         {
             _typing = true;
+            _allSelected = false;
             UpdateSearchLabel();
         }
 
@@ -238,6 +241,7 @@ namespace InvectorModKit.Marketplace.Ui
         {
             if (!_typing) return;
             _typing = false;
+            _allSelected = false;
             UpdateSearchLabel();
             if (search) { _searchAt = -1; LoadCharts(); }
         }
@@ -245,19 +249,16 @@ namespace InvectorModKit.Marketplace.Ui
         private void ReadTyping()
         {
             if (_s.Input.Ok || _s.Input.Back) { StopTyping(search: true); return; }
-            bool changed = false;
-            foreach (char c in _s.Input.Typed)
-            {
-                if (c == '\b') { if (_query.Length > 0) { _query = _query.Substring(0, _query.Length - 1); changed = true; } }
-                else if (!char.IsControl(c) && _query.Length < 60) { _query += c; changed = true; }
-            }
+            bool wasSelected = _allSelected;
+            bool changed = TypedText.Apply(ref _query, ref _allSelected, _s.Input.Typed, 60);
+            if (!changed && _allSelected != wasSelected) UpdateSearchLabel();
             if (!changed) return;
             _searchAt = Time.unscaledTime + 0.4f;
             UpdateSearchLabel();
         }
 
         private void UpdateSearchLabel() =>
-            UiKit.SetLabel(_search, _typing ? _query + "▌" : _query.Length > 0 ? Loc.T("search_query", _query.ToUpperInvariant()) : Loc.T("search_hint"));
+            UiKit.SetLabel(_search, _typing ? TypedText.Show(_query, _allSelected) : _query.Length > 0 ? Loc.T("search_query", _query.ToUpperInvariant()) : Loc.T("search_hint"));
 
         // ----- the list
 
@@ -280,7 +281,11 @@ namespace InvectorModKit.Marketplace.Ui
                 var it = item;
                 var row = _s.MakeRow(_content, Main, () => Select(it));
                 if (it.Player != null) row.Set(it.Player.Name, Loc.T("mod_banned_since", Date(it.Player.BannedAt)), "", 0, null);
-                else row.Set(Title(it), RowLine(it), Hidden(it) ? Loc.T("tag_hidden") : "", 0, null);
+                else
+                {
+                    row.Set(Title(it), RowLine(it), Hidden(it) ? Loc.T("tag_hidden") : "", 0, null);
+                    Thumbnails.GetOrDrawn(VideoId(it), Title(it), sprite => { if (row.Root) row.Set(Title(it), RowLine(it), Hidden(it) ? Loc.T("tag_hidden") : "", 0, sprite); });
+                }
                 _rows.Add(row);
             }
             _empty.text = _error ?? (_items.Count == 0 ? Loc.T("mod_nothing") : "");
@@ -296,11 +301,12 @@ namespace InvectorModKit.Marketplace.Ui
         private static string Author(Item i) => i.Chart?.Author ?? i.Reported.Author;
         private static string AuthorSteamId(Item i) => i.Chart?.AuthorSteamId ?? i.Reported.AuthorSteamId;
         private static string ChartId(Item i) => i.Chart?.Id ?? i.Reported.Id;
+        private static string VideoId(Item i) => i.Chart?.YoutubeId ?? i.Reported?.YoutubeId; // none from a server before covers
         private static bool Hidden(Item i) => i.Chart?.Hidden ?? i.Reported.Hidden;
         private static int Reports(Item i) => i.Reported?.Reports ?? i.Chart?.Reports ?? 0;
 
         private static string RowLine(Item i) =>
-            Artist(i) + "  ·  " + Loc.T("by_author_short", Author(i)) + (Reports(i) > 0 ? "  ·  " + Loc.T("pub_reports", Reports(i)) : "");
+            Artist(i) + "  ·  " + Loc.T("by_author_short", Author(i)) + (Reports(i) > 0 ? "  ·  " + Loc.Count("pub_reports", Reports(i)) : "");
 
         private static string Date(long? ms) =>
             ms == null || ms <= 0 ? "?" : DateTimeOffset.FromUnixTimeMilliseconds(ms.Value).LocalDateTime.ToString("yyyy-MM-dd");
@@ -369,15 +375,16 @@ namespace InvectorModKit.Marketplace.Ui
             if (i.Player != null)
             {
                 var u = i.Player;
-                _sheet.SetSong(u.Name, "", null, Loc.T("mod_banned_since", Date(u.BannedAt)) + "\n" + Loc.T("mod_player_counts", u.Charts, u.Scores));
+                _sheet.SetSong(u.Name, "", null, Loc.T("mod_banned_since", Date(u.BannedAt)) + "\n" + Loc.Count("mod_player_charts", u.Charts) + "  ·  " + Loc.Count("mod_player_scores", u.Scores));
                 _reports.text = "";
             }
             else
             {
                 var lines = new List<string> { Loc.T("by_author_short", Author(i)) + "  ·  v" + (i.Chart?.Version ?? i.Reported.Version) };
                 if (Hidden(i)) lines.Add(Loc.T("hidden_admin_note"));
-                lines.Add((i.Chart != null ? Loc.T("pub_installs", i.Chart.Downloads) + "  ·  " : "") + Loc.T("pub_reports", Reports(i)));
+                lines.Add((i.Chart != null ? Loc.Count("pub_installs", i.Chart.Downloads) + "  ·  " : "") + Loc.Count("pub_reports", Reports(i)));
                 _sheet.SetSong(Title(i), Artist(i), null, string.Join("\n", lines));
+                Thumbnails.GetOrDrawn(VideoId(i), Title(i), sprite => { if (_selected == i) _sheet.SetCover(sprite); });
                 _reports.text = i.Reported == null ? "" : string.Join("\n", i.Reported.Details.Select(d => Loc.T("mod_report_line", Date(d.At), d.Name, d.Reason)));
             }
             RefreshSheet();
@@ -397,7 +404,9 @@ namespace InvectorModKit.Marketplace.Ui
             else
             {
                 b = ModerationState.ForChart(Hidden(i), _busy);
-                _sheet.SetMore((Loc.T("mod_delete"), () => DeleteChart(i), true), (Loc.T("mod_ban_author"), () => BanAuthor(i), true));
+                if (ModerationState.CanBan(AuthorSteamId(i), MarketplacePlugin.Session.Current?.SteamId))
+                    _sheet.SetMore((Loc.T("mod_delete"), () => DeleteChart(i), true), (Loc.T("mod_ban_author"), () => BanAuthor(i), true));
+                else _sheet.SetMore((Loc.T("mod_delete"), () => DeleteChart(i), true));
                 if (Reports(i) > 0) _sheet.SetActions((Loc.T("mod_clear"), () => ClearReports(i), false));
                 else _sheet.SetActions();
             }

@@ -216,18 +216,23 @@ namespace InvectorModKit.Marketplace.Ui
             }
         }
 
-        /// <summary>The actions on the board line an admin chose (null: none chosen, the row goes).</summary>
+        /// <summary>
+        /// The actions on the board line an admin chose (<paramref name="deleteScore"/> null: none chosen, the row goes;
+        /// <paramref name="banPlayer"/> null: that player cannot be banned, the admin's own line).
+        /// </summary>
         public void SetEntryActions(Action deleteScore, Action banPlayer)
         {
             _onDeleteScore = deleteScore;
             _onBanPlayer = banPlayer;
             _entryRow.gameObject.SetActive(deleteScore != null);
+            _banPlayer.gameObject.SetActive(banPlayer != null);
         }
 
         public List<Selectable> EntryButtons() => _entryButtons.Where(b => b).Cast<Selectable>().ToList();
 
-        public List<Selectable> EntryActionButtons() =>
-            _entryRow.gameObject.activeSelf ? new List<Selectable> { _deleteScore, _banPlayer } : new List<Selectable>();
+        public List<Selectable> EntryActionButtons() => _entryRow.gameObject.activeSelf
+            ? new[] { _deleteScore, _banPlayer }.Where(b => b.gameObject.activeSelf).Cast<Selectable>().ToList()
+            : new List<Selectable>();
         public void SetBoard(string text) => _board.text = text ?? "";
         public void SetNote(string text, bool warning = false)
         {

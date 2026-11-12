@@ -34,6 +34,15 @@ public class ModerationStateTests
     }
 
     [Fact]
+    public void Moderation_NoBanOfYourself()
+    {
+        // The server refuses to change an admin's own role: the game does not offer it.
+        Assert.True(ModerationState.CanBan("76561190000000001", "76561190000000002"));
+        Assert.False(ModerationState.CanBan("76561190000000001", "76561190000000001"));
+        Assert.False(ModerationState.CanBan(null, "76561190000000001"));
+    }
+
+    [Fact]
     public void Moderation_RefusedSaysNotAdmin() =>
         Assert.Equal("mod_not_admin", ModerationState.Refused(403));
 

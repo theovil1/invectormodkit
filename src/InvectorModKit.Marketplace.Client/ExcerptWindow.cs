@@ -19,6 +19,12 @@ namespace InvectorModKit.Marketplace.Client
             End = end;
         }
 
+        /// <summary>
+        /// Whether the player starts the excerpt again: at its end (20 ms early, a frame), or when the source stopped by
+        /// itself (an excerpt ending at the song's end, where a frame hitch lets the clip run out).
+        /// </summary>
+        public static bool StartAgain(bool sourcePlaying, double time, double end) => !sourcePlaying || time >= end - 0.02;
+
         /// <summary>A missing preview time, or one outside the song, is 30 % of the song, as charts do.</summary>
         public static ExcerptWindow For(double? previewTime, double songLength)
         {

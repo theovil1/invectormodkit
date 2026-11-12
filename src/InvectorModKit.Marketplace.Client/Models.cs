@@ -106,7 +106,7 @@ namespace InvectorModKit.Marketplace.Client
     /// <summary>A reported chart with its reports, newest first (moderation).</summary>
     public sealed class ReportedChart
     {
-        public string Id, Title, Artist, Author, AuthorSteamId;
+        public string Id, Title, Artist, Author, AuthorSteamId, YoutubeId;
         public bool Hidden;
         public int Version, Reports;
         /// <summary>The newest report, Unix time in milliseconds.</summary>
@@ -117,7 +117,7 @@ namespace InvectorModKit.Marketplace.Client
     /// <summary>A chart as the moderation list gives it (hidden ones too).</summary>
     public sealed class AdminChart
     {
-        public string Id, Title, Artist, Author, AuthorSteamId;
+        public string Id, Title, Artist, Author, AuthorSteamId, YoutubeId;
         public bool Hidden;
         public int Version, Downloads, Reports;
         public long UpdatedAt;

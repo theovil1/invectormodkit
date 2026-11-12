@@ -41,6 +41,7 @@ namespace InvectorModKit.Marketplace.Ui
         private LibraryShown _filter = LibraryShown.All;
         private Entry _selected;
         private string _link = "", _checkedId, _videoTitle;
+        private bool _allSelected; // Ctrl+A in the link field
         private float _checkGiveUp = -1, _nextRefresh, _selectedAt;
         private bool _typing, _excerptStopped, _mainEnabled = true;
         private string _publishingSong, _publishStep, _status, _excerptFor, _mainLabel, _signature;
@@ -93,6 +94,7 @@ namespace InvectorModKit.Marketplace.Ui
 
             // The publish form, in the sheet: the video link field and what was found at that link.
             _linkField = UiKit.Button(_sheet.Middle, "", ButtonStyle.Secondary, StartTyping);
+            UiKit.Label(_linkField).supportRichText = true; // Ctrl+A shows the selection in colour
             UiKit.Label(_linkField).alignment = TextAnchor.MiddleLeft;
             var field = (RectTransform)_linkField.transform;
             field.anchorMin = new Vector2(0, 1);
@@ -188,7 +190,7 @@ namespace InvectorModKit.Marketplace.Ui
         /// <summary>What the list shows: rebuilt when it changes.</summary>
         private string Signature() =>
             string.Join("|", LinkDownloads.All.Select(d => d.VideoId + (d.ErrorKey != null ? "!" : ""))) + "#" +
-            string.Join("|", CustomSongsApi.Songs().Where(s => s.Ready).Select(s => s.Id + ":" + s.MarketplaceId));
+            string.Join("|", CustomSongsApi.ReadySongKeys());
 
         private void Rebuild()
         {
@@ -214,7 +216,7 @@ namespace InvectorModKit.Marketplace.Ui
                 var row = _s.MakeRow(_content, Main, () => Select(e));
                 _rows.Add(row);
                 SetRow(row, e);
-                if (e.Download != null) Thumbnails.Get(e.Download.VideoId, sprite => { if (row.Root) row.Set(e.Download.Title, "YouTube", Tag(e), 0, sprite); });
+                if (e.Download != null) Thumbnails.GetOrDrawn(e.Download.VideoId, e.Download.Title, sprite => { if (row.Root) row.Set(e.Download.Title, "YouTube", Tag(e), 0, sprite); });
             }
             _empty.text = _entries.Count > 0 ? "" : _filter == LibraryShown.All ? Loc.T("no_songs") : Loc.T("no_match");
             Wire();
@@ -228,7 +230,7 @@ namespace InvectorModKit.Marketplace.Ui
                 {
                     var d = _selected.Download; // its video's title is known once yt-dlp has read it
                     _sheet.SetSong(d.Title, "YouTube", null, d.Link);
-                    Thumbnails.Get(d.VideoId, sprite => { if (_selected?.Download == d) _sheet.SetCover(sprite); });
+                    Thumbnails.GetOrDrawn(d.VideoId, d.Title, sprite => { if (_selected?.Download == d) _sheet.SetCover(sprite); });
                 }
                 RefreshSheet();
             }
@@ -340,7 +342,7 @@ namespace InvectorModKit.Marketplace.Ui
             else
             {
                 _sheet.SetSong(e.Download.Title, "YouTube", null, e.Download.Link);
-                Thumbnails.Get(e.Download.VideoId, sprite => { if (_selected == e) _sheet.SetCover(sprite); });
+                Thumbnails.GetOrDrawn(e.Download.VideoId, e.Download.Title, sprite => { if (_selected == e) _sheet.SetCover(sprite); });
             }
             RefreshSheet();
         }
@@ -431,6 +433,7 @@ namespace InvectorModKit.Marketplace.Ui
         {
             if (_selected?.Song == null || !CanPublish(_selected.Song)) return;
             _typing = true;
+            _allSelected = false;
             UpdateLinkField();
         }
 
@@ -438,6 +441,7 @@ namespace InvectorModKit.Marketplace.Ui
         {
             if (!_typing) return;
             _typing = false;
+            _allSelected = false;
             UpdateLinkField();
             UpdateCheck();
         }
@@ -445,20 +449,19 @@ namespace InvectorModKit.Marketplace.Ui
         private void ReadTyping()
         {
             if (_s.Input.Ok || _s.Input.Back) { StopTyping(); RefreshSheet(); return; }
-            bool changed = false;
-            foreach (char c in _s.Input.Typed)
+            bool wasSelected = _allSelected;
+            if (!TypedText.Apply(ref _link, ref _allSelected, _s.Input.Typed, 200))
             {
-                if (c == '\b') { if (_link.Length > 0) { _link = _link.Substring(0, _link.Length - 1); changed = true; } }
-                else if (!char.IsControl(c) && _link.Length < 200) { _link += c; changed = true; }
+                if (_allSelected != wasSelected) UpdateLinkField();
+                return;
             }
-            if (!changed) return;
             UpdateLinkField();
             UpdateCheck();
             RefreshSheet();
         }
 
         private void UpdateLinkField() =>
-            UiKit.SetLabel(_linkField, _typing ? _link + "▌" : _link.Length > 0 ? _link : Loc.T("link_field"));
+            UiKit.SetLabel(_linkField, _typing ? TypedText.Show(_link, _allSelected) : _link.Length > 0 ? _link : Loc.T("link_field"));
 
         /// <summary>What is at the link: being checked, the video's title, not found, or not a video link.</summary>
         private void UpdateCheck()

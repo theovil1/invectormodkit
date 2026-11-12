@@ -120,7 +120,7 @@ namespace InvectorModKit.Marketplace.Client
                 return new ReportedChart
                 {
                     Id = (string)o["id"], Title = (string)o["title"], Artist = (string)o["artist"], Author = (string)o["author"],
-                    AuthorSteamId = (string)o["authorSteamId"], Hidden = Flag(o["hidden"]), Version = (int?)o["version"] ?? 1,
+                    AuthorSteamId = (string)o["authorSteamId"], YoutubeId = (string)o["youtubeId"], Hidden = Flag(o["hidden"]), Version = (int?)o["version"] ?? 1,
                     Reports = (int?)o["reports"] ?? 0, Last = (long?)o["last"] ?? 0,
                     Details = ((JArray)o["details"] ?? new JArray()).Select(d => new ReportDetail
                     {
@@ -136,7 +136,7 @@ namespace InvectorModKit.Marketplace.Client
             return a.Select(t => new AdminChart
             {
                 Id = (string)t["id"], Title = (string)t["title"], Artist = (string)t["artist"], Author = (string)t["author"],
-                AuthorSteamId = (string)t["authorSteamId"], Hidden = Flag(t["hidden"]), Version = (int?)t["version"] ?? 1,
+                AuthorSteamId = (string)t["authorSteamId"], YoutubeId = (string)t["youtubeId"], Hidden = Flag(t["hidden"]), Version = (int?)t["version"] ?? 1,
                 Downloads = (int?)t["downloads"] ?? 0, Reports = (int?)t["reports"] ?? 0, UpdatedAt = (long?)t["updatedAt"] ?? 0,
             }).ToList();
         }

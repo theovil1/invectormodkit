@@ -6,6 +6,16 @@ namespace InvectorModKit.Marketplace.Client.Tests;
 /// <summary>Excerpts fetched from YouTube: only that section, kept a while, then deleted.</summary>
 public class ExcerptCacheTests
 {
+    [Fact]
+    public void Cache_LeftoversOfInterruptedFetchesGo()
+    {
+        // A fetch still running (the screen was closed and opened again) keeps its files.
+        var running = new[] { "dvgZkm1xWPE" };
+        Assert.False(ExcerptCache.IsLeftover("fetch-dvgZkm1xWPE.ogg.part", running));
+        Assert.True(ExcerptCache.IsLeftover("fetch-abcdefghijk.ogg.part", running));
+        Assert.False(ExcerptCache.IsLeftover("abcdefghijk-615.ogg", running));
+    }
+
     private const long MB = 1024 * 1024;
     private static readonly DateTime Now = new DateTime(2026, 11, 12, 18, 0, 0, DateTimeKind.Utc);
 

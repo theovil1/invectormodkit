@@ -1,11 +1,13 @@
 using System;
+using System.Collections.Generic;
+using InvectorModKit.Charting;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
 namespace InvectorModKit.CustomSongs
 {
     /// <summary>
-    /// Song-select artwork: the song's cover if it has one, otherwise a colour gradient unique to the song.
+    /// Song-select artwork: the song's cover if it has one, otherwise a pixel note in colours of the song's own (<see cref="CoverArt"/>).
     /// Official covers are square, so other shapes (video thumbnails) are cropped to fill like them.
     /// </summary>
     internal static class Covers
@@ -22,7 +24,7 @@ namespace InvectorModKit.CustomSongs
                     tex = null;
                 }
             }
-            tex = tex ?? Placeholder(song.Id);
+            if (tex == null) return Drawn(song.Title ?? song.Id);
             tex.wrapMode = TextureWrapMode.Clamp;
             GameAssets.Keep(tex);
             return GameAssets.Keep(Sprite.Create(tex, SquareCrop(tex), new Vector2(0.5f, 0.5f)));
@@ -58,19 +60,22 @@ namespace InvectorModKit.CustomSongs
         /// <summary>Not padding: visible, and not black.</summary>
         private static bool IsPicture(Color32 c) => c.a >= 16 && (c.r > 40 || c.g > 40 || c.b > 40);
 
-        private static Texture2D Placeholder(string id)
+        private static readonly Dictionary<string, Sprite> DrawnCovers = new Dictionary<string, Sprite>();
+
+        /// <summary>The cover drawn for a song without one, made once per title: big square pixels (nearest filtering).</summary>
+        public static Sprite Drawn(string title)
         {
-            const int size = 256;
-            float hue = (id.GetHashCode() & 0xffff) / 65535f;
-            Color a = Color.HSVToRGB(hue, 0.65f, 0.85f), b = Color.HSVToRGB((hue + 0.15f) % 1f, 0.8f, 0.35f);
-            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            var pixels = new Color32[size * size];
-            for (int y = 0; y < size; y++)
-                for (int x = 0; x < size; x++)
-                    pixels[y * size + x] = Color.Lerp(b, a, (x + y) / (2f * size));
-            tex.SetPixels32(pixels);
+            title = title ?? "";
+            if (DrawnCovers.TryGetValue(title, out var known) && known) return known;
+            var tex = new Texture2D(CoverArt.Size, CoverArt.Size, TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+            tex.LoadRawTextureData(CoverArt.Rgba32(title));
             tex.Apply();
-            return tex;
+            GameAssets.Keep(tex);
+            return DrawnCovers[title] = GameAssets.Keep(Sprite.Create(tex, new Rect(0, 0, CoverArt.Size, CoverArt.Size), new Vector2(0.5f, 0.5f)));
         }
     }
 }

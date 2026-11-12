@@ -34,12 +34,12 @@ public class MarketplaceApiTests
     public async Task Reports_ReadsChartsAndDetails()
     {
         var http = new FakeTransport().Reply(200, """
-            [{"id":"abc","title":"Kyiv","artist":"Apashe","author":"Bob","authorSteamId":"76561190000000020","hidden":1,"version":2,"reports":3,"last":1760000000000,
+            [{"id":"abc","title":"Kyiv","artist":"Apashe","youtubeId":"dvgZkm1xWPE","author":"Bob","authorSteamId":"76561190000000020","hidden":1,"version":2,"reports":3,"last":1760000000000,
               "details":[{"chartId":"abc","reason":"wrong video","at":1760000000000,"name":"Alice","steamId":"76561190000000011"}]}]
             """);
         var reports = await new MarketplaceApi("https://m.test", http) { Token = "t" }.ReportsAsync();
         var r = reports[0];
-        Assert.Equal(("abc", "Bob", "76561190000000020", true, 2, 3), (r.Id, r.Author, r.AuthorSteamId, r.Hidden, r.Version, r.Reports));
+        Assert.Equal(("abc", "Bob", "76561190000000020", true, 2, 3, "dvgZkm1xWPE"), (r.Id, r.Author, r.AuthorSteamId, r.Hidden, r.Version, r.Reports, r.YoutubeId));
         Assert.Equal(("wrong video", "Alice", "76561190000000011", 1760000000000L), (r.Details[0].Reason, r.Details[0].Name, r.Details[0].SteamId, r.Details[0].At));
         Assert.Equal(("GET", "https://m.test/admin/api/reports", "t"), (http.Sent[0].Method, http.Sent[0].Url, http.Sent[0].Bearer));
     }
@@ -85,10 +85,10 @@ public class MarketplaceApiTests
     [Fact]
     public async Task AdminCharts_SearchesAndReads()
     {
-        var http = new FakeTransport().Reply(200, """[{"id":"abc","title":"Kyiv","artist":"Apashe","hidden":0,"version":1,"downloads":4,"updatedAt":5,"author":"Bob","authorSteamId":"76561190000000020","reports":1}]""");
+        var http = new FakeTransport().Reply(200, """[{"id":"abc","title":"Kyiv","artist":"Apashe","youtubeId":"dvgZkm1xWPE","hidden":0,"version":1,"downloads":4,"updatedAt":5,"author":"Bob","authorSteamId":"76561190000000020","reports":1}]""");
         var charts = await new MarketplaceApi("https://m.test", http) { Token = "t" }.AdminChartsAsync("ky iv");
         Assert.Equal("https://m.test/admin/api/charts?q=ky%20iv", http.Sent[0].Url);
-        Assert.Equal(("abc", false, 4, "76561190000000020", 1), (charts[0].Id, charts[0].Hidden, charts[0].Downloads, charts[0].AuthorSteamId, charts[0].Reports));
+        Assert.Equal(("abc", false, 4, "76561190000000020", 1, "dvgZkm1xWPE"), (charts[0].Id, charts[0].Hidden, charts[0].Downloads, charts[0].AuthorSteamId, charts[0].Reports, charts[0].YoutubeId));
     }
 
     [Fact]

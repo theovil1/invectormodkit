@@ -37,6 +37,7 @@ namespace InvectorModKit.Marketplace.Ui
         private List<ChartSummary> _shown = new List<ChartSummary>();
 
         private string _query = "";
+        private bool _allSelected; // Ctrl+A in the search field
         private ChartSort _sort = ChartSort.Popular;
         private Shown _filter = Shown.All;
         private int? _difficulty;
@@ -52,6 +53,8 @@ namespace InvectorModKit.Marketplace.Ui
         private float _boardAt;
         private HashSet<string> _installed = new HashSet<string>();
         private readonly HashSet<string> _downloading = new HashSet<string>(), _fetching = new HashSet<string>();
+        /// <summary>Charts the marketplace said are not there any more, until a search lists them again.</summary>
+        private readonly HashSet<string> _gone = new HashSet<string>();
         // Written by yt-dlp's output thread while the screen reads it.
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, double> _progress = new System.Collections.Concurrent.ConcurrentDictionary<string, double>();
         private readonly Dictionary<string, string> _errors = new Dictionary<string, string>();
@@ -71,6 +74,7 @@ namespace InvectorModKit.Marketplace.Ui
 
             // ----- left: search, filters, list
             _search = UiKit.Button(_root, "", ButtonStyle.Secondary, StartTyping);
+            UiKit.Label(_search).supportRichText = true; // Ctrl+A shows the selection in colour
             UiKit.Label(_search).alignment = TextAnchor.MiddleLeft;
             UiKit.At(_search, 0, 0, ListWidth, 66);
             var chips = new GameObject("Filters", typeof(RectTransform), typeof(HorizontalLayoutGroup)).GetComponent<RectTransform>();
@@ -186,6 +190,7 @@ namespace InvectorModKit.Marketplace.Ui
         private void StartTyping()
         {
             _typing = true;
+            _allSelected = false;
             UpdateSearchLabel();
         }
 
@@ -193,6 +198,7 @@ namespace InvectorModKit.Marketplace.Ui
         {
             if (!_typing) return;
             _typing = false;
+            _allSelected = false;
             UpdateSearchLabel();
             if (search) { _searchAt = -1; Query(append: false); }
         }
@@ -200,12 +206,9 @@ namespace InvectorModKit.Marketplace.Ui
         private void ReadTyping()
         {
             if (_s.Input.Ok || _s.Input.Back) { StopTyping(search: true); return; }
-            bool changed = false;
-            foreach (char c in _s.Input.Typed)
-            {
-                if (c == '\b') { if (_query.Length > 0) { _query = _query.Substring(0, _query.Length - 1); changed = true; } }
-                else if (!char.IsControl(c) && _query.Length < 60) { _query += c; changed = true; }
-            }
+            bool wasSelected = _allSelected;
+            bool changed = TypedText.Apply(ref _query, ref _allSelected, _s.Input.Typed, 60);
+            if (!changed && _allSelected != wasSelected) UpdateSearchLabel();
             if (changed)
             {
                 _searchAt = Time.unscaledTime + 0.4f;
@@ -215,7 +218,7 @@ namespace InvectorModKit.Marketplace.Ui
         }
 
         private void UpdateSearchLabel() =>
-            UiKit.SetLabel(_search, _typing ? _query + "▌" : _query.Length > 0 ? Loc.T("search_query", _query.ToUpperInvariant()) : Loc.T("search_hint"));
+            UiKit.SetLabel(_search, _typing ? TypedText.Show(_query, _allSelected) : _query.Length > 0 ? Loc.T("search_query", _query.ToUpperInvariant()) : Loc.T("search_hint"));
 
         private void SetFilter(Shown filter)
         {
@@ -258,6 +261,7 @@ namespace InvectorModKit.Marketplace.Ui
                 if (!_root || generation != _generation) return;
                 if (!append) _loaded.Clear();
                 _loaded.AddRange(result.Items);
+                foreach (var c in result.Items) _gone.Remove(c.Id);
                 _page = page;
                 _more.gameObject.SetActive(result.More);
                 Rebuild();
@@ -284,15 +288,21 @@ namespace InvectorModKit.Marketplace.Ui
                 SongRow row = null;
                 row = _s.MakeRow(_content, () => Main(), () => Select(chart));
                 row.Set(chart.Title, Loc.T("by_author", chart.Artist, chart.Author), Tag(chart), chart.Duration, null);
-                Thumbnails.Get(chart.YoutubeId, sprite => { if (row.Root) row.Set(chart.Title, Loc.T("by_author", chart.Artist, chart.Author), Tag(chart), chart.Duration, sprite); });
+                Thumbnails.GetOrDrawn(chart.YoutubeId, chart.Title, sprite => { if (row.Root) row.Set(chart.Title, Loc.T("by_author", chart.Artist, chart.Author), Tag(chart), chart.Duration, sprite); });
                 _rows.Add(row);
             }
             _empty.text = _shown.Count == 0 ? (_query.Length > 0 || _filter != Shown.All || _difficulty != null ? Loc.T("no_match") : Loc.T("no_charts")) : "";
             Wire();
+            // The chart shown came back with other facts (shown again or hidden by an admin, a new version): show them.
+            var fresh = keep == null ? null : _shown.FirstOrDefault(c => c.Id == keep);
+            if (fresh != null && fresh != _selected && Changed(fresh, _selected)) ShowSheet(fresh);
             var again = _rows.FirstOrDefault(r => _shown[_rows.IndexOf(r)].Id == keep);
             if (_root.gameObject.activeInHierarchy && !_typing && _rows.Count > 0) GameUi.Select((again ?? _rows[0]).Root);
             if (_rows.Count == 0) ShowSheet(null);
         }
+
+        private static bool Changed(ChartSummary a, ChartSummary b) =>
+            a.Hidden != b.Hidden || a.Version != b.Version || a.Downloads != b.Downloads || a.Title != b.Title || a.Artist != b.Artist || a.YoutubeId != b.YoutubeId;
 
         // ----- navigation: search, filters, rows, the sheet
 
@@ -394,7 +404,7 @@ namespace InvectorModKit.Marketplace.Ui
             _sheet.SetLevel(_boardLevel);
             _sheet.SetExcerpt("");
             VideoInfo.Get(c.YoutubeId, (title, channel) => { if (_selected == c) _sheet.SetInfo(Info(c, Loc.T("quoted", title))); });
-            Thumbnails.Get(c.YoutubeId, sprite => { if (_selected == c) _sheet.SetCover(sprite); });
+            Thumbnails.GetOrDrawn(c.YoutubeId, c.Title, sprite => { if (_selected == c) _sheet.SetCover(sprite); });
             RefreshSheet();
             LoadBoard(c);
         }
@@ -434,6 +444,7 @@ namespace InvectorModKit.Marketplace.Ui
                 FetchError = error,
                 InstalledVersion = local?.MarketplaceVersion ?? 0,
                 LatestVersion = c.Version,
+                Gone = _gone.Contains(c.Id),
             };
         }
 
@@ -564,7 +575,15 @@ namespace InvectorModKit.Marketplace.Ui
             }
             catch (Exception e)
             {
-                if (_root && _boardKey == key) _sheet.SetBoard(header + "\n" + Loc.T("unreachable", e.GetBaseException().Message));
+                if (!_root || _boardKey != key) return;
+                if (MainButton.IsGone(e))
+                {
+                    // removed, or hidden for this player, while its sheet was open
+                    _gone.Add(c.Id);
+                    _sheet.SetBoard(header + "\n" + Loc.T("main_gone_sub"));
+                    RefreshSheet();
+                }
+                else _sheet.SetBoard(header + "\n" + Loc.T("unreachable", e.GetBaseException().Message));
             }
         }
 
@@ -575,8 +594,9 @@ namespace InvectorModKit.Marketplace.Ui
             _sheet.SetEntryActions(
                 () => _s.Confirm(Loc.T("mod_confirm_score", e.Name, e.Score),
                     () => Moderate(() => MarketplacePlugin.Api.DeleteScoreAsync(e.SteamId, c.Id, version, serverDifficulty))),
-                () => _s.Confirm(Loc.T("mod_confirm_ban", e.Name),
-                    () => Moderate(() => MarketplacePlugin.Api.SetRoleAsync(e.SteamId, "banned"))));
+                ModerationState.CanBan(e.SteamId, MarketplacePlugin.Session.Current?.SteamId)
+                    ? () => _s.Confirm(Loc.T("mod_confirm_ban", e.Name), () => Moderate(() => MarketplacePlugin.Api.SetRoleAsync(e.SteamId, "banned")))
+                    : (Action)null);
             WireSheet();
         }
 
@@ -632,7 +652,10 @@ namespace InvectorModKit.Marketplace.Ui
             catch (Exception e)
             {
                 _downloading.Remove(c.Id);
-                if (_root && _selected == c) SetStatus(Loc.T("download_failed", e.GetBaseException().Message));
+                if (MainButton.IsGone(e)) _gone.Add(c.Id);
+                if (!_root || _selected != c) return;
+                if (_gone.Contains(c.Id)) RefreshSheet();
+                else SetStatus(Loc.T("download_failed", e.GetBaseException().Message));
             }
         }
 

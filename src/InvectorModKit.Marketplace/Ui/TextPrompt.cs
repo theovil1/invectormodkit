@@ -1,4 +1,5 @@
 using System;
+using InvectorModKit.Marketplace.Client;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -17,6 +18,7 @@ namespace InvectorModKit.Marketplace.Ui
         private Func<string, string> _validate;
         private Action<string> _onOk;
         private string _text = "", _defaultHint = "";
+        private bool _allSelected; // Ctrl+A
 
         public bool Visible => _root.activeSelf;
 
@@ -49,6 +51,7 @@ namespace InvectorModKit.Marketplace.Ui
             fieldButton.colors = fieldButton.currentColorBlock = fieldButton.originalColors = colors;
             _field = fieldButton.GetComponentInChildren<Text>(true);
             _field.resizeTextForBestFit = true;
+            _field.supportRichText = true; // Ctrl+A shows the selection in colour
             _field.color = Color.white;
 
             _hint = GameUi.Text(box, "Hint", UiKit.Regular, 24, TextAnchor.MiddleCenter, GameUi.Muted);
@@ -73,6 +76,7 @@ namespace InvectorModKit.Marketplace.Ui
             _hint.text = hint;
             _hint.color = GameUi.Muted;
             _text = initial ?? "";
+            _allSelected = false;
             _validate = validate;
             _onOk = onOk;
             Refresh();
@@ -87,30 +91,21 @@ namespace InvectorModKit.Marketplace.Ui
             if (Input.GetKeyDown(KeyCode.Escape)) { Close(); return; }
             if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) { Submit(); return; }
             bool control = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
-            bool changed = false;
-            if (control && Input.GetKeyDown(KeyCode.V))
-            {
-                _text += (GUIUtility.systemCopyBuffer ?? "").Trim();
-                changed = true;
-            }
-            else if (!control)
-            {
-                foreach (char c in Input.inputString)
-                {
-                    if (c == '\b') { if (_text.Length > 0) { _text = _text.Substring(0, _text.Length - 1); changed = true; } }
-                    else if (!char.IsControl(c) && _text.Length < 300) { _text += c; changed = true; }
-                }
-            }
-            if (control && Input.GetKeyDown(KeyCode.Backspace)) { _text = ""; changed = true; }
+            string typed = control ? "" : Input.inputString ?? "";
+            if (control && Input.GetKeyDown(KeyCode.A)) typed += TypedText.SelectAll;
+            if (control && Input.GetKeyDown(KeyCode.V)) typed += (GUIUtility.systemCopyBuffer ?? "").Trim();
+            if (control && Input.GetKeyDown(KeyCode.Backspace)) typed += TypedText.SelectAll + "\b"; // clears the field
+            bool wasSelected = _allSelected;
+            bool changed = TypedText.Apply(ref _text, ref _allSelected, typed, 300);
             if (changed)
             {
                 _hint.text = _defaultHint;
                 _hint.color = GameUi.Muted;
-                Refresh();
             }
+            if (changed || _allSelected != wasSelected) Refresh();
         }
 
-        private void Refresh() => _field.text = _text + "▌";
+        private void Refresh() => _field.text = TypedText.Show(_text, _allSelected);
 
         private void Submit()
         {

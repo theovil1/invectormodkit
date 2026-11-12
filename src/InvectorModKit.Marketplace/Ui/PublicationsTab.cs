@@ -34,7 +34,7 @@ namespace InvectorModKit.Marketplace.Ui
         private readonly Sheet _sheet;
         private readonly List<SongRow> _rows = new List<SongRow>();
         private readonly List<Pub> _pubs = new List<Pub>();
-        private readonly Dictionary<string, string> _hashes = new Dictionary<string, string>();
+        private readonly StampedCache _hashes = new StampedCache(); // a chart file is read again only once it changed
 
         private Pub _selected;
         private int _generation;
@@ -115,7 +115,6 @@ namespace InvectorModKit.Marketplace.Ui
             if (Time.unscaledTime >= _nextRefresh)
             {
                 _nextRefresh = Time.unscaledTime + 2f; // the level editor may have saved the chart
-                _hashes.Clear();
                 foreach (var p in _pubs) p.View = PublicationState.For(Facts(p));
                 RefreshRows();
                 RefreshSheet();
@@ -160,7 +159,6 @@ namespace InvectorModKit.Marketplace.Ui
                     Chart = c,
                     Song = songs.FirstOrDefault(s => s.MarketplaceId == c.Id) ?? songs.FirstOrDefault(s => session.PublishedChart(s.Id) == c.Id),
                 }).ToList();
-                _hashes.Clear();
                 foreach (var p in pubs) p.View = PublicationState.For(Facts(p));
                 Fill(pubs, pubs.Count == 0 ? Loc.T("no_publications") : "", null, signIn: false, keepStatus);
             }
@@ -236,11 +234,14 @@ namespace InvectorModKit.Marketplace.Ui
 
         private string Hash(LocalSong s)
         {
-            if (_hashes.TryGetValue(s.Id, out var known)) return known;
-            string hash;
-            try { hash = ChartContent.Hash(File.ReadAllText(s.ChartPath)); }
-            catch (Exception) { hash = null; }
-            return _hashes[s.Id] = hash;
+            DateTime stamp;
+            try { stamp = File.GetLastWriteTimeUtc(s.ChartPath); }
+            catch (Exception) { return null; }
+            return _hashes.Get(s.Id, stamp, () =>
+            {
+                try { return ChartContent.Hash(File.ReadAllText(s.ChartPath)); }
+                catch (Exception) { return null; }
+            });
         }
 
         // ----- the list
@@ -262,7 +263,7 @@ namespace InvectorModKit.Marketplace.Ui
                 var p = pub;
                 var row = _s.MakeRow(_content, Main, () => Select(p));
                 row.Set(p.Chart.Title, RowLine(p), "", p.Chart.Duration, p.Song?.Cover);
-                if (p.Song?.Cover == null) Thumbnails.Get(p.Chart.YoutubeId, sprite => { if (row.Root) row.Set(p.Chart.Title, RowLine(p), "", p.Chart.Duration, sprite); });
+                if (p.Song?.Cover == null) Thumbnails.GetOrDrawn(p.Chart.YoutubeId, p.Chart.Title, sprite => { if (row.Root) row.Set(p.Chart.Title, RowLine(p), "", p.Chart.Duration, sprite); });
                 _rows.Add(row);
             }
             Wire();
@@ -282,7 +283,7 @@ namespace InvectorModKit.Marketplace.Ui
         {
             switch (p.View?.Row ?? PublicationRow.UpToDate)
             {
-                case PublicationRow.Hidden: return Loc.T("pub_hidden", p.Chart.Reports ?? 0);
+                case PublicationRow.Hidden: return Loc.Count("pub_hidden", p.Chart.Reports ?? 0);
                 case PublicationRow.NotOnThisPc: return Loc.T("pub_not_on_pc");
                 case PublicationRow.Changed: return Loc.T("pub_changed");
                 default: return Loc.T("pub_up_to_date");
@@ -291,8 +292,8 @@ namespace InvectorModKit.Marketplace.Ui
 
         private static string RowLine(Pub p)
         {
-            string line = Loc.T("pub_row", p.Chart.Version, State(p)) + "  ·  " + Loc.T("pub_installs", p.Chart.Downloads);
-            return p.Chart.Players == null ? line : line + "  ·  " + Loc.T("pub_players", p.Chart.Players.Value);
+            string line = Loc.T("pub_row", p.Chart.Version, State(p)) + "  ·  " + Loc.Count("pub_installs", p.Chart.Downloads);
+            return p.Chart.Players == null ? line : line + "  ·  " + Loc.Count("pub_players", p.Chart.Players.Value);
         }
 
         private void RefreshRows()
@@ -356,7 +357,7 @@ namespace InvectorModKit.Marketplace.Ui
             _sheet.SetExcerpt("");
             _videoTitle = null;
             _sheet.SetSong(p.Chart.Title, p.Chart.Artist, p.Song?.Cover, Info(p));
-            if (p.Song?.Cover == null) Thumbnails.Get(p.Chart.YoutubeId, sprite => { if (_selected == p) _sheet.SetCover(sprite); });
+            if (p.Song?.Cover == null) Thumbnails.GetOrDrawn(p.Chart.YoutubeId, p.Chart.Title, sprite => { if (_selected == p) _sheet.SetCover(sprite); });
             VideoInfo.Get(p.Chart.YoutubeId, (title, channel) => { if (_selected == p) { _videoTitle = title; _sheet.SetInfo(Info(p)); } });
             RefreshSheet();
         }
@@ -364,9 +365,9 @@ namespace InvectorModKit.Marketplace.Ui
         private string Info(Pub p)
         {
             var c = p.Chart;
-            var stats = new List<string> { Loc.T("pub_installs", c.Downloads) };
-            if (c.Players != null) stats.Add(Loc.T("pub_players", c.Players.Value));
-            if (c.Reports != null) stats.Add(Loc.T("pub_reports", c.Reports.Value));
+            var stats = new List<string> { Loc.Count("pub_installs", c.Downloads) };
+            if (c.Players != null) stats.Add(Loc.Count("pub_players", c.Players.Value));
+            if (c.Reports != null) stats.Add(Loc.Count("pub_reports", c.Reports.Value));
             string video = _videoTitle != null ? Loc.T("quoted", _videoTitle) : c.YoutubeUrl;
             return Loc.T("pub_row", c.Version, State(p)) + "\n" + string.Join("  ·  ", stats) + "\n" + video;
         }

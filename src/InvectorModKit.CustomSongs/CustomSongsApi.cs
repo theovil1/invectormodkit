@@ -47,6 +47,17 @@ namespace InvectorModKit.CustomSongs
                 PreviewStart = s.Chart != null ? s.Chart.PreviewStart : 0,
             }).ToList();
 
+        /// <summary>
+        /// Main thread: "id:marketplace id" of each playable song, cheap enough to check often whether songs came or
+        /// went (<see cref="Songs"/> copies every song).
+        /// </summary>
+        public static IEnumerable<string> ReadySongKeys() =>
+            CustomSongsPlugin.Library == null ? Enumerable.Empty<string>()
+                : CustomSongsPlugin.Library.Songs.Where(s => s.State == SongState.Ready).Select(s => s.Id + ":" + s.MarketplaceId);
+
+        /// <summary>Main thread: the cover drawn for a song without one (song select uses it too), for that title.</summary>
+        public static UnityEngine.Sprite DrawnCover(string title) => Covers.Drawn(title);
+
         /// <summary>The mixer group the game's song previews play through, so the marketplace's excerpts follow the music volume; null until resolved.</summary>
         public static UnityEngine.Audio.AudioMixerGroup PreviewMixerGroup => GameAssets.PreviewGroup;
 

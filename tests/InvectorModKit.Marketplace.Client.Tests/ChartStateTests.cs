@@ -13,6 +13,30 @@ public class ChartStateTests
     }
 
     [Fact]
+    public void State_GoneSaysSo()
+    {
+        var b = MainButton.For(new ChartFacts { Gone = true, LatestVersion = 1 });
+        Assert.Equal((MainKind.Gone, false, "main_gone", "main_gone_sub"), (b.Kind, b.Enabled, b.LabelKey, b.SubKey));
+    }
+
+    [Fact]
+    public void State_GoneKeepsWhatIsInTheGame()
+    {
+        // Installed: still playable, but no update any more. Music missing: it comes from YouTube, not the marketplace.
+        Assert.Equal(MainKind.Installed, MainButton.For(new ChartFacts { Gone = true, Installed = true, InstalledVersion = 1, LatestVersion = 2 }).Kind);
+        Assert.Equal(MainKind.Retry, MainButton.For(new ChartFacts { Gone = true, Downloaded = true, LatestVersion = 1 }).Kind);
+    }
+
+    [Fact]
+    public void State_GoneOnlyForAMissingChart()
+    {
+        Assert.True(MainButton.IsGone(new MarketplaceException(404, "chart not found")));
+        Assert.True(MainButton.IsGone(new System.AggregateException(new MarketplaceException(404, "chart not found"))));
+        Assert.False(MainButton.IsGone(new MarketplaceException(404, "version not found")));
+        Assert.False(MainButton.IsGone(new MarketplaceException(0, "unreachable")));
+    }
+
+    [Fact]
     public void State_DownloadingShowsChartStep()
     {
         var b = MainButton.For(new ChartFacts { Downloading = true, Progress = 0.42, LatestVersion = 1 });
