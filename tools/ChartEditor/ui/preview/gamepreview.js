@@ -8,6 +8,7 @@ import { createPath } from "./path.js";
 import { prepareRun } from "./run.js";
 import { prepareShip } from "./ship.js";
 import { cameraPose } from "./camera.js";
+import { createTrack } from "./track.js";
 
 const WORLD = "void"; // fixed until the preview settings (part 3)
 const SHIP_SCALE = 2.1; // the ship prefab's mount (x1.4) inside the walker's ShipCoaster (x1.5): the prototype's measure
@@ -64,6 +65,8 @@ export class GamePreview {
     this.shipMount = new THREE.Group();
     this.shipMount.add(this.ship);
     this.scene.add(this.shipMount);
+    this.track = await createTrack(this.cache, this.rig, this.path, this.level);
+    this.scene.add(this.track.root);
     window.gamePreview = this; // the console's view of the stats and options
   }
 
@@ -73,6 +76,7 @@ export class GamePreview {
     this.diff = diff;
     this.run = prepareRun(doc, diff, this.rig, { tier: this.options.tier });
     this.shipCtl = prepareShip(this.run, this.rig, this.level, this.rolls);
+    this.track.prepare(this.run, doc);
     this.stats.prepareMs = performance.now() - t0;
   }
 
@@ -101,12 +105,14 @@ export class GamePreview {
       const w = this.shipCtl.world(t, this.path);
       this.shipMount.position.set(...w.pos);
       this.shipMount.quaternion.set(...w.q);
+      this.track.update(t);
     }
     this.renderer.render(this.scene, this.camera);
     this.stats.frameMs = performance.now() - t0;
   }
 
   dispose() {
+    if (this.track) this.track.dispose();
     this.renderer.dispose();
     if (window.gamePreview === this) window.gamePreview = null;
   }
