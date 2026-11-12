@@ -52,6 +52,8 @@ namespace InvectorModKit.Marketplace.Ui
         private float _boardAt;
         private HashSet<string> _installed = new HashSet<string>();
         private readonly HashSet<string> _downloading = new HashSet<string>(), _fetching = new HashSet<string>();
+        /// <summary>Charts the marketplace said are not there any more, until a search lists them again.</summary>
+        private readonly HashSet<string> _gone = new HashSet<string>();
         // Written by yt-dlp's output thread while the screen reads it.
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, double> _progress = new System.Collections.Concurrent.ConcurrentDictionary<string, double>();
         private readonly Dictionary<string, string> _errors = new Dictionary<string, string>();
@@ -258,6 +260,7 @@ namespace InvectorModKit.Marketplace.Ui
                 if (!_root || generation != _generation) return;
                 if (!append) _loaded.Clear();
                 _loaded.AddRange(result.Items);
+                foreach (var c in result.Items) _gone.Remove(c.Id);
                 _page = page;
                 _more.gameObject.SetActive(result.More);
                 Rebuild();
@@ -289,10 +292,16 @@ namespace InvectorModKit.Marketplace.Ui
             }
             _empty.text = _shown.Count == 0 ? (_query.Length > 0 || _filter != Shown.All || _difficulty != null ? Loc.T("no_match") : Loc.T("no_charts")) : "";
             Wire();
+            // The chart shown came back with other facts (shown again or hidden by an admin, a new version): show them.
+            var fresh = keep == null ? null : _shown.FirstOrDefault(c => c.Id == keep);
+            if (fresh != null && fresh != _selected && Changed(fresh, _selected)) ShowSheet(fresh);
             var again = _rows.FirstOrDefault(r => _shown[_rows.IndexOf(r)].Id == keep);
             if (_root.gameObject.activeInHierarchy && !_typing && _rows.Count > 0) GameUi.Select((again ?? _rows[0]).Root);
             if (_rows.Count == 0) ShowSheet(null);
         }
+
+        private static bool Changed(ChartSummary a, ChartSummary b) =>
+            a.Hidden != b.Hidden || a.Version != b.Version || a.Downloads != b.Downloads || a.Title != b.Title || a.Artist != b.Artist || a.YoutubeId != b.YoutubeId;
 
         // ----- navigation: search, filters, rows, the sheet
 
@@ -434,6 +443,7 @@ namespace InvectorModKit.Marketplace.Ui
                 FetchError = error,
                 InstalledVersion = local?.MarketplaceVersion ?? 0,
                 LatestVersion = c.Version,
+                Gone = _gone.Contains(c.Id),
             };
         }
 
@@ -564,7 +574,15 @@ namespace InvectorModKit.Marketplace.Ui
             }
             catch (Exception e)
             {
-                if (_root && _boardKey == key) _sheet.SetBoard(header + "\n" + Loc.T("unreachable", e.GetBaseException().Message));
+                if (!_root || _boardKey != key) return;
+                if (MainButton.IsGone(e))
+                {
+                    // removed, or hidden for this player, while its sheet was open
+                    _gone.Add(c.Id);
+                    _sheet.SetBoard(header + "\n" + Loc.T("main_gone_sub"));
+                    RefreshSheet();
+                }
+                else _sheet.SetBoard(header + "\n" + Loc.T("unreachable", e.GetBaseException().Message));
             }
         }
 
@@ -633,7 +651,10 @@ namespace InvectorModKit.Marketplace.Ui
             catch (Exception e)
             {
                 _downloading.Remove(c.Id);
-                if (_root && _selected == c) SetStatus(Loc.T("download_failed", e.GetBaseException().Message));
+                if (MainButton.IsGone(e)) _gone.Add(c.Id);
+                if (!_root || _selected != c) return;
+                if (_gone.Contains(c.Id)) RefreshSheet();
+                else SetStatus(Loc.T("download_failed", e.GetBaseException().Message));
             }
         }
 
