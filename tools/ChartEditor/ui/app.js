@@ -69,6 +69,8 @@ class App {
     on("closing", () => this.requestClose());
     on("fonts", () => skin.loadFonts().then(() => { this.timeline.draw(); this.markPreview(); }));
     if (!this.settings.gameFound) this.status(t("gameNotFound"));
+    on("gameData", (d) => this.gameDataChanged(d.state));
+    if (inHost) call("host.gameData").then((d) => this.gameDataChanged(d.state)).catch(() => {});
   }
 
   /** The game's pictures around the editor: logo, world backdrop. */
@@ -135,6 +137,14 @@ class App {
   status(text, error = false) {
     $("status-text").textContent = text || "";
     $("status-text").classList.toggle("error", !!error);
+  }
+
+  /** The game data the 3D preview reads from the installed game: for now the status bar says how its reading goes. */
+  gameDataChanged(state) {
+    if (state === "reading") this.status(t("gameDataReading"));
+    else if (state === "failed") this.status(t("gameDataFailed"), true);
+    else if (state === "ready" && this.gameDataState === "reading") this.status(t("gameDataReady"));
+    this.gameDataState = state;
   }
 
   // ----- wiring

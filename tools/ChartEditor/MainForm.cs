@@ -14,8 +14,8 @@ namespace InvectorModKit.ChartEditor.Host
     /// <summary>
     /// The editor's window: the HTML interface in WebView2 (served from ui/ as https://app.editor/), the open song's
     /// audio as https://app.editor/audio/…, the game's look as https://app.editor/skin/… (the pictures the mod exports in
-    /// game, and the game's fonts cut out of its bundles here), and the interface's messages answered here ("host.*")
-    /// or by the EditorBackend.
+    /// game, and the game's fonts cut out of its bundles here), the game data for the 3D preview as
+    /// https://app.editor/game/…, and the interface's messages answered here ("host.*") or by the EditorBackend.
     /// </summary>
     internal sealed class MainForm : Form
     {
@@ -27,6 +27,11 @@ namespace InvectorModKit.ChartEditor.Host
         private bool _ready, _allowClose;
         private string _audioPath;
         private readonly string _fontsDir;
+
+        /// <summary>The editor's copy of the game data for the 3D preview (%LOCALAPPDATA%\InvectorModKit\LevelEditor\game), served under /game/.</summary>
+        private readonly GameDataService _gameData = new GameDataService(
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "InvectorModKit", "LevelEditor"));
+        private string _gameDataDir;
 
         public MainForm()
         {
@@ -52,6 +57,11 @@ namespace InvectorModKit.ChartEditor.Host
             }
             _backend = new EditorBackend(settings, OpenUrl);
             _fontsDir = Path.Combine(data, "fonts");
+            _gameData.Changed += state => Post(new JObject
+            {
+                ["event"] = "gameData",
+                ["data"] = new JObject { ["state"] = state.ToString().ToLowerInvariant() },
+            }.ToString(Newtonsoft.Json.Formatting.None));
             Load += async (_, __) => await Start();
         }
 
@@ -91,6 +101,22 @@ namespace InvectorModKit.ChartEditor.Host
             core.Navigate($"https://{AppHost}/index.html");
             _ready = true;
             ExtractFontsOnce();
+            RefreshGameData();
+        }
+
+        /// <summary>
+        /// Reads the game data for the 3D preview in the background when the cache is missing or stale (the first start,
+        /// a game update, a new game folder); the page hears how it goes through "gameData" events.
+        /// </summary>
+        private void RefreshGameData()
+        {
+            string game = _backend.Settings.GameDir;
+            _gameDataDir = game;
+            Task.Run(() =>
+            {
+                try { _gameData.Refresh(game); }
+                catch (Exception) { } // the service logs its builds; the editor works without the cache
+            });
         }
 
         /// <summary>The game's fonts, cut out of its bundles the first time (a few seconds, in the background).</summary>
@@ -132,6 +158,7 @@ namespace InvectorModKit.ChartEditor.Host
             else
             {
                 if (path.StartsWith("skin/fonts/", StringComparison.Ordinal)) { root = _fontsDir; path = path.Substring(11); }
+                else if (path.StartsWith("game/", StringComparison.Ordinal)) { root = _gameData.CacheDir; path = path.Substring(5); }
                 else if (path.StartsWith("skin/", StringComparison.Ordinal)) { root = SkinDir; path = path.Substring(5); }
                 file = root == null ? null : Path.GetFullPath(Path.Combine(root, path.Replace('/', '\\')));
             }
@@ -168,6 +195,8 @@ namespace InvectorModKit.ChartEditor.Host
                 var p = message["params"] as JObject ?? new JObject();
                 JToken result = method.StartsWith("host.", StringComparison.Ordinal) ? HostCall(method, p) : await _backend.Handle(method, p);
                 Reply(new JObject { ["id"] = id, ["result"] = result ?? JValue.CreateNull() });
+                // the game folder chosen in the settings: its data for the 3D preview
+                if (!string.Equals(_backend.Settings.GameDir, _gameDataDir, StringComparison.OrdinalIgnoreCase)) RefreshGameData();
             }
             catch (Exception e)
             {
@@ -201,6 +230,8 @@ namespace InvectorModKit.ChartEditor.Host
                     _audioPath = Path.GetFullPath((string)p["audioPath"]);
                     return new JValue($"https://{AppHost}/audio/{Uri.EscapeDataString(Path.GetFileName(_audioPath))}?v={File.GetLastWriteTimeUtc(_audioPath).Ticks}");
                 }
+                case "host.gameData":
+                    return new JObject { ["state"] = _gameData.State.ToString().ToLowerInvariant() };
                 case "host.title":
                     Text = (string)p["text"] ?? "Invector Level Editor";
                     return JValue.CreateNull();
