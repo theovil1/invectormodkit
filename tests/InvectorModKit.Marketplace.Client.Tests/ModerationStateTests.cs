@@ -34,15 +34,14 @@ public class ModerationStateTests
     }
 
     [Fact]
-    public void Moderation_RefusedSaysNotAdmin()
-    {
-        Assert.Equal("mod_not_admin", ModerationState.Refused(401));
+    public void Moderation_RefusedSaysNotAdmin() =>
         Assert.Equal("mod_not_admin", ModerationState.Refused(403));
-    }
 
     [Fact]
     public void Moderation_OldServerSaysSo()
     {
+        // A server from before moderation in the game wants its web page's cookie: 401 to the game's token.
+        Assert.Equal("server_too_old", ModerationState.Refused(401));
         Assert.Equal("server_too_old", ModerationState.Refused(404));
         Assert.Null(ModerationState.Refused(500));
     }

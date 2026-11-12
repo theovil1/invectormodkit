@@ -15,10 +15,10 @@ namespace InvectorModKit.Marketplace.Client
             new SheetButton { LabelKey = "mod_lift_ban", Accent = true, Enabled = !busy };
 
         /// <summary>
-        /// The Loc key for a refused admin call: 401/403, the account is not an admin any more; 404, a server from before
-        /// moderation in the game. Null: say the server's own error.
+        /// The Loc key for a refused admin call: 403, the account is not an admin any more; 401 or 404, a server from
+        /// before moderation in the game (it wants its web page's cookie). Null: say the server's own error.
         /// </summary>
         public static string Refused(int status) =>
-            status == 401 || status == 403 ? "mod_not_admin" : status == 404 ? "server_too_old" : null;
+            status == 403 ? "mod_not_admin" : status == 401 || status == 404 ? "server_too_old" : null;
     }
 }
