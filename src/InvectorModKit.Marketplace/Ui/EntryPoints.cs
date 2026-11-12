@@ -149,9 +149,20 @@ namespace InvectorModKit.Marketplace.Ui
         [HarmonyPatch(typeof(StateSelectSongMultiplayer), nameof(StateSelectSongMultiplayer.Update)), HarmonyPrefix]
         private static bool SongSelectMultiUpdate(StateSelectSongMultiplayer __instance) => Pass(__instance);
 
+        // The ship selector reads "change ship" (R, or the controller's) in its own Update, outside the state's: it
+        // switched the ship behind the marketplace. The console menu layout reads Unity's input on its own the same way.
+        [HarmonyPatch(typeof(ShipSelector), "Update"), HarmonyPrefix]
+        private static bool ShipSelectorUpdate() => !Open;
+
+        [HarmonyPatch(typeof(MenuLayout), nameof(MenuLayout.Update)), HarmonyPrefix]
+        private static bool MenuLayoutUpdate() => !Open;
+
+        /// <summary>The marketplace is open: the menus underneath take no input.</summary>
+        private static bool Open => ScreenInput.Active || MarketplaceModal.IsOpen;
+
         private static bool Pass(HelloThere.Applications.ApplicationState state)
         {
-            if (!MarketplaceModal.IsOpen) return true;
+            if (!Open) return true;
             // Same as ApplicationState.Update: the cursor shows while the mouse is the last device used.
             bool mouse = Rewired.ReInput.isReady && Rewired.ReInput.controllers.GetLastActiveControllerType() == Rewired.ControllerType.Mouse;
             if (Cursor.visible != mouse)
