@@ -134,8 +134,11 @@ namespace InvectorModKit.Marketplace.Ui
 
         // ----- loading
 
-        /// <summary>The player's charts from the server, each with its song here; publications withdrawn elsewhere are forgotten.</summary>
-        private async void Load()
+        /// <summary>
+        /// The player's charts from the server, each with its song here; publications withdrawn elsewhere are forgotten.
+        /// <paramref name="keepStatus"/>: after an action, its result stays on the sheet.
+        /// </summary>
+        private async void Load(bool keepStatus = false)
         {
             int generation = ++_generation;
             var session = MarketplacePlugin.Session;
@@ -144,7 +147,7 @@ namespace InvectorModKit.Marketplace.Ui
                 Fill(new List<Pub>(), Loc.T("sign_in_publications"), Loc.T("sign_in"), signIn: true);
                 return;
             }
-            Fill(new List<Pub>(), Loc.T("searching"), null, signIn: false);
+            if (_pubs.Count == 0) Fill(new List<Pub>(), Loc.T("searching"), null, signIn: false); // a reload keeps the list meanwhile
             try
             {
                 var live = await MarketplacePlugin.Api.MyChartsAsync();
@@ -159,7 +162,7 @@ namespace InvectorModKit.Marketplace.Ui
                 }).ToList();
                 _hashes.Clear();
                 foreach (var p in pubs) p.View = PublicationState.For(Facts(p));
-                Fill(pubs, pubs.Count == 0 ? Loc.T("no_publications") : "", null, signIn: false);
+                Fill(pubs, pubs.Count == 0 ? Loc.T("no_publications") : "", null, signIn: false, keepStatus);
             }
             catch (Exception e)
             {
@@ -242,8 +245,9 @@ namespace InvectorModKit.Marketplace.Ui
 
         // ----- the list
 
-        private void Fill(List<Pub> pubs, string empty, string action, bool signIn)
+        private void Fill(List<Pub> pubs, string empty, string action, bool signIn, bool keepStatus = false)
         {
+            string status = _status;
             string keep = _selected?.Chart.Id;
             foreach (var r in _rows) UnityEngine.Object.Destroy(r.Root);
             _rows.Clear();
@@ -265,7 +269,12 @@ namespace InvectorModKit.Marketplace.Ui
             int again = _pubs.FindIndex(p => p.Chart.Id == keep);
             if (again >= 0) { _selected = _pubs[again]; ShowSheet(_selected, keepStatus: true); }
             else ShowSheet(null, keepStatus: false);
-            if (_root.gameObject.activeInHierarchy && _rows.Count > 0) GameUi.Select(_rows[Math.Max(0, again)].Root);
+            if (keepStatus) { _status = status; RefreshSheet(); }
+            if (_root.gameObject.activeInHierarchy && _rows.Count > 0)
+            {
+                GameUi.Select(_rows[Math.Max(0, again)].Root);
+                if (again < 0 && keepStatus) { ShowSheet(_pubs[0], keepStatus: true); _status = status; RefreshSheet(); }
+            }
             else if (_root.gameObject.activeInHierarchy && _action.gameObject.activeSelf) GameUi.Select(_action.gameObject);
         }
 
@@ -404,7 +413,7 @@ namespace InvectorModKit.Marketplace.Ui
                     _publishing = null;
                     if (!_root) return;
                     _status = Loc.T("updated", published.Version);
-                    Load();
+                    Load(keepStatus: true);
                 },
                 why =>
                 {
@@ -431,7 +440,7 @@ namespace InvectorModKit.Marketplace.Ui
                             session.RememberPublished(p.Song.Id, p.Chart.Id, link, session.PublishedHash(p.Song.Id));
                         if (!_root) return;
                         _status = Loc.T("link_changed");
-                        Load();
+                        Load(keepStatus: true);
                     }
                     catch (MarketplaceException e) when (e.Status == 404 || e.Status == 405)
                     {
@@ -463,7 +472,7 @@ namespace InvectorModKit.Marketplace.Ui
                 }
                 if (!_root) return;
                 _status = Loc.T("withdrawn");
-                Load();
+                Load(keepStatus: true);
             });
         }
 
