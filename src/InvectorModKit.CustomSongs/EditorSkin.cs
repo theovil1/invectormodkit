@@ -61,7 +61,21 @@ namespace InvectorModKit.CustomSongs
             if (s == null || s.texture == null || string.IsNullOrEmpty(s.name)) return false;
             string n = s.name;
             if (n.StartsWith("cover", StringComparison.OrdinalIgnoreCase) || n.EndsWith("(Clone)")) return false; // album art is not part of the look
-            return s.rect.width >= 4 && s.rect.height >= 4 && s.texture.width <= 4096 && s.texture.height <= 4096;
+            return s.rect.width >= 4 && s.rect.height >= 4 && s.texture.width <= 4096 && s.texture.height <= 4096
+                && Region(s, out _, out _, out _, out _);
+        }
+
+        /// <summary>
+        /// The sprite's whole-pixel rectangle in its texture. None for a sprite tightly packed in an atlas (the game's
+        /// start gate): its pixels follow its mesh, and Unity gives no rectangle for them.
+        /// </summary>
+        private static bool Region(Sprite s, out int x, out int y, out int w, out int h)
+        {
+            bool tight = s.packed && s.packingMode == SpritePackingMode.Tight;
+            Rect r = default;
+            try { if (!tight) r = s.textureRect; }
+            catch (Exception) { }
+            return EditorSkinRegion.TryGet(tight, r.x, r.y, r.width, r.height, s.texture.width, s.texture.height, out x, out y, out w, out h);
         }
 
         private IEnumerator Export(object state)
@@ -135,10 +149,7 @@ namespace InvectorModKit.CustomSongs
                 RenderTexture.ReleaseTemporary(rt);
                 readable[texture] = copy;
             }
-            Rect r;
-            try { r = sprite.textureRect; }
-            catch (Exception) { r = sprite.rect; } // tightly packed: its bounding rectangle
-            int x = Mathf.RoundToInt(r.x), y = Mathf.RoundToInt(r.y), w = Mathf.RoundToInt(r.width), h = Mathf.RoundToInt(r.height);
+            if (!Region(sprite, out int x, out int y, out int w, out int h)) throw new InvalidOperationException("no rectangle in its texture");
             var pixels = copy.GetPixels(x, y, w, h);
             var image = new Texture2D(w, h, TextureFormat.RGBA32, false, false);
             image.SetPixels(pixels);
