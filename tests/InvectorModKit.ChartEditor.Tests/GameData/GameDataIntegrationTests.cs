@@ -156,6 +156,14 @@ public class GameDataIntegrationTests : IClassFixture<GameDataBuildFixture>
     }
 
     [GameFact]
+    public void VoidRoadPiece()
+    {
+        var road = build.Json("levels/void.json")["road"];
+        Assert.True(File.Exists(Path.Combine(build.Dir, "meshes", (string)road["mesh"]["ref"] + ".bin")), road.ToString());
+        Assert.False(string.IsNullOrEmpty((string)road["material"]["shader"]), road.ToString());
+    }
+
+    [GameFact]
     public void RollClips()
     {
         foreach (var (file, length) in new[] { ("RollRightLong", 1.567f), ("coaster_RollRightLong2Turns", 1.933f), ("coaster_RollRightLong3Turns", 2.6f) })

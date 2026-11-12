@@ -13,7 +13,7 @@ namespace InvectorModKit.ChartEditor
     /// <summary>Runs the recipe against the installed game and writes the cache's files into a folder, index.json last.</summary>
     public static class GameDataBuilder
     {
-        const int MeshRendererType = 23, AnimationClipType = 74, AnimatorControllerType = 91;
+        const int GameObjectType = 1, MeshRendererType = 23, MeshFilterType = 33, AnimationClipType = 74, AnimatorControllerType = 91;
 
         /// <summary>Animated properties that are not material properties (GameObject, renderer and particle module values).</summary>
         static readonly string[] OtherAttributes =
@@ -218,7 +218,8 @@ namespace InvectorModKit.ChartEditor
                 }
 
                 var splineMesh = Fed("SplineMesh");
-                var level = LevelJson.Build(Fields(chosen.spline), Fields(chosen.editor), Fields(splineMesh), RoadMaterial(splineMesh, assets),
+                var (roadMesh, roadMaterial) = RoadPiece(splineMesh, assets);
+                var level = LevelJson.Build(Fields(chosen.spline), Fields(chosen.editor), Fields(splineMesh), roadMesh, roadMaterial,
                     Fields(Fed("Toblerone")), Fields(Fed("TobleroneWalls")));
                 level["assets"] = assets;
                 string file = "levels/" + CacheFiles.FileSafe(world) + ".json";
@@ -237,22 +238,57 @@ namespace InvectorModKit.ChartEditor
                 return target != null && Reader.Id(target) == Reader.Id(editor);
             }
 
-            /// <summary>The first material of the road's MeshRenderer (on the SplineMesh's GameObject).</summary>
-            JToken RoadMaterial(AssetRef splineMesh, JObject assets)
+            /// <summary>
+            /// The road piece SplineMesh repeats along the path (its Prefabs[0], a MeshFilter or a GameObject): its mesh, and
+            /// the first material of its MeshRenderer (or of the SplineMesh's own GameObject).
+            /// </summary>
+            (JToken mesh, JToken material) RoadPiece(AssetRef splineMesh, JObject assets)
             {
-                if (splineMesh == null) return null;
-                var go = Reader.Read(splineMesh)["m_GameObject"];
-                var gameObject = Reader.Resolve(splineMesh, go["m_FileID"].AsInt, go["m_PathID"].AsLong);
+                if (splineMesh == null) return (null, null);
+                JToken mesh = null, material = null;
+                var prefabs = Reader.Read(splineMesh)["Prefabs"];
+                var first = prefabs.IsDummy || prefabs["Array"].Children.Count == 0 ? null : prefabs["Array"].Children[0];
+                var piece = first == null ? null : Reader.Resolve(splineMesh, first["m_FileID"].AsInt, first["m_PathID"].AsLong);
+                if (piece != null)
+                {
+                    var filter = piece.TypeId == MeshFilterType ? piece : ComponentOf(piece, MeshFilterType);
+                    if (filter != null)
+                    {
+                        var written = Writer.WriteObject(filter, walk: false);
+                        Merge(assets, written);
+                        mesh = written["fields"]["m_Mesh"];
+                    }
+                    material = FirstMaterial(piece, assets);
+                }
+                return (mesh, material ?? FirstMaterial(splineMesh, assets));
+            }
+
+            /// <summary>A component of a type on the GameObject of `owner` (a GameObject or one of its components).</summary>
+            AssetRef ComponentOf(AssetRef owner, int typeId)
+            {
+                var gameObject = owner;
+                if (owner.TypeId != GameObjectType)
+                {
+                    var go = Reader.Read(owner)["m_GameObject"];
+                    gameObject = go.IsDummy ? null : Reader.Resolve(owner, go["m_FileID"].AsInt, go["m_PathID"].AsLong);
+                }
                 if (gameObject == null) return null;
                 foreach (var pair in Reader.Read(gameObject)["m_Component"]["Array"].Children)
                 {
                     var c = Reader.Resolve(gameObject, pair["component"]["m_FileID"].AsInt, pair["component"]["m_PathID"].AsLong);
-                    if (c == null || c.TypeId != MeshRendererType) continue;
-                    var renderer = Writer.WriteObject(c, walk: false);
-                    Merge(assets, renderer);
-                    return renderer["fields"]["m_Materials"]?.FirstOrDefault();
+                    if (c != null && c.TypeId == typeId) return c;
                 }
                 return null;
+            }
+
+            /// <summary>The first material of the MeshRenderer on the GameObject of `owner`.</summary>
+            JToken FirstMaterial(AssetRef owner, JObject assets)
+            {
+                var renderer = ComponentOf(owner, MeshRendererType);
+                if (renderer == null) return null;
+                var written = Writer.WriteObject(renderer, walk: false);
+                Merge(assets, written);
+                return written["fields"]["m_Materials"]?.FirstOrDefault();
             }
 
             static void Merge(JObject assets, JObject written)

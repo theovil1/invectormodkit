@@ -18,7 +18,7 @@ namespace InvectorModKit.ChartEditor
     /// <summary>What the 3D preview needs from the installed game. Change Version when the cache format or this list changes.</summary>
     public static class GameDataRecipe
     {
-        public const int Version = 1;
+        public const int Version = 2; // 2: the level's road piece (mesh and material)
 
         const string Shared = "basegame_assets_shared.bundle";
         const string Ship = "basegame_assets_ship_beginner.bundle";

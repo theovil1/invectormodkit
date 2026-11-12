@@ -11,7 +11,7 @@ namespace InvectorModKit.ChartEditor
     {
         static readonly string[] Bookkeeping = { "m_GameObject", "m_Enabled", "m_Script", "m_Name", "feed" };
 
-        public static JObject Build(JObject spline, JObject editor, JObject splineMesh, JToken roadMaterial, JObject toblerone, JObject walls) => new JObject
+        public static JObject Build(JObject spline, JObject editor, JObject splineMesh, JToken roadMesh, JToken roadMaterial, JObject toblerone, JObject walls) => new JObject
         {
             ["start"] = spline["StartPosition"],
             ["length"] = spline["totalLength"],
@@ -22,7 +22,7 @@ namespace InvectorModKit.ChartEditor
             ["circle"] = new JObject { ["y"] = editor["CircleY"], ["radius"] = editor["CircleRadius"], ["bottom"] = editor["BottomLine"] },
             ["road"] = splineMesh == null ? JValue.CreateNull() : new JObject
             {
-                ["mesh"] = splineMesh["Prefabs"]?.FirstOrDefault() ?? JValue.CreateNull(),
+                ["mesh"] = roadMesh ?? splineMesh["Prefabs"]?.FirstOrDefault() ?? JValue.CreateNull(),
                 ["material"] = roadMaterial ?? JValue.CreateNull(),
                 ["scale"] = splineMesh["scale"],
                 ["offsetY"] = splineMesh["splineOffsetY"],

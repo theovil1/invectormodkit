@@ -15,7 +15,7 @@ public class LevelJsonTests
     [Fact]
     public void MapsTheSplineAndFlyAreas()
     {
-        var level = LevelJson.Build(Spline, Editor, null, null, null, null);
+        var level = LevelJson.Build(Spline, Editor, null, null, null, null, null);
 
         Assert.Equal(210f, (float)level["start"]);
         Assert.Equal(2562.75f, (float)level["length"]);
@@ -33,7 +33,7 @@ public class LevelJsonTests
         var toblerone = JObject.Parse("{\"m_Name\":\"\",\"feed\":{\"ref\":\"x-2\"},\"size\":1790,\"interval\":2}");
         var walls = JObject.Parse("{\"m_Script\":\"TobleroneWalls\",\"m_Enabled\":1,\"m_GameObject\":{\"ref\":\"x-3\"},\"size\":1900,\"generateThreeWalls\":1}");
 
-        var level = LevelJson.Build(Spline, Editor, mesh, JObject.Parse("{\"name\":\"Road\"}"), toblerone, walls);
+        var level = LevelJson.Build(Spline, Editor, mesh, null, JObject.Parse("{\"name\":\"Road\"}"), toblerone, walls);
 
         Assert.Equal("{\"mesh\":{\"ref\":\"x-1\"},\"material\":{\"name\":\"Road\"},\"scale\":{\"x\":13,\"y\":13,\"z\":13},\"offsetY\":-3.33}", Json(level["road"]));
         Assert.Equal("{\"size\":1790,\"interval\":2}", Json(level["tunnel"]));
@@ -43,10 +43,20 @@ public class LevelJsonTests
     [Fact]
     public void MissingPartsAreNull()
     {
-        var level = LevelJson.Build(Spline, Editor, null, null, null, null);
+        var level = LevelJson.Build(Spline, Editor, null, null, null, null, null);
 
         Assert.Equal(JTokenType.Null, level["road"].Type);
         Assert.Equal(JTokenType.Null, level["tunnel"].Type);
         Assert.Equal(JTokenType.Null, level["holdWalls"].Type);
+    }
+
+    [Fact]
+    public void TheRoadPieceMeshWinsOverThePrefabReference()
+    {
+        var mesh = JObject.Parse("{\"Prefabs\":[{\"ref\":\"x-1\",\"type\":\"MeshFilter\"}],\"scale\":{\"x\":13,\"y\":13,\"z\":13},\"splineOffsetY\":-3.33}");
+
+        var level = LevelJson.Build(Spline, Editor, mesh, JObject.Parse("{\"ref\":\"x-9\"}"), null, null, null);
+
+        Assert.Equal("{\"ref\":\"x-9\"}", Json(level["road"]["mesh"]));
     }
 }
