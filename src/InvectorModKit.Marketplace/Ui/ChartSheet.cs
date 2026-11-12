@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using InvectorModKit.Marketplace.Client;
 using UnityEngine;
 using UnityEngine.UI;
@@ -22,7 +23,10 @@ namespace InvectorModKit.Marketplace.Ui
 
         private readonly Image _cover, _fill;
         private readonly Text _title, _artist, _info, _excerpt, _board, _note, _mainLabel, _mainSub;
-        private readonly RectTransform _moreRow;
+        private readonly RectTransform _moreRow, _entries, _entryRow;
+        private readonly List<ButtonWithEvents> _entryButtons = new List<ButtonWithEvents>();
+        private readonly ButtonWithEvents _deleteScore, _banPlayer;
+        private Action _onDeleteScore, _onBanPlayer;
         private bool _moreOpen;
 
         public ChartSheet(Transform parent, Action main, Action listen, Action video, Action report, Action folder,
@@ -70,6 +74,24 @@ namespace InvectorModKit.Marketplace.Ui
             boardRt.anchorMax = new Vector2(1, 1);
             boardRt.offsetMin = new Vector2(Pad, Pad + RowHeight + 16 + MainHeight + 16 + 64);
             boardRt.offsetMax = new Vector2(-Pad, -(Pad + Cover + 70 + 72 + 20));
+
+            // Admins: the board's lines as buttons under its header, and the actions on the chosen line under them.
+            float boardBottom = Pad + RowHeight + 16 + MainHeight + 16 + 64;
+            _entries = new GameObject("Entries", typeof(RectTransform), typeof(VerticalLayoutGroup)).GetComponent<RectTransform>();
+            _entries.SetParent(Root, false);
+            _entries.anchorMin = new Vector2(0, 0);
+            _entries.anchorMax = new Vector2(1, 1);
+            _entries.offsetMin = new Vector2(Pad, boardBottom + 58);
+            _entries.offsetMax = new Vector2(-Pad, -(Pad + Cover + 70 + 72 + 20 + 40));
+            var entriesLayout = _entries.GetComponent<VerticalLayoutGroup>();
+            entriesLayout.spacing = 6;
+            entriesLayout.childControlWidth = entriesLayout.childControlHeight = entriesLayout.childForceExpandWidth = true;
+            entriesLayout.childForceExpandHeight = false;
+            _entries.gameObject.SetActive(false);
+            _entryRow = Row("Entry actions", boardBottom);
+            _deleteScore = UiKit.Button(_entryRow, Loc.T("mod_delete_score"), ButtonStyle.Danger, () => _onDeleteScore?.Invoke());
+            _banPlayer = UiKit.Button(_entryRow, Loc.T("mod_ban_player"), ButtonStyle.Danger, () => _onBanPlayer?.Invoke());
+            _entryRow.gameObject.SetActive(false);
 
             _note = UiKit.Text(Root, "Note", TextRole.Small);
             _note.color = Color.white;
@@ -140,6 +162,8 @@ namespace InvectorModKit.Marketplace.Ui
             _moreOpen = open && (RemoveGame.gameObject.activeSelf || Delete.gameObject.activeSelf);
             _moreRow.gameObject.SetActive(_moreOpen);
             _board.gameObject.SetActive(!_moreOpen);
+            _entries.gameObject.SetActive(!_moreOpen && _entryButtons.Count > 0);
+            if (_moreOpen) _entryRow.gameObject.SetActive(false);
         }
 
         public void SetVisible(bool visible) => Root.gameObject.SetActive(visible);
@@ -171,6 +195,39 @@ namespace InvectorModKit.Marketplace.Ui
         }
 
         public void SetExcerpt(string text) => _excerpt.text = text ?? "";
+
+        /// <summary>
+        /// Admins: the board's lines as buttons (<paramref name="entries"/> null: the text board, as players see it).
+        /// The board's text then keeps only its header.
+        /// </summary>
+        public void SetBoardEntries(IList<(string line, Action select)> entries)
+        {
+            foreach (var b in _entryButtons) UnityEngine.Object.Destroy(b.gameObject);
+            _entryButtons.Clear();
+            _entries.gameObject.SetActive(entries != null && entries.Count > 0);
+            if (entries == null) return;
+            foreach (var (line, select) in entries)
+            {
+                var button = UiKit.Button(_entries, line, ButtonStyle.Secondary, select);
+                UiKit.Label(button).alignment = TextAnchor.MiddleLeft;
+                var size = button.gameObject.AddComponent<LayoutElement>();
+                size.minHeight = size.preferredHeight = 44;
+                _entryButtons.Add(button);
+            }
+        }
+
+        /// <summary>The actions on the board line an admin chose (null: none chosen, the row goes).</summary>
+        public void SetEntryActions(Action deleteScore, Action banPlayer)
+        {
+            _onDeleteScore = deleteScore;
+            _onBanPlayer = banPlayer;
+            _entryRow.gameObject.SetActive(deleteScore != null);
+        }
+
+        public List<Selectable> EntryButtons() => _entryButtons.Where(b => b).Cast<Selectable>().ToList();
+
+        public List<Selectable> EntryActionButtons() =>
+            _entryRow.gameObject.activeSelf ? new List<Selectable> { _deleteScore, _banPlayer } : new List<Selectable>();
         public void SetBoard(string text) => _board.text = text ?? "";
         public void SetNote(string text, bool warning = false)
         {

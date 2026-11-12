@@ -115,7 +115,9 @@ namespace InvectorModKit.Marketplace.Ui
             Player = gameObject.AddComponent<PreviewPlayer>();
             Excerpts = new PreviewCache(this);
 
-            BuildTabs((new DiscoverTab(this), "tab_discover"), (new LibraryTab(this), "tab_library"), (new PublicationsTab(this), "tab_publications"));
+            var tabs = new List<(ITab, string)> { (new DiscoverTab(this), "tab_discover"), (new LibraryTab(this), "tab_library"), (new PublicationsTab(this), "tab_publications") };
+            if (MarketplacePlugin.Session.Current?.CanModerate == true) tabs.Add((new ModerationTab(this), "tab_moderation")); // admins only
+            BuildTabs(tabs.ToArray());
             _confirmation = new Confirmation(this);
             _prompt = new TextPrompt(this);
             _previousSelection = GameUi.Selected;

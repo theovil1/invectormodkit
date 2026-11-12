@@ -95,6 +95,44 @@ namespace InvectorModKit.Marketplace.Client
         public BoardEntry Me;
     }
 
+    /// <summary>One report of a chart (moderation).</summary>
+    public sealed class ReportDetail
+    {
+        public string Reason, Name, SteamId;
+        /// <summary>Unix time in milliseconds.</summary>
+        public long At;
+    }
+
+    /// <summary>A reported chart with its reports, newest first (moderation).</summary>
+    public sealed class ReportedChart
+    {
+        public string Id, Title, Artist, Author, AuthorSteamId;
+        public bool Hidden;
+        public int Version, Reports;
+        /// <summary>The newest report, Unix time in milliseconds.</summary>
+        public long Last;
+        public List<ReportDetail> Details = new List<ReportDetail>();
+    }
+
+    /// <summary>A chart as the moderation list gives it (hidden ones too).</summary>
+    public sealed class AdminChart
+    {
+        public string Id, Title, Artist, Author, AuthorSteamId;
+        public bool Hidden;
+        public int Version, Downloads, Reports;
+        public long UpdatedAt;
+    }
+
+    /// <summary>A player as moderation sees them.</summary>
+    public sealed class AdminUser
+    {
+        public string SteamId, Name, Role;
+        public long CreatedAt;
+        /// <summary>When they were banned (Unix ms), null when not banned or before ban dates were kept.</summary>
+        public long? BannedAt;
+        public int Charts, Scores;
+    }
+
     public sealed class MarketplaceException : Exception
     {
         /// <summary>HTTP status, 0 when the server could not be reached.</summary>
