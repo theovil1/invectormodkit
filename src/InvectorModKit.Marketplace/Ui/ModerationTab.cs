@@ -284,7 +284,7 @@ namespace InvectorModKit.Marketplace.Ui
                 else
                 {
                     row.Set(Title(it), RowLine(it), Hidden(it) ? Loc.T("tag_hidden") : "", 0, null);
-                    Thumbnails.Get(VideoId(it), sprite => { if (row.Root) row.Set(Title(it), RowLine(it), Hidden(it) ? Loc.T("tag_hidden") : "", 0, sprite); });
+                    Thumbnails.GetOrDrawn(VideoId(it), Title(it), sprite => { if (row.Root) row.Set(Title(it), RowLine(it), Hidden(it) ? Loc.T("tag_hidden") : "", 0, sprite); });
                 }
                 _rows.Add(row);
             }
@@ -384,7 +384,7 @@ namespace InvectorModKit.Marketplace.Ui
                 if (Hidden(i)) lines.Add(Loc.T("hidden_admin_note"));
                 lines.Add((i.Chart != null ? Loc.Count("pub_installs", i.Chart.Downloads) + "  ·  " : "") + Loc.Count("pub_reports", Reports(i)));
                 _sheet.SetSong(Title(i), Artist(i), null, string.Join("\n", lines));
-                Thumbnails.Get(VideoId(i), sprite => { if (_selected == i) _sheet.SetCover(sprite); });
+                Thumbnails.GetOrDrawn(VideoId(i), Title(i), sprite => { if (_selected == i) _sheet.SetCover(sprite); });
                 _reports.text = i.Reported == null ? "" : string.Join("\n", i.Reported.Details.Select(d => Loc.T("mod_report_line", Date(d.At), d.Name, d.Reason)));
             }
             RefreshSheet();

@@ -263,7 +263,7 @@ namespace InvectorModKit.Marketplace.Ui
                 var p = pub;
                 var row = _s.MakeRow(_content, Main, () => Select(p));
                 row.Set(p.Chart.Title, RowLine(p), "", p.Chart.Duration, p.Song?.Cover);
-                if (p.Song?.Cover == null) Thumbnails.Get(p.Chart.YoutubeId, sprite => { if (row.Root) row.Set(p.Chart.Title, RowLine(p), "", p.Chart.Duration, sprite); });
+                if (p.Song?.Cover == null) Thumbnails.GetOrDrawn(p.Chart.YoutubeId, p.Chart.Title, sprite => { if (row.Root) row.Set(p.Chart.Title, RowLine(p), "", p.Chart.Duration, sprite); });
                 _rows.Add(row);
             }
             Wire();
@@ -357,7 +357,7 @@ namespace InvectorModKit.Marketplace.Ui
             _sheet.SetExcerpt("");
             _videoTitle = null;
             _sheet.SetSong(p.Chart.Title, p.Chart.Artist, p.Song?.Cover, Info(p));
-            if (p.Song?.Cover == null) Thumbnails.Get(p.Chart.YoutubeId, sprite => { if (_selected == p) _sheet.SetCover(sprite); });
+            if (p.Song?.Cover == null) Thumbnails.GetOrDrawn(p.Chart.YoutubeId, p.Chart.Title, sprite => { if (_selected == p) _sheet.SetCover(sprite); });
             VideoInfo.Get(p.Chart.YoutubeId, (title, channel) => { if (_selected == p) { _videoTitle = title; _sheet.SetInfo(Info(p)); } });
             RefreshSheet();
         }

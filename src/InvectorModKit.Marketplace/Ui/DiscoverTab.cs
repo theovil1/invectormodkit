@@ -288,7 +288,7 @@ namespace InvectorModKit.Marketplace.Ui
                 SongRow row = null;
                 row = _s.MakeRow(_content, () => Main(), () => Select(chart));
                 row.Set(chart.Title, Loc.T("by_author", chart.Artist, chart.Author), Tag(chart), chart.Duration, null);
-                Thumbnails.Get(chart.YoutubeId, sprite => { if (row.Root) row.Set(chart.Title, Loc.T("by_author", chart.Artist, chart.Author), Tag(chart), chart.Duration, sprite); });
+                Thumbnails.GetOrDrawn(chart.YoutubeId, chart.Title, sprite => { if (row.Root) row.Set(chart.Title, Loc.T("by_author", chart.Artist, chart.Author), Tag(chart), chart.Duration, sprite); });
                 _rows.Add(row);
             }
             _empty.text = _shown.Count == 0 ? (_query.Length > 0 || _filter != Shown.All || _difficulty != null ? Loc.T("no_match") : Loc.T("no_charts")) : "";
@@ -404,7 +404,7 @@ namespace InvectorModKit.Marketplace.Ui
             _sheet.SetLevel(_boardLevel);
             _sheet.SetExcerpt("");
             VideoInfo.Get(c.YoutubeId, (title, channel) => { if (_selected == c) _sheet.SetInfo(Info(c, Loc.T("quoted", title))); });
-            Thumbnails.Get(c.YoutubeId, sprite => { if (_selected == c) _sheet.SetCover(sprite); });
+            Thumbnails.GetOrDrawn(c.YoutubeId, c.Title, sprite => { if (_selected == c) _sheet.SetCover(sprite); });
             RefreshSheet();
             LoadBoard(c);
         }

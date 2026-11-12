@@ -216,7 +216,7 @@ namespace InvectorModKit.Marketplace.Ui
                 var row = _s.MakeRow(_content, Main, () => Select(e));
                 _rows.Add(row);
                 SetRow(row, e);
-                if (e.Download != null) Thumbnails.Get(e.Download.VideoId, sprite => { if (row.Root) row.Set(e.Download.Title, "YouTube", Tag(e), 0, sprite); });
+                if (e.Download != null) Thumbnails.GetOrDrawn(e.Download.VideoId, e.Download.Title, sprite => { if (row.Root) row.Set(e.Download.Title, "YouTube", Tag(e), 0, sprite); });
             }
             _empty.text = _entries.Count > 0 ? "" : _filter == LibraryShown.All ? Loc.T("no_songs") : Loc.T("no_match");
             Wire();
@@ -230,7 +230,7 @@ namespace InvectorModKit.Marketplace.Ui
                 {
                     var d = _selected.Download; // its video's title is known once yt-dlp has read it
                     _sheet.SetSong(d.Title, "YouTube", null, d.Link);
-                    Thumbnails.Get(d.VideoId, sprite => { if (_selected?.Download == d) _sheet.SetCover(sprite); });
+                    Thumbnails.GetOrDrawn(d.VideoId, d.Title, sprite => { if (_selected?.Download == d) _sheet.SetCover(sprite); });
                 }
                 RefreshSheet();
             }
@@ -342,7 +342,7 @@ namespace InvectorModKit.Marketplace.Ui
             else
             {
                 _sheet.SetSong(e.Download.Title, "YouTube", null, e.Download.Link);
-                Thumbnails.Get(e.Download.VideoId, sprite => { if (_selected == e) _sheet.SetCover(sprite); });
+                Thumbnails.GetOrDrawn(e.Download.VideoId, e.Download.Title, sprite => { if (_selected == e) _sheet.SetCover(sprite); });
             }
             RefreshSheet();
         }

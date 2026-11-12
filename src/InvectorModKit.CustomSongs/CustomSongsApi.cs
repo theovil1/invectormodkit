@@ -55,6 +55,9 @@ namespace InvectorModKit.CustomSongs
             CustomSongsPlugin.Library == null ? Enumerable.Empty<string>()
                 : CustomSongsPlugin.Library.Songs.Where(s => s.State == SongState.Ready).Select(s => s.Id + ":" + s.MarketplaceId);
 
+        /// <summary>Main thread: the cover drawn for a song without one (song select uses it too), for that title.</summary>
+        public static UnityEngine.Sprite DrawnCover(string title) => Covers.Drawn(title);
+
         /// <summary>The mixer group the game's song previews play through, so the marketplace's excerpts follow the music volume; null until resolved.</summary>
         public static UnityEngine.Audio.AudioMixerGroup PreviewMixerGroup => GameAssets.PreviewGroup;
 
