@@ -397,7 +397,9 @@ namespace InvectorModKit.Marketplace.Ui
             else
             {
                 b = ModerationState.ForChart(Hidden(i), _busy);
-                _sheet.SetMore((Loc.T("mod_delete"), () => DeleteChart(i), true), (Loc.T("mod_ban_author"), () => BanAuthor(i), true));
+                if (ModerationState.CanBan(AuthorSteamId(i), MarketplacePlugin.Session.Current?.SteamId))
+                    _sheet.SetMore((Loc.T("mod_delete"), () => DeleteChart(i), true), (Loc.T("mod_ban_author"), () => BanAuthor(i), true));
+                else _sheet.SetMore((Loc.T("mod_delete"), () => DeleteChart(i), true));
                 if (Reports(i) > 0) _sheet.SetActions((Loc.T("mod_clear"), () => ClearReports(i), false));
                 else _sheet.SetActions();
             }

@@ -575,8 +575,9 @@ namespace InvectorModKit.Marketplace.Ui
             _sheet.SetEntryActions(
                 () => _s.Confirm(Loc.T("mod_confirm_score", e.Name, e.Score),
                     () => Moderate(() => MarketplacePlugin.Api.DeleteScoreAsync(e.SteamId, c.Id, version, serverDifficulty))),
-                () => _s.Confirm(Loc.T("mod_confirm_ban", e.Name),
-                    () => Moderate(() => MarketplacePlugin.Api.SetRoleAsync(e.SteamId, "banned"))));
+                ModerationState.CanBan(e.SteamId, MarketplacePlugin.Session.Current?.SteamId)
+                    ? () => _s.Confirm(Loc.T("mod_confirm_ban", e.Name), () => Moderate(() => MarketplacePlugin.Api.SetRoleAsync(e.SteamId, "banned")))
+                    : (Action)null);
             WireSheet();
         }
 

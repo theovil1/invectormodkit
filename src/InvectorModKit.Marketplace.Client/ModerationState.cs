@@ -14,6 +14,9 @@ namespace InvectorModKit.Marketplace.Client
         public static SheetButton ForPlayer(bool busy) =>
             new SheetButton { LabelKey = "mod_lift_ban", Accent = true, Enabled = !busy };
 
+        /// <summary>Whether to offer banning that player: never the admin themself (the server refuses it).</summary>
+        public static bool CanBan(string steamId, string mySteamId) => !string.IsNullOrEmpty(steamId) && steamId != mySteamId;
+
         /// <summary>
         /// The Loc key for a refused admin call: 403, the account is not an admin any more; 401 or 404, a server from
         /// before moderation in the game (it wants its web page's cookie). Null: say the server's own error.
