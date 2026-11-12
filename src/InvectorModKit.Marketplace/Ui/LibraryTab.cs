@@ -190,7 +190,7 @@ namespace InvectorModKit.Marketplace.Ui
         /// <summary>What the list shows: rebuilt when it changes.</summary>
         private string Signature() =>
             string.Join("|", LinkDownloads.All.Select(d => d.VideoId + (d.ErrorKey != null ? "!" : ""))) + "#" +
-            string.Join("|", CustomSongsApi.Songs().Where(s => s.Ready).Select(s => s.Id + ":" + s.MarketplaceId));
+            string.Join("|", CustomSongsApi.ReadySongKeys());
 
         private void Rebuild()
         {
