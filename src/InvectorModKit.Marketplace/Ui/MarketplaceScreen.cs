@@ -19,13 +19,10 @@ namespace InvectorModKit.Marketplace.Ui
         private static MarketplaceScreen _instance;
         private static bool _opening;
 
-        public const float TopBar = 114, Side = 60;
+        /// <summary>The tabs' row, under the title row: its top, its height, one tab's width.</summary>
+        public const float TabsTop = 104, TabsHeight = 62, TabWidth = 400, Side = 60;
 
-        /// <summary>Fonts for the tabs that still use the dialog's layout (My songs, until stage 2).</summary>
-        public Font Regular, Bold, SemiBold;
-        /// <summary>A 1500 x 880 area centred in the body, where the My songs tab lays itself out.</summary>
-        public RectTransform Box;
-        /// <summary>The body, between the top bar and the key bar.</summary>
+        /// <summary>The body, between the tabs and the key bar.</summary>
         public RectTransform Body;
         public readonly ScreenInput Input = new ScreenInput();
         public PreviewPlayer Player;
@@ -34,9 +31,8 @@ namespace InvectorModKit.Marketplace.Ui
 
         private CanvasScaler _scaler;
         private Text _account;
-        private ButtonWithEvents _signIn, _discoverTab, _mineTab, _rules, _close, _addLink;
-        private DiscoverTab _discover;
-        private MySongsTab _mine;
+        private ButtonWithEvents _signIn, _rules, _close;
+        private readonly List<(ITab tab, ButtonWithEvents button)> _tabs = new List<(ITab, ButtonWithEvents)>();
         private ITab _current;
         private GameObject _previousSelection;
         private Confirmation _confirmation;
@@ -97,10 +93,7 @@ namespace InvectorModKit.Marketplace.Ui
         private void Build()
         {
             var dialogText = GameUi.Find<Text>(GameUi.DialogTemplate, "QuestionBox/Text");
-            Regular = dialogText ? dialogText.font : Resources.GetBuiltinResource<Font>("Arial.ttf");
-            UiKit.Init(Regular);
-            Bold = UiKit.Bold;
-            SemiBold = UiKit.SemiBold;
+            UiKit.Init(dialogText ? dialogText.font : Resources.GetBuiltinResource<Font>("Arial.ttf"));
 
             var background = GameUi.Image(transform, "Background", new Color32(0x12, 0x0A, 0x2A, 0xFF));
             background.raycastTarget = true; // nothing behind takes a click
@@ -116,26 +109,34 @@ namespace InvectorModKit.Marketplace.Ui
 
             Body = new GameObject("Body", typeof(RectTransform)).GetComponent<RectTransform>();
             Body.SetParent(transform, false);
-            UiKit.Fill(Body, Side, TopBar + 24, Side, KeyBar.Height + 16);
-            Box = new GameObject("Box", typeof(RectTransform)).GetComponent<RectTransform>();
-            Box.SetParent(Body, false);
-            GameUi.Place(Box, 0, 0, 1500, 880);
+            UiKit.Fill(Body, Side, TabsTop + TabsHeight + 24, Side, KeyBar.Height + 16);
 
             Keys = new KeyBar(transform);
-            _addLink.transform.SetParent(Box, false);
-            GameUi.Place(_addLink, 560, 330, 280, 62); // right of My songs' help line, above its sheet
             Player = gameObject.AddComponent<PreviewPlayer>();
             Excerpts = new PreviewCache(this);
 
-            _discover = new DiscoverTab(this);
-            _mine = new MySongsTab(this);
+            BuildTabs((new DiscoverTab(this), "tab_discover"), (new LibraryTab(this), "tab_library"), (new PublicationsTab(this), "tab_publications"));
             _confirmation = new Confirmation(this);
             _prompt = new TextPrompt(this);
             _previousSelection = GameUi.Selected;
             Input.Take();
             MenuAudio.Silence();
             RefreshAccount();
-            Show(_discover);
+            Show(_tabs[0].tab);
+        }
+
+        /// <summary>The tabs' own row, under the title: equal widths, room for a fourth (Moderation) in every language.</summary>
+        private void BuildTabs(params (ITab tab, string labelKey)[] tabs)
+        {
+            float x = Side;
+            foreach (var (tab, key) in tabs)
+            {
+                var t = tab;
+                var button = UiKit.Button(transform, Loc.T(key), ButtonStyle.Tab, () => Show(t));
+                Top(button, x, TabsTop, TabWidth, TabsHeight);
+                x += TabWidth + 12;
+                _tabs.Add((t, button));
+            }
         }
 
         private void BuildTopBar()
@@ -147,13 +148,6 @@ namespace InvectorModKit.Marketplace.Ui
             WordFit.Add(title);
             title.alignment = TextAnchor.MiddleLeft;
             Top(title, Side, 24, 380, 66);
-
-            _discoverTab = UiKit.Button(transform, Loc.T("tab_discover"), ButtonStyle.Tab, () => Show(_discover));
-            Top(_discoverTab, 460, 26, 280, 62);
-            _mineTab = UiKit.Button(transform, Loc.T("tab_mine"), ButtonStyle.Tab, () => Show(_mine));
-            Top(_mineTab, 756, 26, 280, 62);
-            // Adding a song from a link belongs to My songs (until My library takes it in stage 2).
-            _addLink = UiKit.Button(Box ? (Transform)Box : transform, Loc.T("add_link"), ButtonStyle.Secondary, () => _mine.AddFromLink());
 
             _close = UiKit.Button(transform, "X", ButtonStyle.Secondary, Shut);
             TopRight(_close, Side, 26, 66, 62);
@@ -167,15 +161,14 @@ namespace InvectorModKit.Marketplace.Ui
             }
             _signIn = UiKit.Button(transform, Loc.T("sign_in"), ButtonStyle.Secondary, SignIn);
             TopRight(_signIn, right, 26, 240, 62);
-            // From the tabs to the buttons on the right: a long name or language shrinks and wraps there, never over a tab.
+            // From the title to the buttons on the right: a long name or language shrinks and wraps there.
             _account = UiKit.Text(transform, "Account", TextRole.Muted);
             _account.alignment = TextAnchor.MiddleRight;
             var account = _account.rectTransform;
             account.anchorMin = new Vector2(0, 1);
             account.anchorMax = new Vector2(1, 1);
             account.pivot = new Vector2(1, 1);
-            var mine = (RectTransform)_mineTab.transform;
-            account.offsetMin = new Vector2(mine.anchoredPosition.x + mine.sizeDelta.x + 24, -26 - 62);
+            account.offsetMin = new Vector2(Side + 380 + 24, -26 - 62);
             account.offsetMax = new Vector2(-right, -26);
         }
 
@@ -217,21 +210,26 @@ namespace InvectorModKit.Marketplace.Ui
             Player.Stop();
             _current = tab;
             tab.Show();
-            UiKit.SetSelected(_discoverTab, tab == _discover);
-            UiKit.SetSelected(_mineTab, tab == _mine);
-            _addLink.gameObject.SetActive(tab == _mine);
-            var nav = new Navigation { mode = Navigation.Mode.Explicit, selectOnRight = _mineTab, selectOnDown = tab.FirstItem ? tab.FirstItem.GetComponent<Selectable>() : null };
-            _discoverTab.navigation = nav;
-            nav.selectOnLeft = _discoverTab;
-            nav.selectOnRight = null;
-            _mineTab.navigation = nav;
-            if (tab == _mine)
-                Keys.Set(new Hint("Keyboard_Return", ScreenInput.ActionOk, Loc.T("publish")),
-                         new Hint("Keyboard_Tab", ScreenInput.ActionNext, Loc.T("hint_tabs")),
-                         new Hint("Keyboard_Escape", ScreenInput.ActionCancel, Loc.T("hint_back")));
+            var down = tab.FirstItem ? tab.FirstItem.GetComponent<Selectable>() : null;
+            for (int i = 0; i < _tabs.Count; i++)
+            {
+                UiKit.SetSelected(_tabs[i].button, _tabs[i].tab == tab);
+                _tabs[i].button.navigation = new Navigation
+                {
+                    mode = Navigation.Mode.Explicit,
+                    selectOnLeft = i > 0 ? _tabs[i - 1].button : null,
+                    selectOnRight = i + 1 < _tabs.Count ? _tabs[i + 1].button : null,
+                    selectOnDown = down,
+                };
+            }
         }
 
-        private void NextTab(int dir) => Show(_current == _discover ? (ITab)_mine : _discover);
+        /// <summary>Tab / RB: the next tab; Shift+Tab / LB: the previous one (round).</summary>
+        private void NextTab(int dir)
+        {
+            int i = _tabs.FindIndex(t => t.tab == _current);
+            Show(_tabs[((i + dir) % _tabs.Count + _tabs.Count) % _tabs.Count].tab);
+        }
 
         // ----- frame
 
@@ -301,6 +299,8 @@ namespace InvectorModKit.Marketplace.Ui
         private void OnDestroy()
         {
             if (_instance == this) _instance = null;
+            _current?.Hide(); // tabs let go of what they listen to (the link downloads)
+            LinkDownloads.ForgetFailed();
             Input.GiveBack();
             Excerpts?.Dispose(); // the last excerpt clip goes with the screen
         }
@@ -361,16 +361,7 @@ namespace InvectorModKit.Marketplace.Ui
             if (!string.IsNullOrEmpty(folder)) Application.OpenURL("file:///" + folder.Replace('\\', '/'));
         }
 
-        // ----- shared builders (the game's own pieces), used by the My songs tab and the dialogs
-
-        public ButtonWithEvents MakeButton(Transform parent, string label, float x, float y, float width, float height, Action onClick, int fontSize = 30)
-        {
-            var go = GameUi.Clone(GameUi.QuestionButtonTemplate.gameObject, parent, "Button " + label);
-            var button = go.GetComponent<ButtonWithEvents>();
-            GameUi.Place(button, x, y, width, height);
-            StyleButton(button, label, fontSize, onClick);
-            return button;
-        }
+        // ----- shared builders (the game's own pieces), used by the tabs and the dialogs
 
         /// <summary>Centred label with the screen's margins, shrinking to fit, and a click handler, on one of the game's dialog buttons.</summary>
         public static void StyleButton(ButtonWithEvents button, string label, int fontSize, Action onClick)

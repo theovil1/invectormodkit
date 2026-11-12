@@ -31,6 +31,34 @@ public class MarketplaceApiTests
         """;
 
     [Fact]
+    public async Task MyCharts_ReadsStats()
+    {
+        string mine = Summary.Replace("\"downloads\":7", "\"downloads\":7,\"players\":3,\"reports\":1");
+        var http = new FakeTransport().Reply(200, $"[{mine}]");
+        var charts = await new MarketplaceApi("https://m.test", http) { Token = "t" }.MyChartsAsync();
+        Assert.Equal((3, 1), (charts[0].Players, charts[0].Reports));
+    }
+
+    [Fact]
+    public async Task MyCharts_StatsMissingAreNull()
+    {
+        var http = new FakeTransport().Reply(200, $"[{Summary}]");
+        var charts = await new MarketplaceApi("https://m.test", http) { Token = "t" }.MyChartsAsync();
+        Assert.Equal(((int?)null, (int?)null), (charts[0].Players, charts[0].Reports));
+    }
+
+    [Fact]
+    public async Task ChangeVideo_SendsPatchWithBearer()
+    {
+        var http = new FakeTransport().Reply(200, Summary);
+        var changed = await new MarketplaceApi("https://m.test", http) { Token = "t0k3n" }.ChangeVideoAsync("abc", "https://youtu.be/abcdefghijk");
+        Assert.Equal("abc", changed.Id);
+        var (method, url, body, bearer) = http.Sent[0];
+        Assert.Equal(("PATCH", "https://m.test/charts/abc", "t0k3n"), (method, url, bearer));
+        Assert.Equal("https://youtu.be/abcdefghijk", (string)JObject.Parse(body)["youtubeUrl"]);
+    }
+
+    [Fact]
     public async Task Search_ReadsPreviewTime()
     {
         string withPreview = Summary.Replace("\"downloads\":7", "\"downloads\":7,\"preview\":61.5");

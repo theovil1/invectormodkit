@@ -72,6 +72,7 @@ namespace InvectorModKit.Marketplace
             MainThread.Pump();
             try
             {
+                LinkDownloads.Tick();
                 if (!Ui.MarketplaceScreen.IsOpen && UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.M) && Ui.EntryPoints.CanOpenHere)
                     Ui.MarketplaceScreen.Open(this);
             }

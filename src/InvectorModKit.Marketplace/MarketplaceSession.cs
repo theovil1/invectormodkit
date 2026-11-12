@@ -87,10 +87,22 @@ namespace InvectorModKit.Marketplace
         public bool IsPublishedByMe(string chartId) =>
             _state["published"] is JObject published && published.Properties().Any(p => (p.Value is JObject o ? (string)o["chart"] : (string)p.Value) == chartId);
 
-        public void RememberPublished(string songId, string chartId, string link)
+        /// <param name="hash"><see cref="ChartContent.Hash"/> of the chart as published, to tell when it changed since.</param>
+        public void RememberPublished(string songId, string chartId, string link, string hash)
         {
             if (!(_state["published"] is JObject published)) _state["published"] = published = new JObject();
-            published[songId] = new JObject { ["chart"] = chartId, ["link"] = link };
+            published[songId] = new JObject { ["chart"] = chartId, ["link"] = link, ["hash"] = hash };
+            Save();
+        }
+
+        /// <summary>The content hash of the chart as last published from this song, or null (published before hashes were kept).</summary>
+        public string PublishedHash(string songId) => (string)(_state["published"]?[songId] as JObject)?["hash"];
+
+        /// <summary>Keeps a hash for a publication that had none (taken when its notes still match the published version).</summary>
+        public void RememberHash(string songId, string hash)
+        {
+            if (!(_state["published"]?[songId] is JObject record) || hash == null) return;
+            record["hash"] = hash;
             Save();
         }
 

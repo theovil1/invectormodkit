@@ -40,7 +40,9 @@ namespace InvectorModKit.Marketplace.Ui
             GameUi.Place(_question, 0, 140, 940, 80);
 
             // The field: one of the game's dialog buttons, not clickable, holding the text.
-            var fieldButton = modal.MakeButton(box, "", 0, 50, 900, 70, () => { }, 28);
+            var fieldButton = GameUi.Clone(GameUi.QuestionButtonTemplate.gameObject, box, "Field").GetComponent<ButtonWithEvents>();
+            GameUi.Place(fieldButton, 0, 50, 900, 70);
+            MarketplaceScreen.StyleButton(fieldButton, "", 28, () => { });
             fieldButton.interactable = false;
             var colors = fieldButton.colors;
             colors.disabledColor = new Color32(0x24, 0x20, 0x2A, 0xFF);
@@ -49,7 +51,7 @@ namespace InvectorModKit.Marketplace.Ui
             _field.resizeTextForBestFit = true;
             _field.color = Color.white;
 
-            _hint = GameUi.Text(box, "Hint", modal.Regular, 24, TextAnchor.MiddleCenter, GameUi.Muted);
+            _hint = GameUi.Text(box, "Hint", UiKit.Regular, 24, TextAnchor.MiddleCenter, GameUi.Muted);
             GameUi.Place(_hint, 0, -20, 940, 50);
 
             _ok = GameUi.Find<ButtonWithEvents>(box.gameObject, "Answer Yes");

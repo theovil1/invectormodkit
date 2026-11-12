@@ -32,4 +32,24 @@ public class CatalogueFilterTests
         Assert.Equal(new[] { "u" }, Ids(CatalogueFilter.Apply(new[] { ultraOnly }, Installed, Shown.All, 3)));
         Assert.Empty(CatalogueFilter.Apply(new[] { ultraOnly }, Installed, Shown.All, 2));
     }
+
+    [Fact]
+    public void Library_FiltersAndSorts()
+    {
+        LibraryItem Song(string id, string artist, string title, bool mine, bool published = false) =>
+            new LibraryItem { Id = id, Artist = artist, Title = title, Mine = mine, Published = published };
+        var songs = new[]
+        {
+            Song("kyiv", "Apashe", "Kyiv", mine: true),
+            Song("clouds", "BUNT.", "Clouds", mine: false),
+            Song("witch", "apashe", "Witch", mine: true, published: true),
+            Song("dat", "Avicii", "Gimme Dat", mine: false),
+            Song("res", "Apashe", "Resistance", mine: true, published: true),
+        };
+        string[] Listed(LibraryShown s) => CatalogueFilter.Library(songs, s).Select(i => i.Id).ToArray();
+        Assert.Equal(new[] { "kyiv", "res", "witch", "dat", "clouds" }, Listed(LibraryShown.All));
+        Assert.Equal(new[] { "kyiv", "res", "witch" }, Listed(LibraryShown.Mine));
+        Assert.Equal(new[] { "dat", "clouds" }, Listed(LibraryShown.FromMarketplace));
+        Assert.Equal(new[] { "res", "witch" }, Listed(LibraryShown.Published));
+    }
 }

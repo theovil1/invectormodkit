@@ -23,6 +23,8 @@ namespace InvectorModKit.Marketplace.Client
         public long UpdatedAt;
         /// <summary>Where the chart's excerpt starts (seconds); null from a server that does not send it.</summary>
         public double? Preview;
+        /// <summary>The author's own charts only (/me/charts): players with a score, reports; null from an older server.</summary>
+        public int? Players, Reports;
 
         public string YoutubeUrl => "https://www.youtube.com/watch?v=" + YoutubeId;
         public string ThumbnailUrl => $"https://i.ytimg.com/vi/{YoutubeId}/mqdefault.jpg";

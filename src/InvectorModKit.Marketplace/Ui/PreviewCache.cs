@@ -65,6 +65,14 @@ namespace InvectorModKit.Marketplace.Ui
             Fetch(c, window, file, ready, failed);
         }
 
+        /// <summary>The excerpt the Custom Songs plugin prepared for a song on this PC (instant).</summary>
+        public void GetLocal(string songId, string previewPath, Action<AudioClip, double, double> ready, Action failed)
+        {
+            _wanted = songId;
+            if (string.IsNullOrEmpty(previewPath) || !File.Exists(previewPath)) { failed(); return; }
+            _host.StartCoroutine(Load(previewPath, AudioType.WAV, songId, clip => ready(clip, 0, Math.Min(ExcerptWindow.Length, clip.length)), failed));
+        }
+
         /// <summary>No excerpt wanted any more (the player moved on or closed the screen).</summary>
         public void Forget() => _wanted = null;
 

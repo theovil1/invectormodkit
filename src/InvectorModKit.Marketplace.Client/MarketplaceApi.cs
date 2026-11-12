@@ -109,6 +109,10 @@ namespace InvectorModKit.Marketplace.Client
 
         public Task DeleteAsync(string id) => SendAsync("DELETE", "/charts/" + Uri.EscapeDataString(id));
 
+        /// <summary>The author points their chart at another video; its version, scores and stats stay.</summary>
+        public async Task<ChartSummary> ChangeVideoAsync(string chartId, string youtubeUrl) =>
+            Summary((JObject)await SendAsync("PATCH", "/charts/" + Uri.EscapeDataString(chartId), new JObject { ["youtubeUrl"] = youtubeUrl }).ConfigureAwait(false));
+
         /// <summary>The publishing rules page, in the game's language.</summary>
         public string RulesUrl(string lang = null) => _base + "/rules" + LangQuery(lang, "?");
 
@@ -217,6 +221,8 @@ namespace InvectorModKit.Marketplace.Client
                 Downloads = (int?)o["downloads"] ?? 0,
                 Hidden = (bool?)o["hidden"] ?? false,
                 Preview = (double?)o["preview"],
+                Players = (int?)o["players"],
+                Reports = (int?)o["reports"],
             };
         }
     }
