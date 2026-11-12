@@ -81,6 +81,9 @@ namespace InvectorModKit.CustomSongs
         /// Same mixer routing as the official item it was cloned from, copied at play time: the game may
         /// only resolve the official item's mixer group after our clones were made.
         /// </summary>
+        /// <summary>The mixer group the game's own song previews play through (its music volume), null until resolved.</summary>
+        public static UnityEngine.Audio.AudioMixerGroup PreviewGroup => _templatePreview != null ? _templatePreview.DefaultOutputGroup : null;
+
         public static void CopyRouting(CustomSong song)
         {
             if (song.GameplayItem != null && _templateGameplay != null && _templateGameplay.DefaultOutputGroup != null)
