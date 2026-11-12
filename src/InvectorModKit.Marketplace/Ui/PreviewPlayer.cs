@@ -55,18 +55,21 @@ namespace InvectorModKit.Marketplace.Ui
 
         private void Update()
         {
-            if (_source == null || !_source.isPlaying) return;
+            if (_source == null || _source.clip == null) return;
             if (_stopping >= 0)
             {
+                if (!_source.isPlaying) { _stopping = -1; return; }
                 _stopping -= Time.unscaledDeltaTime;
                 _source.volume = Mathf.Max(0, _stopping / StopFade) * _stopFrom;
                 if (_stopping <= 0) { _source.Stop(); _stopping = -1; }
                 return;
             }
+            if (Playing == null) return; // stopped
             double t = _source.time;
-            if (t >= _end - 0.02)
+            if (ExcerptWindow.StartAgain(_source.isPlaying, t, _end))
             {
                 _source.time = (float)_start; // again from the start, faded in
+                if (!_source.isPlaying) _source.Play(); // the clip ran out (an excerpt ending at the song's end)
                 t = _start;
             }
             float fadeIn = Mathf.Clamp01((float)((t - _start) / ExcerptWindow.FadeIn));
