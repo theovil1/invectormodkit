@@ -36,6 +36,16 @@ public class LabelTextTests
                      LabelText.SentencePerLine("移除「A」吗？谱面保留在市场上：重新安装会再次下载这首歌。"));
 
     [Fact]
+    public void Sentences_LongLinesBreakAtCommas() =>
+        // The publishing rules: a 42-character line with no sentence end was one "word", shrunk to the smallest size.
+        Assert.Equal("共有するのはチャートだけで音声は共有しない、\n公式（または許可された）動画へのリンク、\n不適切な内容。",
+                     LabelText.SentencePerLine("共有するのはチャートだけで音声は共有しない、公式（または許可された）動画へのリンク、\n不適切な内容。"));
+
+    [Fact]
+    public void Sentences_ShortClausesStayTogether() =>
+        Assert.Equal("初めて公開する前に、同意してください。", LabelText.SentencePerLine("初めて公開する前に、同意してください。"));
+
+    [Fact]
     public void Sentences_OthersUnchanged()
     {
         Assert.Equal("Remove “A” (B)? The chart stays. Really.", LabelText.SentencePerLine("Remove “A” (B)? The chart stays. Really."));

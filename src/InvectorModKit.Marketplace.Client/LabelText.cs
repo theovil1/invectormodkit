@@ -19,21 +19,32 @@ namespace InvectorModKit.Marketplace.Client
         }
 
         /// <summary>
-        /// A line break after each Japanese or Chinese sentence (。？！) that more text follows. The game's text wraps only
-        /// at spaces: without these, a long Japanese question is one "word" and best fit shrinks it to its smallest size.
+        /// A line break after each Japanese or Chinese sentence (。？！) that more text follows, and after a comma (、，；：)
+        /// once the line is <see cref="LongLine"/> characters long. The game's text wraps only at spaces: without these, a
+        /// long Japanese question is one "word" and best fit shrinks it to its smallest size.
         /// </summary>
         public static string SentencePerLine(string text)
         {
             if (string.IsNullOrEmpty(text)) return text;
             var sb = new System.Text.StringBuilder(text.Length + 8);
+            int line = 0;
             for (int i = 0; i < text.Length; i++)
             {
                 sb.Append(text[i]);
+                line = text[i] == '\n' ? 0 : line + 1;
                 bool end = text[i] == '。' || text[i] == '？' || text[i] == '！';
-                if (end && i + 1 < text.Length && text[i + 1] != '\n') sb.Append('\n');
+                bool comma = text[i] == '、' || text[i] == '，' || text[i] == '；' || text[i] == '：';
+                if ((end || (comma && line >= LongLine)) && i + 1 < text.Length && text[i + 1] != '\n')
+                {
+                    sb.Append('\n');
+                    line = 0;
+                }
             }
             return sb.ToString();
         }
+
+        /// <summary>From this many characters, a Japanese or Chinese line breaks at its next comma.</summary>
+        public const int LongLine = 12;
 
         private static bool BreaksAnywhere(char c) =>
             (c >= '぀' && c <= 'ヿ')    // hiragana, katakana
