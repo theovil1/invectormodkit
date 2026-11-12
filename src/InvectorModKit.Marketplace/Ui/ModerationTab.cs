@@ -43,6 +43,7 @@ namespace InvectorModKit.Marketplace.Ui
         private List<AdminUser> _banned = new List<AdminUser>();
         private ModerationShown _filter = ModerationShown.Reported;
         private string _query = "", _status, _mainLabel, _error;
+        private bool _allSelected; // Ctrl+A in the search field
         private bool _typing, _busy, _loaded, _mainEnabled = true;
         private float _searchAt = -1;
         private int _generation;
@@ -61,6 +62,7 @@ namespace InvectorModKit.Marketplace.Ui
             UiKit.Fill(_root);
 
             _search = UiKit.Button(_root, "", ButtonStyle.Secondary, StartTyping);
+            UiKit.Label(_search).supportRichText = true; // Ctrl+A shows the selection in colour
             UiKit.Label(_search).alignment = TextAnchor.MiddleLeft;
             UiKit.At(_search, 0, 0, ListWidth, 66);
             var chips = new GameObject("Filters", typeof(RectTransform), typeof(HorizontalLayoutGroup)).GetComponent<RectTransform>();
@@ -231,6 +233,7 @@ namespace InvectorModKit.Marketplace.Ui
         private void StartTyping()
         {
             _typing = true;
+            _allSelected = false;
             UpdateSearchLabel();
         }
 
@@ -238,6 +241,7 @@ namespace InvectorModKit.Marketplace.Ui
         {
             if (!_typing) return;
             _typing = false;
+            _allSelected = false;
             UpdateSearchLabel();
             if (search) { _searchAt = -1; LoadCharts(); }
         }
@@ -245,19 +249,16 @@ namespace InvectorModKit.Marketplace.Ui
         private void ReadTyping()
         {
             if (_s.Input.Ok || _s.Input.Back) { StopTyping(search: true); return; }
-            bool changed = false;
-            foreach (char c in _s.Input.Typed)
-            {
-                if (c == '\b') { if (_query.Length > 0) { _query = _query.Substring(0, _query.Length - 1); changed = true; } }
-                else if (!char.IsControl(c) && _query.Length < 60) { _query += c; changed = true; }
-            }
+            bool wasSelected = _allSelected;
+            bool changed = TypedText.Apply(ref _query, ref _allSelected, _s.Input.Typed, 60);
+            if (!changed && _allSelected != wasSelected) UpdateSearchLabel();
             if (!changed) return;
             _searchAt = Time.unscaledTime + 0.4f;
             UpdateSearchLabel();
         }
 
         private void UpdateSearchLabel() =>
-            UiKit.SetLabel(_search, _typing ? _query + "▌" : _query.Length > 0 ? Loc.T("search_query", _query.ToUpperInvariant()) : Loc.T("search_hint"));
+            UiKit.SetLabel(_search, _typing ? TypedText.Show(_query, _allSelected) : _query.Length > 0 ? Loc.T("search_query", _query.ToUpperInvariant()) : Loc.T("search_hint"));
 
         // ----- the list
 

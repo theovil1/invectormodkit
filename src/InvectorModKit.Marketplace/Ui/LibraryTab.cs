@@ -41,6 +41,7 @@ namespace InvectorModKit.Marketplace.Ui
         private LibraryShown _filter = LibraryShown.All;
         private Entry _selected;
         private string _link = "", _checkedId, _videoTitle;
+        private bool _allSelected; // Ctrl+A in the link field
         private float _checkGiveUp = -1, _nextRefresh, _selectedAt;
         private bool _typing, _excerptStopped, _mainEnabled = true;
         private string _publishingSong, _publishStep, _status, _excerptFor, _mainLabel, _signature;
@@ -93,6 +94,7 @@ namespace InvectorModKit.Marketplace.Ui
 
             // The publish form, in the sheet: the video link field and what was found at that link.
             _linkField = UiKit.Button(_sheet.Middle, "", ButtonStyle.Secondary, StartTyping);
+            UiKit.Label(_linkField).supportRichText = true; // Ctrl+A shows the selection in colour
             UiKit.Label(_linkField).alignment = TextAnchor.MiddleLeft;
             var field = (RectTransform)_linkField.transform;
             field.anchorMin = new Vector2(0, 1);
@@ -431,6 +433,7 @@ namespace InvectorModKit.Marketplace.Ui
         {
             if (_selected?.Song == null || !CanPublish(_selected.Song)) return;
             _typing = true;
+            _allSelected = false;
             UpdateLinkField();
         }
 
@@ -438,6 +441,7 @@ namespace InvectorModKit.Marketplace.Ui
         {
             if (!_typing) return;
             _typing = false;
+            _allSelected = false;
             UpdateLinkField();
             UpdateCheck();
         }
@@ -445,20 +449,19 @@ namespace InvectorModKit.Marketplace.Ui
         private void ReadTyping()
         {
             if (_s.Input.Ok || _s.Input.Back) { StopTyping(); RefreshSheet(); return; }
-            bool changed = false;
-            foreach (char c in _s.Input.Typed)
+            bool wasSelected = _allSelected;
+            if (!TypedText.Apply(ref _link, ref _allSelected, _s.Input.Typed, 200))
             {
-                if (c == '\b') { if (_link.Length > 0) { _link = _link.Substring(0, _link.Length - 1); changed = true; } }
-                else if (!char.IsControl(c) && _link.Length < 200) { _link += c; changed = true; }
+                if (_allSelected != wasSelected) UpdateLinkField();
+                return;
             }
-            if (!changed) return;
             UpdateLinkField();
             UpdateCheck();
             RefreshSheet();
         }
 
         private void UpdateLinkField() =>
-            UiKit.SetLabel(_linkField, _typing ? _link + "▌" : _link.Length > 0 ? _link : Loc.T("link_field"));
+            UiKit.SetLabel(_linkField, _typing ? TypedText.Show(_link, _allSelected) : _link.Length > 0 ? _link : Loc.T("link_field"));
 
         /// <summary>What is at the link: being checked, the video's title, not found, or not a video link.</summary>
         private void UpdateCheck()
