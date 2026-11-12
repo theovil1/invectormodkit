@@ -21,6 +21,8 @@ namespace InvectorModKit.Marketplace.Client
         public bool Hidden;
         /// <summary>Unix time in milliseconds.</summary>
         public long UpdatedAt;
+        /// <summary>Where the chart's excerpt starts (seconds); null from a server that does not send it.</summary>
+        public double? Preview;
 
         public string YoutubeUrl => "https://www.youtube.com/watch?v=" + YoutubeId;
         public string ThumbnailUrl => $"https://i.ytimg.com/vi/{YoutubeId}/mqdefault.jpg";
