@@ -5,6 +5,7 @@
 import * as m from "./model.js";
 import { MODE_COLOR, KEY_COLOR, KEY_GLYPH, ACTION, FONT } from "./look.js";
 import { skin } from "./skin.js";
+import { GRIP_GAP, holdEndAt, handleAt } from "./holdgrip.js";
 
 const LEFT = 104; // row labels
 const ROWS = { ruler: 26, zones: 26, wave: 64, lane: 64, strum: 46, scroll: 12 };
@@ -378,6 +379,17 @@ export class Timeline {
         c.fillRect(x, y - 7, Math.max(0, x1 - x), 14);
         c.fillStyle = "#FFFFFF";
         c.fillRect(x1 - 2, y - 13, 4, 26);
+      } else if (selected || this.hovers(n)) { // the handle to pull it into a hold
+        const gx = x + GRIP_GAP;
+        c.fillStyle = "rgba(255,255,255,.45)";
+        c.fillRect(x, y - 2, GRIP_GAP, 4);
+        c.fillStyle = "#FFFFFF";
+        c.fillRect(gx - 2, y - 10, 4, 20);
+        c.beginPath();
+        c.moveTo(gx + 4, y - 5);
+        c.lineTo(gx + 9, y);
+        c.lineTo(gx + 4, y + 5);
+        c.fill();
       }
       // the key that strums on PC (Space, or the player's own), in the strum's ring
       const ring = skin.img("PickupStrum Air Glow"), name = skin.keySprite("strum"), key = name ? skin.img(name) : null;
@@ -474,10 +486,13 @@ export class Timeline {
     }
     if (y < R.wave.y + R.wave.h) return { kind: "wave", t };
     if (y >= R.strum.y && y < R.strum.y + R.strum.h) {
-      const notes = doc.notes[d].filter((n) => n.strum);
-      for (const n of notes) if (n.len > 0 && Math.abs(this.x(n.t + n.len) - x) < 7) return { kind: "hold", note: n };
+      const notes = doc.notes[d].filter((n) => n.strum), xOf = (t) => this.x(t);
+      const end = holdEndAt(notes, xOf, x);
+      if (end) return { kind: "hold", note: end };
       const n = nearest(notes, (n) => Math.abs(this.x(n.t) - x), HIT);
-      return n ? { kind: "note", note: n } : { kind: "empty", row: "strum", t };
+      if (n) return { kind: "note", note: n };
+      const grip = handleAt(notes, xOf, x);
+      return grip ? { kind: "hold", note: grip } : { kind: "empty", row: "strum", t };
     }
     const lane = R.lanes.findIndex((r) => y >= r.y && y < r.y + r.h);
     if (lane >= 0) {
@@ -485,6 +500,11 @@ export class Timeline {
       return n ? { kind: "note", note: n } : { kind: "empty", row: "lane", lane, t };
     }
     return { kind: "none" };
+  }
+
+  /** Whether the pointer is on this strum or on its hold handle. */
+  hovers(n) {
+    return strumUnder(this.hover) === n.id;
   }
 
   laneAt(y) {
@@ -543,8 +563,9 @@ export class Timeline {
     if (!doc) return;
     const drag = this.drag;
     if (!drag) {
-      const h = this.hit(x, y);
+      const h = this.hit(x, y), before = this.hover;
       this.hover = h;
+      if (strumUnder(before) !== strumUnder(h)) this.draw(); // its hold handle shows or goes
       this.canvas.style.cursor = h.kind === "boundary" || h.kind === "marker" || h.kind === "hold" ? "ew-resize" : h.kind === "note" ? "grab" : h.kind === "empty" ? "crosshair" : "default";
       app.showCursor(this.time(x), h);
       return;
@@ -659,6 +680,11 @@ export class Timeline {
       this.draw();
     }
   }
+}
+
+/** The strum a hit is on (the strum itself or its hold grip), by id. */
+function strumUnder(h) {
+  return h && (h.kind === "note" || h.kind === "hold") && h.note.strum ? h.note.id : null;
 }
 
 function nearest(items, distance, max) {
