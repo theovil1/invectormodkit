@@ -14,10 +14,11 @@ import { qmul, qrotate, qfromBasis, qfromAxisAngle, toLinear } from "./math.js";
 const KEYS = ["left", "right", "down", "up"];
 const PICKUPS = { left: "XBOX Pickup Left X OPTIMIZED", right: "XBOX Pickup Right B OPTIMIZED", down: "XBOX Pickup Down A OPTIMIZED", up: "XBOX Pickup Up Y OPTIMIZED", turnL: "Pickup 4 Left OPTIMIZED", turnR: "Pickup 5 Right OPTIMIZED" };
 const STRUMS = { strumList: "Pickup Strum, List OPTIMIZED", strumBounce: "Pickup Strum, Bounce OPTIMIZED", holdList: "Pickup StrumHold Start, List OPTIMIZED", holdBounce: "Pickup StrumHold Start, Bounce OPTIMIZED" };
-// the systems a taken note plays, as the prototype read the game: an arrow's flash, swirl, multiplier and glow, a
-// turn's flash, swirl and glow, a strum's line bokeh
-const PICKUP_SYSTEMS = /^(Pickup Effects|TurnPickup Effects|Swirly Particles|Multiplier Particles|Extra Glow)$/;
-const STRUM_SYSTEMS = /^LineBokehParticles$/;
+// the systems a taken note plays: an arrow's flash, swirl, multiplier and glow, a turn's flash, swirl and glow (as
+// the prototype read the game, the flash and glow drawn as sprites); a strum's lines of sparks, its systems drawn as
+// sprites (named LineBokehParticles in the tunnel, StrumPickup Effects on the road; its mesh flashes are left out)
+const PICKUP_SYSTEMS = (node) => /^(Pickup Effects|TurnPickup Effects|Swirly Particles|Multiplier Particles|Extra Glow)$/.test(node.name);
+const STRUM_SYSTEMS = (node, spec) => spec.mode === "points";
 const UQ = (x, y, z, w) => [-x, -y, z, w]; // a Unity quaternion in three's axes
 const TILT = UQ(-0.2588, 0, 0, 0.9659); // the walker's particle levels lean 30 degrees (FollowLocalRotation)
 const FLAT = UQ(-0.7071, 0, 0, 0.7071); // the landing burst lies flat
@@ -111,7 +112,8 @@ export async function createEffects(cache, rig, level) {
     const visit = (node, parent) => {
       const l = local(node), r = qrotate(parent.q, l.p);
       const w = { p: [0, 1, 2].map((i) => parent.p[i] + parent.s * r[i]), q: qmul(parent.q, l.q), s: parent.s * l.s };
-      if (systems.test(node.name)) { const spec = specOf(node); if (spec) list.push({ spec, p: w.p, q: w.q, scale: w.s }); }
+      const spec = specOf(node);
+      if (spec && systems(node, spec)) list.push({ spec, p: w.p, q: w.q, scale: w.s });
       for (const c of node.children) visit(c, w);
     };
     const rootT = { ...local(json.root), p: [0, 0, 0] };

@@ -93,3 +93,16 @@ test("a dense moment is cheap", { skip: !HAS_CACHE }, () => {
   const best = Math.min(...times.slice(3));
   assert.ok(best < 4, `${best} ms`);
 });
+
+test("the renderer's mode tells point sprites from mesh particles", { skip: !HAS_CACHE }, () => {
+  const node = (file, name) => findNode(cache.json(file).root, name);
+  const spec = (n) => {
+    const ps = n.components.find((c) => c.type === "ParticleSystem").fields, r = n.components.find((c) => c.type === "ParticleSystemRenderer").fields;
+    return particleSpec(ps, r, r.m_Materials[0]);
+  };
+  // the Bounce hold's line of sparks is named like the List strum's flash, but drawn as points
+  assert.equal(spec(node("objects/Pickup_StrumHold_Start__Bounce_OPTIMIZED.json", "StrumPickup Effects")).mode, "points");
+  assert.equal(spec(node("objects/Pickup_StrumHold_Start__Bounce_OPTIMIZED.json", "StrumpickupEffect")).mode, "mesh");
+  assert.equal(spec(node("objects/Pickup_Strum__List_OPTIMIZED.json", "StrumPickup Effects")).mode, "mesh");
+  assert.equal(spec(node("objects/Pickup_Strum__List_OPTIMIZED.json", "LineBokehParticles")).mode, "points");
+});

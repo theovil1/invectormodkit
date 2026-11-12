@@ -86,6 +86,8 @@ export function particleSpec(system, renderer, material) {
     dampen: system.ClampVelocityModule && system.ClampVelocityModule.enabled ? system.ClampVelocityModule.dampen ?? 0 : 0,
     world: system.moveWithTransform === 1,
     maxSize: (renderer && renderer.m_MaxParticleSize) || 0.5,
+    // how the renderer draws each particle: a camera-facing sprite (billboards, stretched or not) or a mesh
+    mode: renderer && renderer.m_RenderMode === 4 ? "mesh" : "points",
     mat: particleMaterial(material),
   };
 }
