@@ -34,6 +34,9 @@ public class GameDataRecipeTests
     [InlineData(RecipeKind.Prefab, "Pickup StrumHold Start, Bounce OPTIMIZED")]
     [InlineData(RecipeKind.Prefab, "PickupStrumHoldEnd, List, All Platforms")]
     [InlineData(RecipeKind.Prefab, "PickupStrumHoldEnd, Bounce, All Platforms")]
+    // the bar that follows the ship while a hold is held (Steering.StartStrumHold spawns a PickupStrumHoldFiller)
+    [InlineData(RecipeKind.Prefab, "PickupStrumHoldFiller, List, All Platforms")]
+    [InlineData(RecipeKind.Prefab, "PickupStrumHoldFiller, Bounce, All Platforms")]
     public void HoldsTheSpecItems(RecipeKind kind, string nameOrClass) =>
         Assert.Contains(GameDataRecipe.Items, i => i.Kind == kind && (i.Name ?? i.Class) == nameOrClass);
 

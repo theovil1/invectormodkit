@@ -210,17 +210,19 @@ namespace InvectorModKit.ChartEditor
                     Merge(assets, o);
                     return (JObject)o["fields"];
                 }
-                AssetRef Fed(string cls)
+                AssetRef Fed(string cls, Func<AssetRef, bool> which = null, string what = null)
                 {
-                    var found = Reader.FindScripts(bundle, cls).FirstOrDefault(c => FeedsFrom(c, chosen.editor));
-                    if (found == null) Report.Warnings.Add($"level {world}: no {cls}");
+                    var found = Reader.FindScripts(bundle, cls).FirstOrDefault(c => FeedsFrom(c, chosen.editor) && (which == null || which(c)));
+                    if (found == null) Report.Warnings.Add($"level {world}: no {what ?? cls}");
                     return found;
                 }
+                // the hold walls: the tunnel's three (SplineGeometry.WallsList) and the road's one (WallsBounce)
+                bool ThreeWalls(AssetRef c) => Reader.Read(c)["generateThreeWalls"].AsBool;
 
                 var splineMesh = Fed("SplineMesh");
                 var (roadMesh, roadMaterial) = RoadPiece(splineMesh, assets);
                 var level = LevelJson.Build(Fields(chosen.spline), Fields(chosen.editor), Fields(splineMesh), roadMesh, roadMaterial,
-                    Fields(Fed("Toblerone")), Fields(Fed("TobleroneWalls")));
+                    Fields(Fed("Toblerone")), Fields(Fed("TobleroneWalls", ThreeWalls)), Fields(Fed("TobleroneWalls", c => !ThreeWalls(c), "TobleroneWalls for the road")));
                 level["assets"] = assets;
                 string file = "levels/" + CacheFiles.FileSafe(world) + ".json";
                 WriteJson(OutDir, file, level);

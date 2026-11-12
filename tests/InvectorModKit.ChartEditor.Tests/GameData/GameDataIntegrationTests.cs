@@ -164,6 +164,15 @@ public class GameDataIntegrationTests : IClassFixture<GameDataBuildFixture>
     }
 
     [GameFact]
+    public void VoidHoldWallsForTheTunnelAndTheRoad()
+    {
+        var level = build.Json("levels/void.json");
+        Assert.Equal(1, (int)level["holdWalls"]["generateThreeWalls"]);
+        Assert.Equal(0, (int)level["holdWallsBounce"]["generateThreeWalls"]);
+        Assert.False(string.IsNullOrEmpty((string)level["holdWallsBounce"]["material"]["shader"]), level["holdWallsBounce"].ToString());
+    }
+
+    [GameFact]
     public void RollClips()
     {
         foreach (var (file, length) in new[] { ("RollRightLong", 1.567f), ("coaster_RollRightLong2Turns", 1.933f), ("coaster_RollRightLong3Turns", 2.6f) })

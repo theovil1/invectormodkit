@@ -48,6 +48,19 @@ public class LevelJsonTests
         Assert.Equal(JTokenType.Null, level["road"].Type);
         Assert.Equal(JTokenType.Null, level["tunnel"].Type);
         Assert.Equal(JTokenType.Null, level["holdWalls"].Type);
+        Assert.Equal(JTokenType.Null, level["holdWallsBounce"].Type);
+    }
+
+    [Fact]
+    public void TheRoadsHoldWallsAreTheirOwn()
+    {
+        var walls = JObject.Parse("{\"m_Script\":\"TobleroneWalls\",\"size\":1900,\"generateThreeWalls\":1}");
+        var bounce = JObject.Parse("{\"m_Script\":\"TobleroneWalls\",\"m_GameObject\":{\"ref\":\"x-4\"},\"size\":1900,\"generateThreeWalls\":0,\"yOffset\":1.7,\"widthScale\":0.76}");
+
+        var level = LevelJson.Build(Spline, Editor, null, null, null, null, walls, bounce);
+
+        Assert.Equal("{\"size\":1900,\"generateThreeWalls\":1}", Json(level["holdWalls"]));
+        Assert.Equal("{\"size\":1900,\"generateThreeWalls\":0,\"yOffset\":1.7,\"widthScale\":0.76}", Json(level["holdWallsBounce"]));
     }
 
     [Fact]

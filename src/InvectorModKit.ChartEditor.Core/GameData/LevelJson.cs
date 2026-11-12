@@ -11,7 +11,7 @@ namespace InvectorModKit.ChartEditor
     {
         static readonly string[] Bookkeeping = { "m_GameObject", "m_Enabled", "m_Script", "m_Name", "feed" };
 
-        public static JObject Build(JObject spline, JObject editor, JObject splineMesh, JToken roadMesh, JToken roadMaterial, JObject toblerone, JObject walls) => new JObject
+        public static JObject Build(JObject spline, JObject editor, JObject splineMesh, JToken roadMesh, JToken roadMaterial, JObject toblerone, JObject walls, JObject bounceWalls = null) => new JObject
         {
             ["start"] = spline["StartPosition"],
             ["length"] = spline["totalLength"],
@@ -29,6 +29,7 @@ namespace InvectorModKit.ChartEditor
             },
             ["tunnel"] = Settings(toblerone),
             ["holdWalls"] = Settings(walls),
+            ["holdWallsBounce"] = Settings(bounceWalls), // the road's: one wall, its own size, width, height and material
         };
 
         /// <summary>A component's own settings, without Unity's bookkeeping fields and the link to the path.</summary>

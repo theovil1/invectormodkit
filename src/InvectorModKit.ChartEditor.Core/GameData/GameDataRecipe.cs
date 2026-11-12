@@ -18,7 +18,7 @@ namespace InvectorModKit.ChartEditor
     /// <summary>What the 3D preview needs from the installed game. Change Version when the cache format or this list changes.</summary>
     public static class GameDataRecipe
     {
-        public const int Version = 2; // 2: the level's road piece (mesh and material)
+        public const int Version = 4; // 2: the level's road piece (mesh and material); 3: the hold fillers; 4: the road's hold walls
 
         const string Shared = "basegame_assets_shared.bundle";
         const string Ship = "basegame_assets_ship_beginner.bundle";
@@ -59,6 +59,7 @@ namespace InvectorModKit.ChartEditor
                 "Pickup Strum, List OPTIMIZED", "Pickup Strum, Bounce OPTIMIZED",
                 "Pickup StrumHold Start, List OPTIMIZED", "Pickup StrumHold Start, Bounce OPTIMIZED",
                 "PickupStrumHoldEnd, List, All Platforms", "PickupStrumHoldEnd, Bounce, All Platforms",
+                "PickupStrumHoldFiller, List, All Platforms", "PickupStrumHoldFiller, Bounce, All Platforms",
                 "BeatLine, List", "BeatLine, Bounce", "PickupAir, All Platforms OPTIMIZED");
             Add(Shared, RecipeKind.Clip,
                 "RollRightLong", "coaster@RollRightLong2Turns", "coaster@RollRightLong3Turns", "Airpickup Spawn Legacy", "Airpickup ActivateEffect Legacy");
