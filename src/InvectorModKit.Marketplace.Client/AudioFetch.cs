@@ -42,6 +42,19 @@ namespace InvectorModKit.Marketplace.Client
             "--ffmpeg-location", ffmpegLocation, "-o", outputWithoutExtension, "https://youtu.be/" + youtubeId,
         });
 
+        /// <summary>
+        /// The yt-dlp command to get only <paramref name="start"/> to <paramref name="end"/> seconds of the video as an ogg:
+        /// a chart's excerpt, a few seconds to fetch instead of the whole song.
+        /// </summary>
+        public static string BuildSectionArgs(string youtubeId, string outputWithoutExtension, string ffmpegLocation, double start, double end) => Arguments(new[]
+        {
+            "-x", "--audio-format", "vorbis", "--no-playlist", "--no-mtime",
+            "--download-sections", "*" + Seconds(start) + "-" + Seconds(end),
+            "--ffmpeg-location", ffmpegLocation, "-o", outputWithoutExtension, "https://youtu.be/" + youtubeId,
+        });
+
+        private static string Seconds(double s) => s.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+
         /// <summary>One command line with paths quoted the way the process creator expects.</summary>
         public static string Arguments(string[] args) => string.Join(" ", args.Select(Quote));
 
