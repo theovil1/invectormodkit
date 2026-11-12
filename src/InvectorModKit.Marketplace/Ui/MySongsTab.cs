@@ -240,7 +240,7 @@ namespace InvectorModKit.Marketplace.Ui
                     Title = s.Title, Artist = s.Artist, YoutubeUrl = link, Duration = s.Duration, ChartJson = chart, FingerprintJson = fingerprint,
                     AcceptRules = acceptRules,
                 });
-                MarketplacePlugin.Session.RememberPublished(s.Id, published.Id, link);
+                MarketplacePlugin.Session.RememberPublished(s.Id, published.Id, link, null); // this tab goes in the next commits
                 try { Pin(s, published.Id, published.Version, published.Author); }
                 catch (Exception e) { MarketplacePlugin.Log.LogWarning($"Published, but the local chart could not be pinned: {e.Message}"); }
                 if (!_root) return;
