@@ -27,17 +27,20 @@ namespace InvectorModKit.ChartEditor
             var songs = new List<SongFile>();
             if (string.IsNullOrEmpty(root) || !Directory.Exists(root)) return songs;
             foreach (string file in Directory.GetFiles(root).Where(AudioFile.IsSupported).OrderBy(f => f))
-                songs.Add(Read(file));
+                songs.Add(Read(file, root));
             foreach (string dir in Directory.GetDirectories(root).Where(d => !Path.GetFileName(d).StartsWith(".")).OrderBy(d => d))
             {
                 string audio = Directory.GetFiles(dir).Where(AudioFile.IsSupported).OrderBy(f => f).FirstOrDefault();
-                if (audio != null) songs.Add(Read(audio));
+                if (audio != null) songs.Add(Read(audio, root));
             }
             return songs;
         }
 
-        /// <summary>Title and artist: song.json in the song's folder, else ID3 tags, else "Artist - Title" in the file name.</summary>
-        public static SongFile Read(string audioPath)
+        /// <summary>
+        /// Title and artist: song.json in the song's folder, else ID3 tags, else "Artist - Title" in the file name. A song.json
+        /// in <paramref name="customSongsDir"/> itself belongs to no song (the game ignores it there too).
+        /// </summary>
+        public static SongFile Read(string audioPath, string customSongsDir = null)
         {
             string title = null, artist = null;
             if (Path.GetExtension(audioPath).Equals(".mp3", StringComparison.OrdinalIgnoreCase))
@@ -55,7 +58,7 @@ namespace InvectorModKit.ChartEditor
             if (string.IsNullOrEmpty(artist)) artist = fileArtist;
             (artist, title) = SongMetadata.Normalize(artist, title);
             string info = Path.Combine(Path.GetDirectoryName(audioPath), "song.json");
-            if (File.Exists(info))
+            if (File.Exists(info) && !IsRoot(customSongsDir, Path.GetDirectoryName(audioPath)))
             {
                 try
                 {
@@ -75,14 +78,32 @@ namespace InvectorModKit.ChartEditor
             return Path.GetFullPath(path).StartsWith(f, StringComparison.OrdinalIgnoreCase);
         }
 
-        /// <summary>"Artist - Title" usable as a folder name (Windows-safe, not too long).</summary>
+        /// <summary>Inside CustomSongs, in a song's own folder (not loose in the shared root).</summary>
+        public static bool InOwnFolder(string customSongsDir, string audioPath) =>
+            IsInside(customSongsDir, audioPath) && !IsRoot(customSongsDir, Path.GetDirectoryName(Path.GetFullPath(audioPath)));
+
+        private static bool IsRoot(string customSongsDir, string folder) =>
+            !string.IsNullOrEmpty(customSongsDir) && string.Equals(Path.GetFullPath(folder).TrimEnd('\\', '/'), Path.GetFullPath(customSongsDir).TrimEnd('\\', '/'),StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>root\name, or "name (2)", "name (3)"… when that folder exists (not created).</summary>
+        public static string FreeFolder(string root, string name)
+        {
+            string folder = Path.Combine(root, name);
+            for (int i = 2; Directory.Exists(folder); i++) folder = Path.Combine(root, $"{name} ({i})");
+            return folder;
+        }
+
+        /// <summary>
+        /// "Artist - Title" usable as a folder name (Windows-safe, not too long). Never starting with a dot: the game and
+        /// the editor skip such folders.
+        /// </summary>
         public static string FolderName(string artist, string title)
         {
-            string name = string.IsNullOrWhiteSpace(artist) ? title : $"{artist} - {title}";
-            if (string.IsNullOrWhiteSpace(name)) name = "Song";
+            string name = string.IsNullOrWhiteSpace(artist) ? title ?? "" : $"{artist} - {title}";
             var invalid = new HashSet<char>(Path.GetInvalidFileNameChars());
-            name = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim().TrimEnd('.');
-            return name.Length > 80 ? name.Substring(0, 80).Trim() : name;
+            name = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim().Trim('.').Trim();
+            if (name.Length > 80) name = name.Substring(0, 80).Trim().TrimEnd('.');
+            return name.Length == 0 ? "Song" : name;
         }
     }
 }

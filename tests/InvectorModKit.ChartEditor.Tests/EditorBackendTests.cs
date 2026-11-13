@@ -132,6 +132,19 @@ public class EditorBackendTests
     }
 
     [Fact]
+    public async Task Songs_IgnoreASongJsonLeftInTheRoot()
+    {
+        using var box = new Sandbox();
+        string audio = box.Wav(Path.Combine(box.CustomSongs, "Artist - Loose.wav"));
+        File.WriteAllText(Path.Combine(box.CustomSongs, "song.json"), """{ "title": "Wrong", "artist": "Wrong" }""");
+        var backend = box.Backend();
+        var songs = (JArray)await backend.Handle("songs", null);
+        Assert.Equal(("Artist", "Loose"), ((string)songs[0]["artist"], (string)songs[0]["title"]));
+        var opened = (JObject)await backend.Handle("open", new JObject { ["audioPath"] = audio });
+        Assert.Equal("Loose", (string)opened["title"]);
+    }
+
+    [Fact]
     public async Task NewChart_Blank_HasTheDetectedGridAndNoNotes()
     {
         using var box = new Sandbox();

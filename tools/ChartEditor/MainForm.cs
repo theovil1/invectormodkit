@@ -30,6 +30,10 @@ namespace InvectorModKit.ChartEditor.Host
         private string _audioPath;
         private readonly string _fontsDir;
 
+        /// <summary>The folder of the last song zip exported or imported this session (the dialogs open there).</summary>
+        private string _zipDir;
+        private const string ZipFilter = "Zip (*.zip)|*.zip";
+
         /// <summary>The editor's copy of the game data for the 3D preview (%LOCALAPPDATA%\InvectorModKit\LevelEditor\game), served under /game/.</summary>
         private readonly GameDataService _gameData = new GameDataService(
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "InvectorModKit", "LevelEditor"));
@@ -258,6 +262,24 @@ namespace InvectorModKit.ChartEditor.Host
                         string songs = _backend.Settings.CustomSongsDir;
                         if (songs != null && Directory.Exists(songs)) dialog.InitialDirectory = songs;
                         return dialog.ShowDialog(this) == DialogResult.OK ? new JValue(dialog.FileName) : JValue.CreateNull();
+                    }
+                case "host.saveZip":
+                    using (var dialog = new SaveFileDialog { Filter = ZipFilter, Title = "Invector Level Editor", OverwritePrompt = true })
+                    {
+                        dialog.FileName = SongFiles.FolderName((string)p["artist"], (string)p["title"]) + ".zip";
+                        dialog.InitialDirectory = _zipDir ?? Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                        if (dialog.ShowDialog(this) != DialogResult.OK) return JValue.CreateNull();
+                        _zipDir = Path.GetDirectoryName(dialog.FileName);
+                        return new JValue(dialog.FileName);
+                    }
+                case "host.openZip":
+                    using (var dialog = new OpenFileDialog { Filter = ZipFilter, Title = "Invector Level Editor" })
+                    {
+                        string downloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+                        dialog.InitialDirectory = _zipDir ?? (Directory.Exists(downloads) ? downloads : null);
+                        if (dialog.ShowDialog(this) != DialogResult.OK) return JValue.CreateNull();
+                        _zipDir = Path.GetDirectoryName(dialog.FileName);
+                        return new JValue(dialog.FileName);
                     }
                 case "host.pickGameDir":
                     using (var dialog = new FolderBrowserDialog { Description = "Invector Rhythm Galaxy", ShowNewFolderButton = false })

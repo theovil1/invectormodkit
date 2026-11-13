@@ -23,6 +23,7 @@ test("every key the interface uses is defined", () => {
   for (const mode of ["List", "Bounce", "Freefly"]) used.add("mode" + mode);
   for (let c = 0; c < 6; c++) used.add("button" + c);
   for (const k of ["start", "end", "preview"]) used.add("marker_" + k);
+  for (const k of ["notZip", "unsafe", "tooBig", "noSong", "severalSongs"]) used.add("importRefused_" + k); // the import's refusals (C# ImportRefusal)
   const missing = [...used].filter((k) => !_rows[k]);
   assert.deepEqual(missing, []);
 });

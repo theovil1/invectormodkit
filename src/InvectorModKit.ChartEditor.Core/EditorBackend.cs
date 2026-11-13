@@ -56,6 +56,19 @@ namespace InvectorModKit.ChartEditor
                 case "save": return Save(Required(p, "audioPath"), ReadChart(p), (string)p["title"], (string)p["artist"]);
                 case "validate": return Validate(ReadChart(p));
                 case "sendToGame": return SendToGame(Required(p, "audioPath"), ReadChart(p), (string)p["title"], (string)p["artist"]);
+                case "export":
+                {
+                    string zip = Required(p, "zipPath");
+                    var chart = ReadChart(p);
+                    string audio = Required(p, "audioPath");
+                    await Task.Run(() => SongPackage.Export(audio, chart, (string)p["title"], (string)p["artist"], _settings.CustomSongsDir, zip)).ConfigureAwait(false);
+                    return new JObject { ["zipPath"] = zip };
+                }
+                case "import":
+                {
+                    string zip = Required(p, "zipPath");
+                    return await Task.Run(() => Import(zip)).ConfigureAwait(false);
+                }
                 case "me": return await Me().ConfigureAwait(false);
                 case "signIn": return await SignIn().ConfigureAwait(false);
                 case "signOut":
@@ -102,7 +115,7 @@ namespace InvectorModKit.ChartEditor
         private JObject Open(string audioPath)
         {
             if (!File.Exists(audioPath)) throw new FileNotFoundException("audio not found", audioPath);
-            var song = SongFiles.Read(audioPath);
+            var song = SongFiles.Read(audioPath, _settings.CustomSongsDir);
             JToken chart = JValue.CreateNull();
             if (song.HasChart) chart = ToJson(ChartJson.Deserialize(File.ReadAllText(song.ChartPath)));
             return new JObject
@@ -144,8 +157,8 @@ namespace InvectorModKit.ChartEditor
         private void WriteSongInfo(string audioPath, string title, string artist)
         {
             if (string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(artist)) return;
-            string root = _settings.CustomSongsDir, folder = Path.GetDirectoryName(Path.GetFullPath(audioPath));
-            if (!SongFiles.IsInside(root, audioPath) || string.Equals(folder, Path.GetFullPath(root).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) return;
+            if (!SongFiles.InOwnFolder(_settings.CustomSongsDir, audioPath)) return;
+            string folder = Path.GetDirectoryName(Path.GetFullPath(audioPath));
             var current = SongFiles.Read(audioPath);
             if (current.Title == title && current.Artist == artist) return;
             File.WriteAllText(Path.Combine(folder, "song.json"), new JObject { ["title"] = title, ["artist"] = artist }.ToString());
@@ -176,15 +189,30 @@ namespace InvectorModKit.ChartEditor
                 saved["copied"] = false;
                 return saved;
             }
-            Directory.CreateDirectory(root);
-            string name = SongFiles.FolderName(artist, title), folder = Path.Combine(root, name);
-            for (int i = 2; Directory.Exists(folder); i++) folder = Path.Combine(root, $"{name} ({i})");
+            string folder = SongFiles.FreeFolder(root, SongFiles.FolderName(artist, title));
             Directory.CreateDirectory(folder);
             string copy = Path.Combine(folder, Path.GetFileName(audioPath));
             File.Copy(audioPath, copy);
             WriteChart(SongFiles.ChartPathFor(copy), Handmade(chart));
             File.WriteAllText(Path.Combine(folder, "song.json"), new JObject { ["title"] = title ?? "", ["artist"] = artist ?? "" }.ToString());
             return new JObject { ["audioPath"] = copy, ["chartPath"] = SongFiles.ChartPathFor(copy), ["copied"] = true };
+        }
+
+        /// <summary>A song zip shared by another player, into CustomSongs: its audio's path, or why it was refused ("notZip"…).</summary>
+        private JObject Import(string zipPath)
+        {
+            string root = _settings.CustomSongsDir;
+            if (root == null || !GameLocator.IsGameDir(_settings.GameDir)) throw new InvalidOperationException("game not found");
+            Directory.CreateDirectory(root);
+            try
+            {
+                return new JObject { ["audioPath"] = SongPackage.Import(zipPath, root) };
+            }
+            catch (SongPackageException e)
+            {
+                string reason = e.Reason.ToString();
+                return new JObject { ["refused"] = char.ToLowerInvariant(reason[0]) + reason.Substring(1) };
+            }
         }
 
         /// <summary>The generated chart is kept for the last audio file: regenerating several zones runs the generator once.</summary>
