@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.0](https://github.com/theovil1/invectormodkit/compare/v0.3.0...v0.4.0) (2026-11-13)
+
+
+### Features
+
+* **editor:** let notes sit on any lane without a turn ([#25](https://github.com/theovil1/invectormodkit/issues/25)) ([e113673](https://github.com/theovil1/invectormodkit/commit/e1136736e55e754edf6a8b312526355ab605e899))
+* **editor:** share a level as a zip with Export and Import ([#27](https://github.com/theovil1/invectormodkit/issues/27)) ([049c0b4](https://github.com/theovil1/invectormodkit/commit/049c0b4f4cc74e2cf3dfe87e3dbf4ce8c5a868aa))
+* **editor:** tabs in the side panel so every panel is easy to find ([#28](https://github.com/theovil1/invectormodkit/issues/28)) ([7fe059d](https://github.com/theovil1/invectormodkit/commit/7fe059d1d2b50c754fdf8636b7cda3c5733fd6d8))
+* **presence:** show the game and the level editor on the player's Discord profile ([#22](https://github.com/theovil1/invectormodkit/issues/22)) ([e1c998b](https://github.com/theovil1/invectormodkit/commit/e1c998b70475e2a8ea55f153c30625eee02f42d3))
+
+
+### Bug Fixes
+
+* **charting:** join notes a few milliseconds apart into one chord ([#26](https://github.com/theovil1/invectormodkit/issues/26)) ([8d3505d](https://github.com/theovil1/invectormodkit/commit/8d3505d13ea0434fbbd0a1360cfcae4f939b2029))
+* **custom-songs:** never leave a custom song on the loading screen forever ([#23](https://github.com/theovil1/invectormodkit/issues/23)) ([2c604aa](https://github.com/theovil1/invectormodkit/commit/2c604aac8980e5b3d95c3812f54903164453bcd3))
+* **marketplace:** give the keys back to song select on close ([#21](https://github.com/theovil1/invectormodkit/issues/21)) ([2205204](https://github.com/theovil1/invectormodkit/commit/2205204b7c0f7551e40230d43872a85746c9381b))
+* **marketplace:** keep only the selected list row lit ([#24](https://github.com/theovil1/invectormodkit/issues/24)) ([03b3d0b](https://github.com/theovil1/invectormodkit/commit/03b3d0bf03e4ce40cafb8e89b6536adb5884f31c))
+
 ## [0.3.0](https://github.com/theovil1/invectormodkit/compare/v0.2.0...v0.3.0) (2026-11-12)
 
 
