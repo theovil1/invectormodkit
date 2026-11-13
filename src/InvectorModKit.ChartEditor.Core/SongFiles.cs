@@ -27,17 +27,20 @@ namespace InvectorModKit.ChartEditor
             var songs = new List<SongFile>();
             if (string.IsNullOrEmpty(root) || !Directory.Exists(root)) return songs;
             foreach (string file in Directory.GetFiles(root).Where(AudioFile.IsSupported).OrderBy(f => f))
-                songs.Add(Read(file));
+                songs.Add(Read(file, root));
             foreach (string dir in Directory.GetDirectories(root).Where(d => !Path.GetFileName(d).StartsWith(".")).OrderBy(d => d))
             {
                 string audio = Directory.GetFiles(dir).Where(AudioFile.IsSupported).OrderBy(f => f).FirstOrDefault();
-                if (audio != null) songs.Add(Read(audio));
+                if (audio != null) songs.Add(Read(audio, root));
             }
             return songs;
         }
 
-        /// <summary>Title and artist: song.json in the song's folder, else ID3 tags, else "Artist - Title" in the file name.</summary>
-        public static SongFile Read(string audioPath)
+        /// <summary>
+        /// Title and artist: song.json in the song's folder, else ID3 tags, else "Artist - Title" in the file name. A song.json
+        /// in <paramref name="customSongsDir"/> itself belongs to no song (the game ignores it there too).
+        /// </summary>
+        public static SongFile Read(string audioPath, string customSongsDir = null)
         {
             string title = null, artist = null;
             if (Path.GetExtension(audioPath).Equals(".mp3", StringComparison.OrdinalIgnoreCase))
@@ -55,7 +58,7 @@ namespace InvectorModKit.ChartEditor
             if (string.IsNullOrEmpty(artist)) artist = fileArtist;
             (artist, title) = SongMetadata.Normalize(artist, title);
             string info = Path.Combine(Path.GetDirectoryName(audioPath), "song.json");
-            if (File.Exists(info))
+            if (File.Exists(info) && !IsRoot(customSongsDir, Path.GetDirectoryName(audioPath)))
             {
                 try
                 {
@@ -74,6 +77,13 @@ namespace InvectorModKit.ChartEditor
             string f = Path.GetFullPath(folder).TrimEnd('\\', '/') + Path.DirectorySeparatorChar;
             return Path.GetFullPath(path).StartsWith(f, StringComparison.OrdinalIgnoreCase);
         }
+
+        /// <summary>Inside CustomSongs, in a song's own folder (not loose in the shared root).</summary>
+        public static bool InOwnFolder(string customSongsDir, string audioPath) =>
+            IsInside(customSongsDir, audioPath) && !IsRoot(customSongsDir, Path.GetDirectoryName(Path.GetFullPath(audioPath)));
+
+        private static bool IsRoot(string customSongsDir, string folder) =>
+            !string.IsNullOrEmpty(customSongsDir) && string.Equals(Path.GetFullPath(folder).TrimEnd('\\', '/'), Path.GetFullPath(customSongsDir).TrimEnd('\\', '/'),StringComparison.OrdinalIgnoreCase);
 
         /// <summary>"Artist - Title" usable as a folder name (Windows-safe, not too long).</summary>
         public static string FolderName(string artist, string title)

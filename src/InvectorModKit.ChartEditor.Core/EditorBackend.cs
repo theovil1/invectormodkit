@@ -102,7 +102,7 @@ namespace InvectorModKit.ChartEditor
         private JObject Open(string audioPath)
         {
             if (!File.Exists(audioPath)) throw new FileNotFoundException("audio not found", audioPath);
-            var song = SongFiles.Read(audioPath);
+            var song = SongFiles.Read(audioPath, _settings.CustomSongsDir);
             JToken chart = JValue.CreateNull();
             if (song.HasChart) chart = ToJson(ChartJson.Deserialize(File.ReadAllText(song.ChartPath)));
             return new JObject
@@ -144,8 +144,8 @@ namespace InvectorModKit.ChartEditor
         private void WriteSongInfo(string audioPath, string title, string artist)
         {
             if (string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(artist)) return;
-            string root = _settings.CustomSongsDir, folder = Path.GetDirectoryName(Path.GetFullPath(audioPath));
-            if (!SongFiles.IsInside(root, audioPath) || string.Equals(folder, Path.GetFullPath(root).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) return;
+            if (!SongFiles.InOwnFolder(_settings.CustomSongsDir, audioPath)) return;
+            string folder = Path.GetDirectoryName(Path.GetFullPath(audioPath));
             var current = SongFiles.Read(audioPath);
             if (current.Title == title && current.Artist == artist) return;
             File.WriteAllText(Path.Combine(folder, "song.json"), new JObject { ["title"] = title, ["artist"] = artist }.ToString());
