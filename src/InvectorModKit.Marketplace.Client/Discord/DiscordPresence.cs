@@ -16,7 +16,8 @@ namespace InvectorModKit.Marketplace.Client.Discord
         public const string DefaultApplicationId = "1570718340719186024";
 
         private static readonly int[] BackoffSeconds = { 5, 10, 20, 40, 60 };
-        private const double MajorGap = 4, MinorGap = 15, EndTolerance = 2000;
+        // Discord accepts 5 activity updates per 20 s: one every 4 s at most
+        private const double MinGap = 4, EndTolerance = 2000;
 
         private readonly string _applicationId;
         private readonly int _pid;
@@ -35,7 +36,6 @@ namespace InvectorModKit.Marketplace.Client.Discord
         private bool _down;
         private bool _resend;
         private bool _hasSent;
-        private PresenceSnapshot _sent;
         private JToken _sentActivity;
         private DateTime _lastSend;
         private long _nonce;
@@ -134,12 +134,7 @@ namespace InvectorModKit.Marketplace.Client.Discord
             if (wish == null || texts == null) return;
             JToken activity = (JToken)ActivityBuilder.Build(wish, texts, _sessionStart, now) ?? JValue.CreateNull();
             double gap = _hasSent ? (now - _lastSend).TotalSeconds : double.MaxValue;
-            if (!_resend)
-            {
-                var change = Compare(_sent, _sentActivity, wish, activity);
-                if (change == Change.None) return;
-                if (gap < (change == Change.Major ? MajorGap : MinorGap)) return;
-            }
+            if (!_resend && (!Changed(_sentActivity, activity) || gap < MinGap)) return;
             var frame = new JObject
             {
                 ["cmd"] = "SET_ACTIVITY",
@@ -147,32 +142,24 @@ namespace InvectorModKit.Marketplace.Client.Discord
                 ["nonce"] = (++_nonce).ToString(System.Globalization.CultureInfo.InvariantCulture),
             };
             _pipe.Write(IpcFrame.Encode(IpcOpcode.Frame, frame.ToString(Formatting.None)));
-            _sent = wish;
             _sentActivity = activity;
             _lastSend = now;
             _hasSent = true;
             _resend = false;
         }
 
-        private enum Change { None, Minor, Major }
-
-        /// <summary>Major: anything but the score, combo or a countdown drift under 2 s. Minor: score or combo only.</summary>
-        private static Change Compare(PresenceSnapshot sent, JToken sentActivity, PresenceSnapshot wish, JToken activity)
+        /// <summary>Anything shown differs, except a countdown end that only drifted by less than 2 s.</summary>
+        private static bool Changed(JToken sentActivity, JToken activity)
         {
-            if (sent == null || sentActivity == null) return Change.Major;
-            if (sentActivity.Type != activity.Type) return Change.Major;
-            if (activity.Type == JTokenType.Null) return Change.None;
+            if (sentActivity == null || sentActivity.Type != activity.Type) return true;
+            if (activity.Type == JTokenType.Null) return false;
             var a = (JObject)activity.DeepClone();
             var b = (JObject)sentActivity.DeepClone();
             long? endA = (long?)a["timestamps"]?["end"], endB = (long?)b["timestamps"]?["end"];
-            if (endA.HasValue != endB.HasValue) return Change.Major;
-            if (endA.HasValue && Math.Abs(endA.Value - endB.Value) >= EndTolerance) return Change.Major;
+            if (endA.HasValue != endB.HasValue) return true;
+            if (endA.HasValue && Math.Abs(endA.Value - endB.Value) >= EndTolerance) return true;
             if (endA.HasValue) { a["timestamps"]["end"] = 0; b["timestamps"]["end"] = 0; }
-            bool scoreOnly = wish.Screen == PresenceScreen.Playing && sent.Screen == PresenceScreen.Playing
-                && (wish.Score != sent.Score || wish.Combo != sent.Combo);
-            if (scoreOnly) { a.Remove("state"); b.Remove("state"); }
-            if (!JToken.DeepEquals(a, b)) return Change.Major;
-            return scoreOnly ? Change.Minor : Change.None;
+            return !JToken.DeepEquals(a, b);
         }
 
         private void Drop(DateTime now, string why)

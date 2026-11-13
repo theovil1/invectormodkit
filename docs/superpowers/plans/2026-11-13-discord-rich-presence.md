@@ -24,7 +24,7 @@ P/Invoke, xUnit on `net8.0`.
 - Activity update: `{"cmd":"SET_ACTIVITY","args":{"pid":<game pid>,"activity":{...}},"nonce":"<unique>"}`.
 - Field limits: `details`, `state`, `large_text`, `small_text` at most 128 characters; button `label` at most 32;
   at most 2 buttons; timestamps in Unix milliseconds.
-- Pacing: at most one `SET_ACTIVITY` every 4 s; a change of score or combo only is sent at most every 15 s.
+- Pacing: at most one `SET_ACTIVITY` every 4 s, for every kind of change (score and combo included, after Theo's in-game test).
 - Discord closed, missing or restarted: no exception reaches the game, one log line per disconnect at most, reconnect
   attempts with backoff 5 s, 10 s, 20 s, 40 s, then every 60 s.
 - Mono's `NamedPipeClientStream` is unreliable in Unity: the real pipe uses `CreateFile`, `PeekNamedPipe`, `ReadFile`,

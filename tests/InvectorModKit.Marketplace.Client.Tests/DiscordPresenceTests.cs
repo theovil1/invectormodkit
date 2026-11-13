@@ -87,18 +87,18 @@ public class DiscordPresenceTests
     }
 
     [Fact]
-    public void ScoreOnlyChange_WaitsFifteenSeconds()
+    public void ScoreChange_SentAfterFourSeconds()
     {
         var p = NewPresence();
         p.Update(Level(remaining: 120), Texts());
         p.Tick(T);
         p.Update(Level(score: 200, remaining: 119), Texts());
         p.Tick(T.AddSeconds(1));
-        p.Update(Level(score: 200, remaining: 106), Texts());
-        p.Tick(T.AddSeconds(14));
+        p.Update(Level(score: 200, remaining: 117), Texts());
+        p.Tick(T.AddSeconds(3));
         Assert.Single(_pipe.Activities);
-        p.Update(Level(score: 200, remaining: 105), Texts());
-        p.Tick(T.AddSeconds(15));
+        p.Update(Level(score: 200, remaining: 116), Texts());
+        p.Tick(T.AddSeconds(4));
         Assert.Equal(2, _pipe.Activities.Count);
         Assert.Equal("Hard · 200 pts · combo 5", (string)_pipe.Activities[1]["state"]);
     }

@@ -34,8 +34,8 @@ difficulty, the score and how much is left.
 
 ## Constraints
 
-- Discord accepts about one activity update every 15 seconds: score/combo refresh at that pace, never faster.
-  Screen and song changes are sent as soon as the rate limit allows.
+- Discord accepts 5 activity updates per 20 seconds: every change (screen, song, score, combo) is sent at most
+  every 4 seconds. (A first version held score/combo to 15 s; Theo found it far too slow.)
 - A Discord application (developer portal, Theo's account) named "Invector: Rhythm Galaxy" holds the name shown and the
   image assets. Its application ID becomes a config setting with that default.
 - Players can turn the feature off with a config setting.
