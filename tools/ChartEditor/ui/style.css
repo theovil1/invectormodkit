@@ -65,11 +65,11 @@ h1, h2, h3 { font-family: var(--f-bold); text-transform: uppercase; letter-spaci
 }
 .gbtn::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, .04)); }
 .skinned .gbtn::before { background: var(--button) left center / 100% 100% no-repeat; opacity: .45; }
-.gbtn:hover, .gbtn:focus-visible { background: var(--text); color: var(--bg); }
-.gbtn:hover::before { opacity: 0; }
+.gbtn:hover:not(:disabled), .gbtn:focus-visible { background: var(--text); color: var(--bg); }
+.gbtn:hover:not(:disabled)::before { opacity: 0; }
 .gbtn.accent { box-shadow: none; }
 .gbtn.accent::after { content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 4px; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
-.gbtn.accent:hover { background: var(--accent); color: var(--text); }
+.gbtn.accent:hover:not(:disabled) { background: var(--accent); color: var(--text); }
 .gbtn:disabled { background: none; opacity: .3; }
 
 /* The game's difficulty selector: arrows, filled bars, the name. */
