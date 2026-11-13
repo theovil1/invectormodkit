@@ -84,7 +84,8 @@ namespace InvectorModKit.Marketplace.Ui
         // ----- the game's input module, held while the screen is open
 
         private Rewired.Integration.UnityUI.RewiredStandaloneInputModule _module;
-        private bool _moduleMouse, _moduleNavigation, _taken;
+        private bool _moduleMouse, _taken;
+        private readonly Client.HeldFlag _navigation = new Client.HeldFlag();
         private Vector3 _lastMouse;
         private readonly List<RaycastResult> _hits = new List<RaycastResult>();
 
@@ -94,7 +95,7 @@ namespace InvectorModKit.Marketplace.Ui
             Active = true;
             _lastMouse = Input.mousePosition;
             if (EventSystem.current == null) return;
-            _moduleNavigation = EventSystem.current.sendNavigationEvents;
+            _navigation.Hold(EventSystem.current.sendNavigationEvents, forced: false);
             EventSystem.current.sendNavigationEvents = false;
             _module = EventSystem.current.currentInputModule as Rewired.Integration.UnityUI.RewiredStandaloneInputModule;
             // The game's module only feeds the mouse to the Rewired player of the current menu, which may not own it:
@@ -104,6 +105,15 @@ namespace InvectorModKit.Marketplace.Ui
             _module.allowMouseInput = false;
         }
 
+        /// <summary>
+        /// Once per frame: song select turns navigation back on behind the screen (after its intro, or when its list is
+        /// rebuilt): off again, and on once the screen closes.
+        /// </summary>
+        public void HoldNavigation()
+        {
+            if (_taken && EventSystem.current) EventSystem.current.sendNavigationEvents = _navigation.Watch(EventSystem.current.sendNavigationEvents);
+        }
+
         /// <summary>Once: a screen being destroyed must not give back what the next one (opened the same frame) took.</summary>
         public void GiveBack()
         {
@@ -111,7 +121,8 @@ namespace InvectorModKit.Marketplace.Ui
             _taken = false;
             Active = false;
             if (_module) _module.allowMouseInput = _moduleMouse;
-            if (EventSystem.current) EventSystem.current.sendNavigationEvents = _moduleNavigation;
+            var navigation = _navigation.Release();
+            if (EventSystem.current && navigation.HasValue) EventSystem.current.sendNavigationEvents = navigation.Value;
             _module = null;
         }
 

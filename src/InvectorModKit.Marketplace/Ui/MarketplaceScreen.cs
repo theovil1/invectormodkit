@@ -245,6 +245,7 @@ namespace InvectorModKit.Marketplace.Ui
                 Open(MarketplacePlugin.Instance);
                 return;
             }
+            Input.HoldNavigation();
             Input.Typing = (_current != null && _current.Typing) || _prompt.Visible;
             Input.Read();
             Input.Mouse(transform);
@@ -314,7 +315,20 @@ namespace InvectorModKit.Marketplace.Ui
             MenuAudio.Restore();
             _instance = null;
             Destroy(gameObject);
-            if (_previousSelection) GameUi.Select(_previousSelection);
+            var back = SelectionToRestore();
+            if (back) GameUi.Select(back);
+        }
+
+        /// <summary>
+        /// Where the menu underneath takes the keys back. Song select: its own selected song, as its list may have been
+        /// rebuilt while the screen was open (a song downloaded or charted): the row selected before is then gone or
+        /// pooled, and with no usable selection no key worked. Elsewhere: what was selected before, if still shown.
+        /// </summary>
+        private GameObject SelectionToRestore()
+        {
+            if (ModKit.CurrentState is HelloThere.Avicii.StateSelectSongSingleplayer select && select.selectedLevelButton && select.selectedLevelButton.gameObject.activeInHierarchy)
+                return select.selectedLevelButton.gameObject;
+            return _previousSelection && _previousSelection.activeInHierarchy ? _previousSelection : null;
         }
 
         // ----- account
