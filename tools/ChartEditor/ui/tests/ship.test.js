@@ -118,6 +118,24 @@ test("List: the angle never jumps inside the tunnel", () => {
   near(turnDiff(ship.spin(3.5), 0), 0, 1e-4, "two right turns from lane 1 end on lane 0");
 });
 
+test("List: the tunnel turns to a note on another lane without a turn, once the note before it is taken", () => {
+  const { ship } = setup([{ t: 1, lane: 1 }, { t: 2, lane: 1 }, { t: 3, lane: 0 }], [{ t: 0, mode: "List" }]);
+  const t0 = 2 - 1 / 30 + 1 / 60; // the frame after the autopilot takes the note at 2 s, its next target is the note at 3 s
+  near(turnDiff(ship.spin(t0), -THIRD), 0, 1e-6, "not yet turning");
+  near(turnDiff(ship.spin(t0 + 0.05), -THIRD * 0.7 ** 3), 0, 1e-6, "three frames into the turn");
+  near(turnDiff(ship.spin(2.9), 0), 0, 1e-4, "on lane 0 before the note");
+});
+
+test("List: after a turn, the tunnel goes on to the next note's lane", () => {
+  // turn left from lane 1 (to lane 0), then a note back on lane 1: the autopilot steers back the next frame
+  const { ship } = setup([{ t: 1, lane: 1 }, { t: 2, lane: 1, color: 4 }, { t: 3, lane: 1 }], [{ t: 0, mode: "List" }]);
+  near(turnDiff(ship.spin(2 - 1 / 60), -THIRD * 0.7), 0, 1e-6, "one frame towards lane 0");
+  let prev = ship.spin(1.5), worst = 0;
+  for (let t = 1.501; t < 3.5; t += 0.001) { const a = ship.spin(t); worst = Math.max(worst, Math.abs(turnDiff(a, prev))); prev = a; }
+  assert.ok(worst < 0.05, `a step of ${worst} rad`);
+  near(turnDiff(ship.spin(3), -THIRD), 0, 1e-4, "back on lane 1 for the note");
+});
+
 test("List after Bounce: the tunnel is set to the first note's lane at once, before the tunnel comes", () => {
   const { ship } = setup([{ t: 5, lane: 1 }, { t: 11, lane: 2 }], [{ t: 0, mode: "Bounce" }, { t: 10, mode: "List" }]);
   near(turnDiff(ship.spin(6), 0), 0, 1e-9, "still the song's start angle");
