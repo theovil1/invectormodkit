@@ -10,8 +10,12 @@ difficulty, the score and how much is left.
 
 - During a level: song title and artist (official or custom), difficulty (Casual to Ultra), live score and combo,
   time remaining shown by Discord's own countdown.
-- Outside a level: one line per screen (main menu, song select, marketplace, level editor), with total elapsed play
+- Outside a level: one line per screen (main menu, song select, marketplace, results), with total elapsed play
   time.
+- The level editor (InvectorLevelEditor.exe, a separate app that runs with or without the game) shows its own
+  presence: "Making a level", the song being edited, the difficulty being worked on and its note count, and the time
+  since the editor opened. While the editor runs, the game clears its own activity so only the editor's card shows.
+  Same buttons, texts in the editor's language.
 - Two buttons: "Get InvectorModKit" (latest release page) and "Join the Discord" (the existing `Community.Discord`
   setting; the button is dropped when the setting is empty).
 - Texts in the game's language, the 11 languages the mod already supports.
@@ -51,6 +55,8 @@ difficulty, the score and how much is left.
 - A thin game part, inside the Marketplace plugin (it already holds `Loc` and the Discord invite), that reads `ModKit.CurrentState`, the level and difficulty from
   `StateGame.gameSession` (as the marketplace leaderboard already does), score/combo and song position while playing,
   and hands snapshots to the scheduler. Custom songs get their title/artist from CustomSongs.
+- The editor host references the same client library: its interface sends the song, difficulty, note count and
+  localized texts to the host, which feeds the same scheduler.
 - No new plugin or DLL: the installer is unchanged.
 
 ## Left to the builder
