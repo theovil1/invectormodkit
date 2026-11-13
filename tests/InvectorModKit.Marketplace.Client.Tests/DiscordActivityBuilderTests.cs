@@ -152,6 +152,24 @@ public class DiscordActivityBuilderTests
     }
 
     [Fact]
+    public void OneCharTitle_IsPaddedToDiscordsMinimum()
+    {
+        var s = Level();
+        s.Title = "Y";
+        s.Artist = "";
+        Assert.Equal(2, ((string)Build(s)["details"]).Length);
+    }
+
+    [Fact]
+    public void EmptyTitle_DropsDetails()
+    {
+        var s = Level();
+        s.Title = "";
+        s.Artist = "";
+        Assert.Null(Build(s)["details"]);
+    }
+
+    [Fact]
     public void Truncation_NeverSplitsAnEmoji()
     {
         var s = Level();

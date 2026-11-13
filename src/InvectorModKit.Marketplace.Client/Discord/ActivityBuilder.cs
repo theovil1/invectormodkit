@@ -14,26 +14,27 @@ namespace InvectorModKit.Marketplace.Client.Discord
         {
             if (s.Screen == PresenceScreen.Hidden) return null;
             var a = new JObject { ["type"] = 0 };
-            var assets = new JObject { ["large_image"] = "logo", ["large_text"] = Cut(t.ModVersion, TextMax) };
+            var assets = new JObject { ["large_image"] = "logo" };
+            Set(assets, "large_text", t.ModVersion);
             bool level = s.Screen == PresenceScreen.Playing || s.Screen == PresenceScreen.Paused;
             if (level)
             {
-                a["details"] = Cut(string.IsNullOrEmpty(s.Artist) ? s.Title : s.Title + " · " + s.Artist, TextMax);
-                a["state"] = Cut(s.Screen == PresenceScreen.Paused
+                Set(a, "details", string.IsNullOrEmpty(s.Artist) ? s.Title : s.Title + " · " + s.Artist);
+                Set(a, "state", s.Screen == PresenceScreen.Paused
                     ? t.Paused
-                    : s.Difficulty + " · " + string.Format(CultureInfo.InvariantCulture, t.ScoreLine, s.Score, s.Combo), TextMax);
+                    : s.Difficulty + " · " + string.Format(CultureInfo.InvariantCulture, t.ScoreLine, s.Score, s.Combo));
                 if (s.Screen == PresenceScreen.Playing)
                     a["timestamps"] = new JObject { ["end"] = Ms(nowUtc) + (long)Math.Round(Math.Max(0, s.RemainingSeconds) * 1000) };
-                if (s.CustomSong) assets["large_text"] = Cut(t.ModVersion + " · " + t.CustomSong, TextMax);
+                if (s.CustomSong) Set(assets, "large_text", t.ModVersion + " · " + t.CustomSong);
                 AddDifficulty(assets, s.Difficulty);
             }
             else
             {
-                a["details"] = Cut(ScreenText(s.Screen, t), TextMax);
+                Set(a, "details", ScreenText(s.Screen, t));
                 if (s.Screen == PresenceScreen.Editor && !string.IsNullOrEmpty(s.Title))
                 {
                     string notes = string.Format(CultureInfo.InvariantCulture, Plural.IsOne(s.Notes, t.LanguageCode) ? t.NotesOne : t.NotesMany, s.Notes);
-                    a["state"] = Cut(s.Title + " · " + s.Difficulty + " · " + notes, TextMax);
+                    Set(a, "state", s.Title + " · " + s.Difficulty + " · " + notes);
                     AddDifficulty(assets, s.Difficulty);
                 }
                 a["timestamps"] = new JObject { ["start"] = Ms(sessionStartUtc) };
@@ -56,6 +57,16 @@ namespace InvectorModKit.Marketplace.Client.Discord
                 case PresenceScreen.Results: return t.Results;
                 default: return t.Menu;
             }
+        }
+
+        /// <summary>
+        /// Discord rejects the whole activity for a text under 2 chars: an empty one is left out, a single char gets a
+        /// blank Braille pattern (U+2800) that Discord counts but shows as nothing.
+        /// </summary>
+        private static void Set(JObject o, string key, string text)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            o[key] = text.Length < 2 ? text + "⠀" : Cut(text, TextMax);
         }
 
         private static void AddDifficulty(JObject assets, string difficulty)
