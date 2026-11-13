@@ -66,7 +66,7 @@ namespace InvectorModKit.Marketplace.Client.Discord
         private static void Set(JObject o, string key, string text)
         {
             if (string.IsNullOrEmpty(text)) return;
-            o[key] = text.Length < 2 ? text + "⠀" : Cut(text, TextMax);
+            o[key] = text.Length < 2 ? text + "\u2800" : Cut(text, TextMax);
         }
 
         private static void AddDifficulty(JObject assets, string difficulty)
