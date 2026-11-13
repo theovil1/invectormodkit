@@ -141,13 +141,13 @@ namespace InvectorModKit.Marketplace.Ui
         // While the window is open, the menu underneath must not react (difficulty, worlds, sorting, DLC…),
         // but the base state update also shows the mouse cursor when the mouse moves: keep that part.
         [HarmonyPatch(typeof(StateMainMenu), nameof(StateMainMenu.Update)), HarmonyPrefix]
-        private static bool MainMenuUpdate(StateMainMenu __instance) => Pass(__instance);
+        private static bool MainMenuUpdate() => Pass();
 
         [HarmonyPatch(typeof(StateSelectSongSingleplayer), nameof(StateSelectSongSingleplayer.Update)), HarmonyPrefix]
-        private static bool SongSelectUpdate(StateSelectSongSingleplayer __instance) => Pass(__instance);
+        private static bool SongSelectUpdate() => Pass();
 
         [HarmonyPatch(typeof(StateSelectSongMultiplayer), nameof(StateSelectSongMultiplayer.Update)), HarmonyPrefix]
-        private static bool SongSelectMultiUpdate(StateSelectSongMultiplayer __instance) => Pass(__instance);
+        private static bool SongSelectMultiUpdate() => Pass();
 
         // The ship selector reads "change ship" (R, or the controller's) in its own Update, outside the state's: it
         // switched the ship behind the marketplace. The console menu layout reads Unity's input on its own the same way.
@@ -160,16 +160,15 @@ namespace InvectorModKit.Marketplace.Ui
         /// <summary>The marketplace is open: the menus underneath take no input.</summary>
         private static bool Open => ScreenInput.Active || MarketplaceScreen.IsOpen;
 
-        private static bool Pass(HelloThere.Applications.ApplicationState state)
+        private static bool Pass()
         {
             if (!Open) return true;
-            // Same as ApplicationState.Update: the cursor shows while the mouse is the last device used.
+            // Same as ApplicationState.Update: the cursor shows while the mouse is the last device used. Not its hover
+            // refresh: it marks every button under the cursor as hovered when the cursor shows, and clears only those
+            // still under it when it hides. With the game's mouse input off (ScreenInput) nothing else clears them, so
+            // rows the mouse had left stayed lit like the selected one. The screen's hover is its selection.
             bool mouse = Rewired.ReInput.isReady && Rewired.ReInput.controllers.GetLastActiveControllerType() == Rewired.ControllerType.Mouse;
-            if (Cursor.visible != mouse)
-            {
-                Cursor.visible = mouse;
-                state.UpdatePointerHoverState();
-            }
+            if (Cursor.visible != mouse) Cursor.visible = mouse;
             return false;
         }
 
