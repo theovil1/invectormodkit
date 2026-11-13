@@ -76,6 +76,12 @@ namespace InvectorModKit.Charting
     {
         public const int CurrentFormat = 1;
 
+        /// <summary>
+        /// Notes closer than this (seconds) are one chord. The game takes notes together only when their times are
+        /// exactly equal, so the chart reader gives every note of a chord the time of its first note.
+        /// </summary>
+        public const double ChordTolerance = 0.005;
+
         public int Format = CurrentFormat;
         public double Bpm;
         /// <summary>Time (song seconds) of any beat; the beat grid is FirstBeat + k * 60 / Bpm.</summary>
