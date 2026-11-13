@@ -103,9 +103,25 @@ namespace InvectorModKit.Charting
                     foreach (var n in arr)
                         list.Add(ReadNote((JObject)n));
                 list.Sort((a, b) => a.Time.CompareTo(b.Time));
+                JoinChords(list);
                 chart.Notes[d] = list;
             }
             return chart;
+        }
+
+        /// <summary>
+        /// Gives the notes within <see cref="Chart.ChordTolerance"/> of a chord's first note exactly its time (a strum
+        /// placed on an arrow in the editor can be saved 0.1 ms away from it). Notes must be sorted by time.
+        /// </summary>
+        private static void JoinChords(List<Note> notes)
+        {
+            for (int i = 1, first = 0; i < notes.Count; i++)
+            {
+                if (notes[i].Time - notes[first].Time > Chart.ChordTolerance) { first = i; continue; }
+                var note = notes[i];
+                note.Time = notes[first].Time;
+                notes[i] = note;
+            }
         }
 
         private static JObject WriteNote(Note n)
