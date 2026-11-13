@@ -121,49 +121,41 @@ export function sectionRange(doc, index) {
   return { from: doc.sections[index].t, to: index + 1 < doc.sections.length ? doc.sections[index + 1].t : doc.end };
 }
 
-// ----- the game's lane rule
+// ----- lanes
 
-/** Lane of the pickups that follow a turn (List wraps around the tube, Bounce's road does not). */
+// The game places every pickup at its own lane: a turn asks the player to steer one lane over, and the official Hard
+// and Ultra charts also change lanes without one. So lanes are whatever the author set; nothing moves them by itself.
+
+/** Lane a turn leads to (List wraps around the tube, Bounce's road does not). */
 export function laneAfterTurn(mode, lane, color) {
   const delta = color === Color.TurnLeft ? -1 : 1;
   return mode === "List" ? (lane + delta + 3) % 3 : Math.max(0, Math.min(2, lane + delta));
 }
 
 /**
- * In List and Bounce a pickup's lane only changes through a turn: every pickup after the first of a run in the
- * same mode takes the lane the previous one leads to. Freefly positions are free.
+ * The generator's rule, for the notes it makes: each listed pickup takes the lane the pickup before it leads to
+ * (in the same List or Bounce run), from the one before the first of them.
  */
-export function relane(doc, d) {
+export function followTurns(doc, d, ids) {
+  const set = new Set(ids);
   let prev = null, prevMode = null;
-  for (const n of doc.notes[d]) {
+  for (const n of [...doc.notes[d]].sort((a, b) => a.t - b.t || a.id - b.id)) {
     if (n.strum) continue;
     const mode = modeAt(doc, n.t);
-    if (mode !== "Freefly" && prev && prevMode === mode)
+    if (set.has(n.id) && mode !== "Freefly" && prev && prevMode === mode)
       n.lane = isTurn(prev.color) ? laneAfterTurn(mode, prev.lane, prev.color) : prev.lane;
     prev = n;
     prevMode = mode;
   }
 }
 
-/** Is this note's lane chosen by hand (Freefly, or the first pickup of a run) rather than by the turns? */
-export function laneIsFree(doc, d, note) {
-  if (note.strum) return false;
-  const mode = modeAt(doc, note.t);
-  if (mode === "Freefly") return true;
-  const pickups = doc.notes[d].filter((n) => !n.strum && n.t < note.t);
-  const prev = pickups[pickups.length - 1];
-  return !prev || modeAt(doc, prev.t) !== mode;
-}
-
-/** Sorted notes, sorted zones starting at 0, lanes following the turns, times inside the song. */
+/** Sorted notes, sorted zones starting at 0, times inside the song. */
 export function normalize(doc) {
   doc.sections.sort((a, b) => a.t - b.t);
   if (!doc.sections.length || doc.sections[0].t > 0) doc.sections.unshift({ t: 0, mode: doc.sections[0]?.mode || "List" });
   doc.sections[0].t = 0;
-  for (const d of DIFFICULTIES) {
+  for (const d of DIFFICULTIES)
     doc.notes[d] = doc.notes[d].filter((n) => n.t >= 0 && n.t <= doc.end).sort((a, b) => a.t - b.t || a.id - b.id);
-    relane(doc, d);
-  }
   return doc;
 }
 
@@ -182,7 +174,7 @@ export function removeNotes(doc, d, ids) {
 
 const byIds = (doc, d, ids) => { const set = new Set(ids); return doc.notes[d].filter((n) => set.has(n.id)); };
 
-/** Shifts notes in time; `dLane` moves the lanes that are chosen by hand (the others follow the turns). */
+/** Shifts notes in time; `dLane` moves their lanes too (pickups only, kept on the three lanes). */
 export function moveNotes(doc, d, ids, dt, dLane = 0) {
   for (const n of byIds(doc, d, ids)) {
     n.t = Math.max(0, Math.min(doc.end, n.t + dt));
@@ -230,10 +222,17 @@ export function clearStarSet(doc, d, ids) {
 /** Notes with from <= t < to. */
 export const notesIn = (doc, d, from, to) => doc.notes[d].filter((n) => n.t >= from - 1e-6 && n.t < to - 1e-6);
 
-/** Replaces the notes of `d` between from and to by copies of `notes` in that range (regeneration, copy). */
+/** Replaces the notes of `d` between from and to by copies of `notes` in that range (regeneration, copy); returns their ids. */
 export function replaceRange(doc, d, notes, from, to) {
   doc.notes[d] = doc.notes[d].filter((n) => n.t < from - 1e-6 || n.t >= to - 1e-6);
-  for (const n of notes) if (n.t >= from - 1e-6 && n.t < to - 1e-6) doc.notes[d].push(makeNote(n));
+  const ids = [];
+  for (const n of notes) {
+    if (n.t < from - 1e-6 || n.t >= to - 1e-6) continue;
+    const note = makeNote(n);
+    doc.notes[d].push(note);
+    ids.push(note.id);
+  }
+  return ids;
 }
 
 export function copyRange(doc, fromD, toD, from, to) {

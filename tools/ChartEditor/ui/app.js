@@ -563,11 +563,10 @@ class App {
         notes.some((n) => n.set) ? el("button", { onclick: () => this.edit((doc) => m.clearStarSet(doc, d, ids)) }, t("clearStarSet")) : null,
         el("button", { class: "danger", onclick: () => { this.edit((doc) => m.removeNotes(doc, d, ids)); this.select([]); } }, t("delete"))));
       if (notes.length === 1) {
-        const n = notes[0], free = m.laneIsFree(this.editor.doc, d, n);
-        if (!n.strum && free)
+        const n = notes[0];
+        if (!n.strum)
           kids.push(el("div", { class: "buttons" }, [0, 1, 2].map((lane) =>
             el("button", { class: n.lane === lane ? "on" : "", onclick: () => this.edit((doc) => m.setLane(doc, d, [n.id], lane)) }, laneName(t, m.modeAt(this.editor.doc, n.t), lane)))));
-        else if (!n.strum) kids.push(el("p", { class: "note-info" }, t("laneFollows")));
         if (n.strum) {
           const input = el("input", { type: "number", step: "0.01", min: "0", value: n.len.toFixed(3) });
           input.onchange = () => this.edit((doc) => m.setHold(doc, d, n.id, Number(input.value) || 0));
