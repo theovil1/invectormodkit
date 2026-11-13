@@ -227,20 +227,51 @@ namespace InvectorModKit.CustomSongs
             }
         }
 
-        /// <summary>
-        /// Song select reads the song list when it opens: reopen it the way the game does when a DLC gets
-        /// installed. Not in multiplayer, where reopening would drop the joined players; the change shows
-        /// there the next time it opens.
-        /// </summary>
         /// <summary>The song to select again once song select has been reopened by <see cref="RefreshSongSelect"/>.</summary>
         internal static string ReselectLevelId;
 
         /// <summary>Same as <see cref="RefreshSongSelect"/>, for <see cref="CustomSongsApi"/> (song removed).</summary>
         internal static void RefreshListedSongs() => RefreshSongSelect();
 
-        private static void RefreshSongSelect()
+        private static bool _refreshRequested, _refreshWaitLogged;
+
+        /// <summary>
+        /// Song select reads the song list when it opens: it is reopened the way the game does when a DLC gets
+        /// installed, once it has settled (<see cref="Update"/>). Not in multiplayer, where reopening would drop
+        /// the joined players; the change shows there the next time it opens.
+        /// </summary>
+        private static void RefreshSongSelect() => _refreshRequested = true;
+
+        /// <summary>
+        /// A refresh waits until song select is fully open and takes input. Reopening it while it is still
+        /// opening (songs get ready in bursts) or after a song was chosen (the game starts 2 s later) runs the
+        /// game's state changes into each other, which could leave the game on its loading screen forever.
+        /// </summary>
+        private void Update()
         {
-            if (!(ModKit.CurrentState is HelloThere.Avicii.StateSelectSongSingleplayer select)) return;
+            if (!_refreshRequested) return;
+            if (!(ModKit.CurrentState is HelloThere.Avicii.StateSelectSongSingleplayer select))
+            {
+                _refreshRequested = _refreshWaitLogged = false; // the list is read again when song select next opens
+                return;
+            }
+            if (!Settled(select))
+            {
+                if (!_refreshWaitLogged) Logger.LogDebug("Song list changed: song select refreshes once it has settled");
+                _refreshWaitLogged = true;
+                return;
+            }
+            _refreshRequested = _refreshWaitLogged = false;
+            Refresh(select);
+        }
+
+        /// <summary>Song select is the game's current state (no state change under way) and takes input.</summary>
+        private static bool Settled(HelloThere.Avicii.StateSelectSongSingleplayer select) =>
+            select.ChangeState?.Target is HelloThere.Applications.ApplicationStateMachine machine
+            && machine.currentState == select && !machine.isChangingState && select.isInteractable;
+
+        private static void Refresh(HelloThere.Avicii.StateSelectSongSingleplayer select)
+        {
             // Stay on the song the player is looking at (the game would go back to the first one): its place in the
             // list for the game, and its level id for Patches.ReselectAfterRefresh, as its place may change.
             if (select.selectedLevelButton != null && select.songMenuItems.TryGetValue(select.selectedLevelButton, out var shown) && shown.levelDefinition != null)
