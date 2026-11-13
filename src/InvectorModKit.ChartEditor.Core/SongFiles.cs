@@ -93,14 +93,17 @@ namespace InvectorModKit.ChartEditor
             return folder;
         }
 
-        /// <summary>"Artist - Title" usable as a folder name (Windows-safe, not too long).</summary>
+        /// <summary>
+        /// "Artist - Title" usable as a folder name (Windows-safe, not too long). Never starting with a dot: the game and
+        /// the editor skip such folders.
+        /// </summary>
         public static string FolderName(string artist, string title)
         {
-            string name = string.IsNullOrWhiteSpace(artist) ? title : $"{artist} - {title}";
-            if (string.IsNullOrWhiteSpace(name)) name = "Song";
+            string name = string.IsNullOrWhiteSpace(artist) ? title ?? "" : $"{artist} - {title}";
             var invalid = new HashSet<char>(Path.GetInvalidFileNameChars());
-            name = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim().TrimEnd('.');
-            return name.Length > 80 ? name.Substring(0, 80).Trim() : name;
+            name = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim().Trim('.').Trim();
+            if (name.Length > 80) name = name.Substring(0, 80).Trim().TrimEnd('.');
+            return name.Length == 0 ? "Song" : name;
         }
     }
 }

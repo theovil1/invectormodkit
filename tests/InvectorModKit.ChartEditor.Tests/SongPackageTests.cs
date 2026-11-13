@@ -167,6 +167,22 @@ public class SongPackageTests
     }
 
     [Theory]
+    [InlineData(".hack", "", "hack")]
+    [InlineData("..", "", "Song")]
+    [InlineData("Sign", ".anthony", "anthony - Sign")]
+    public async Task Import_NeverMakesAFolderTheGameSkips(string title, string artist, string folder)
+    {
+        using var from = new Sandbox();
+        using var to = new Sandbox();
+        string zip = await ExportedZip(from, "track.wav", title, artist);
+
+        string audio = (string)(await Import(to, zip))["audioPath"];
+
+        Assert.Equal(Path.Combine(to.CustomSongs, folder, "track.wav"), audio);
+        Assert.Single((JArray)await to.Backend().Handle("songs", null)); // the game and the editor skip folders starting with "."
+    }
+
+    [Theory]
     [InlineData("John Summit, Inéz - crystallized.wav", "crystallized (feat. Inéz)", "John Summit, Inéz")]
     [InlineData("曲.wav", "夜に駆ける", "YOASOBI")]
     public async Task Import_KeepsNonAsciiNames(string audioName, string title, string artist)
