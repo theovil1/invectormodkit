@@ -56,6 +56,14 @@ namespace InvectorModKit.ChartEditor
                 case "save": return Save(Required(p, "audioPath"), ReadChart(p), (string)p["title"], (string)p["artist"]);
                 case "validate": return Validate(ReadChart(p));
                 case "sendToGame": return SendToGame(Required(p, "audioPath"), ReadChart(p), (string)p["title"], (string)p["artist"]);
+                case "export":
+                {
+                    string zip = Required(p, "zipPath");
+                    var chart = ReadChart(p);
+                    string audio = Required(p, "audioPath");
+                    await Task.Run(() => SongPackage.Export(audio, chart, (string)p["title"], (string)p["artist"], _settings.CustomSongsDir, zip)).ConfigureAwait(false);
+                    return new JObject { ["zipPath"] = zip };
+                }
                 case "me": return await Me().ConfigureAwait(false);
                 case "signIn": return await SignIn().ConfigureAwait(false);
                 case "signOut":
