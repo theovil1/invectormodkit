@@ -219,6 +219,7 @@ class App {
     $("btn-save").onclick = () => this.save();
     $("btn-send").onclick = () => this.sendToGame();
     $("btn-publish").onclick = () => this.publishDialog();
+    $("btn-export").onclick = () => this.exportSong();
     $("btn-settings").onclick = () => this.settingsDialog();
     $("btn-play").onclick = () => this.togglePlay();
     $("speed").onchange = (e) => { this.audio.rate = Number(e.target.value); };
@@ -309,6 +310,43 @@ class App {
     } catch (e) {
       this.status(t("error", e.message), true);
     }
+  }
+
+  /** One zip with the song's audio, chart, cover and title, to send to another player (saved first if changed). */
+  async exportSong() {
+    if (!this.editor) return;
+    if (this.editor.dirty && !(await this.save())) return;
+    const zipPath = await call("host.saveZip", { title: $("f-title").value, artist: $("f-artist").value }).catch(() => null);
+    if (!zipPath) return;
+    this.busy(t("exporting"));
+    try {
+      await call("export", { audioPath: this.file.audioPath, chart: this.chartFile(), title: $("f-title").value, artist: $("f-artist").value, zipPath });
+      this.closeModal();
+      this.status(t("exported", zipPath.split(/[\\/]/).pop()));
+    } catch (e) {
+      this.closeModal();
+      this.status(t("error", e.message), true);
+    }
+  }
+
+  /** A zip another player exported: into the game's CustomSongs, then opened here. */
+  async importZip() {
+    if (!this.settings.gameFound) { this.settingsDialog(); return; }
+    const zipPath = await call("host.openZip").catch(() => null);
+    if (!zipPath) return;
+    this.busy(t("importing"));
+    let r;
+    try {
+      r = await call("import", { zipPath });
+    } catch (e) {
+      this.closeModal();
+      this.status(t("error", e.message), true);
+      return;
+    }
+    this.closeModal();
+    if (r.refused) { this.status(t("importRefused_" + r.refused), true); return; }
+    await this.openSong(r.audioPath);
+    if (this.file && this.file.audioPath === r.audioPath) this.status(t("imported", $("f-title").value || r.audioPath));
   }
 
   async confirmDiscard() {
@@ -497,7 +535,7 @@ class App {
   renderAll() {
     const has = !!this.editor;
     $("empty").classList.toggle("hidden", has);
-    for (const id of ["btn-save", "btn-send", "btn-publish", "btn-play"]) $(id).disabled = !has;
+    for (const id of ["btn-save", "btn-send", "btn-publish", "btn-export", "btn-play"]) $(id).disabled = !has;
     this.renderPreviewHint();
     this.renderDifficulty();
     this.renderGhost();
@@ -720,6 +758,7 @@ class App {
       songs.length ? list : el("p", { class: "muted" }, t("noSongs")),
       el("div", { class: "actions" },
         el("button", { onclick: () => this.closeModal() }, t("cancel")),
+        el("button", { onclick: () => { this.closeModal(); this.importZip(); } }, t("importZip")),
         el("button", { class: "accent", onclick: () => this.pickAudio() }, t("otherFile"))));
   }
 
