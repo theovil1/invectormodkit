@@ -627,7 +627,9 @@ class App {
     this.busy(t("generating"));
     try {
       const generated = m.fromFile(await call("regenerate", { audioPath: this.file.audioPath }));
-      this.edit((doc) => m.replaceRange(doc, this.difficulty, generated.notes[this.difficulty], r.from, r.to));
+      const d = this.difficulty;
+      // the new notes change lanes through their turns, from the note before them; the notes after keep theirs
+      this.edit((doc) => m.followTurns(doc, d, m.replaceRange(doc, d, generated.notes[d], r.from, r.to)));
       this.status(t("regenerated"));
     } catch (e) {
       this.status(t("error", e.message), true);
