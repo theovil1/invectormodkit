@@ -95,32 +95,37 @@ namespace InvectorModKit.CustomSongs
             while (true)
             {
                 // Heavy analysis (and the garbage collections it causes) would make the game stutter
-                // mid-song, so nothing new starts while a song is being played.
-                while (InGame) yield return new WaitForSecondsRealtime(0.5f);
-                if (_checkFolderNow || Time.realtimeSinceStartup >= nextCheck)
+                // mid-song, so nothing new starts while a song is being played, except the song the
+                // loading screen waits for (the game counts as playing from the moment it is launched).
+                while (InGame && !LoadingSongPending) yield return new WaitForSecondsRealtime(0.5f);
+                if (!LoadingSongPending) // that song goes first: the rest waits for the next turn
                 {
-                    _checkFolderNow = false;
-                    yield return CheckFolder();
-                    nextCheck = Time.realtimeSinceStartup + FolderCheckSeconds;
-                }
-                if (_matchRequested)
-                {
-                    _matching = true;
-                    _matchRequested = false;
-                    try { yield return MatchMarketplace(); }
-                    finally { _matching = false; }
-                }
-                if (_metadataReload)
-                {
-                    _metadataReload = false;
-                    foreach (var song in Library.Songs.Where(s => s.State == SongState.Ready))
+                    if (_checkFolderNow || Time.realtimeSinceStartup >= nextCheck)
                     {
-                        song.HasMetadata = false; // metadata (title, artist, cover) is read again, then Prepared again
-                        song.State = SongState.Pending;
-                        song.Priority = long.MaxValue;
+                        _checkFolderNow = false;
+                        yield return CheckFolder();
+                        nextCheck = Time.realtimeSinceStartup + FolderCheckSeconds;
+                    }
+                    if (_matchRequested)
+                    {
+                        _matching = true;
+                        _matchRequested = false;
+                        try { yield return MatchMarketplace(); }
+                        finally { _matching = false; }
+                    }
+                    if (_metadataReload)
+                    {
+                        _metadataReload = false;
+                        foreach (var song in Library.Songs.Where(s => s.State == SongState.Ready))
+                        {
+                            song.HasMetadata = false; // metadata (title, artist, cover) is read again, then Prepared again
+                            song.State = SongState.Pending;
+                            song.Priority = long.MaxValue;
+                        }
                     }
                 }
-                var next = Library.Songs.Where(s => s.State == SongState.Pending).OrderByDescending(s => s.Priority).FirstOrDefault();
+                var next = LoadingSongPending ? _loadingSong
+                    : Library.Songs.Where(s => s.State == SongState.Pending).OrderByDescending(s => s.Priority).FirstOrDefault();
                 if (next == null)
                 {
                     if (!_startupCheckDone) StartupMarketplaceCheck();
@@ -227,20 +232,51 @@ namespace InvectorModKit.CustomSongs
             }
         }
 
-        /// <summary>
-        /// Song select reads the song list when it opens: reopen it the way the game does when a DLC gets
-        /// installed. Not in multiplayer, where reopening would drop the joined players; the change shows
-        /// there the next time it opens.
-        /// </summary>
         /// <summary>The song to select again once song select has been reopened by <see cref="RefreshSongSelect"/>.</summary>
         internal static string ReselectLevelId;
 
         /// <summary>Same as <see cref="RefreshSongSelect"/>, for <see cref="CustomSongsApi"/> (song removed).</summary>
         internal static void RefreshListedSongs() => RefreshSongSelect();
 
-        private static void RefreshSongSelect()
+        private static bool _refreshRequested, _refreshWaitLogged;
+
+        /// <summary>
+        /// Song select reads the song list when it opens: it is reopened the way the game does when a DLC gets
+        /// installed, once it has settled (<see cref="Update"/>). Not in multiplayer, where reopening would drop
+        /// the joined players; the change shows there the next time it opens.
+        /// </summary>
+        private static void RefreshSongSelect() => _refreshRequested = true;
+
+        /// <summary>
+        /// A refresh waits until song select is fully open and takes input. Reopening it while it is still
+        /// opening (songs get ready in bursts) or after a song was chosen (the game starts 2 s later) runs the
+        /// game's state changes into each other, which could leave the game on its loading screen forever.
+        /// </summary>
+        private void Update()
         {
-            if (!(ModKit.CurrentState is HelloThere.Avicii.StateSelectSongSingleplayer select)) return;
+            if (!_refreshRequested) return;
+            if (!(ModKit.CurrentState is HelloThere.Avicii.StateSelectSongSingleplayer select))
+            {
+                _refreshRequested = _refreshWaitLogged = false; // the list is read again when song select next opens
+                return;
+            }
+            if (!Settled(select))
+            {
+                if (!_refreshWaitLogged) Logger.LogDebug("Song list changed: song select refreshes once it has settled");
+                _refreshWaitLogged = true;
+                return;
+            }
+            _refreshRequested = _refreshWaitLogged = false;
+            Refresh(select);
+        }
+
+        /// <summary>Song select is the game's current state (no state change under way) and takes input.</summary>
+        private static bool Settled(HelloThere.Avicii.StateSelectSongSingleplayer select) =>
+            select.ChangeState?.Target is HelloThere.Applications.ApplicationStateMachine machine
+            && machine.currentState == select && !machine.isChangingState && select.isInteractable;
+
+        private static void Refresh(HelloThere.Avicii.StateSelectSongSingleplayer select)
+        {
             // Stay on the song the player is looking at (the game would go back to the first one): its place in the
             // list for the game, and its level id for Patches.ReselectAfterRefresh, as its place may change.
             if (select.selectedLevelButton != null && select.songMenuItems.TryGetValue(select.selectedLevelButton, out var shown) && shown.levelDefinition != null)
@@ -298,6 +334,22 @@ namespace InvectorModKit.CustomSongs
         {
             song.Priority = System.DateTime.UtcNow.Ticks;
             while (song.State == SongState.Pending || song.State == SongState.Processing) yield return null;
+        }
+
+        /// <summary>The song the game's loading screen waits for, prepared first even though the game is playing.</summary>
+        private static CustomSong _loadingSong;
+
+        private static bool LoadingSongPending => _loadingSong != null && _loadingSong.State == SongState.Pending;
+
+        /// <summary>
+        /// Same as <see cref="WaitUntilPrepared"/>, for the game's loading screen: a song still waiting its turn
+        /// (e.g. while every song is read again after a marketplace install) is prepared right away.
+        /// </summary>
+        internal static IEnumerator WaitUntilPreparedForPlay(CustomSong song)
+        {
+            _loadingSong = song;
+            try { yield return WaitUntilPrepared(song); }
+            finally { if (_loadingSong == song) _loadingSong = null; }
         }
 
         private void FlushWorkerLog()
