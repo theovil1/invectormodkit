@@ -73,7 +73,7 @@ namespace InvectorModKit.CustomSongs
             var song = ByLevel(state.gameSession?.levelDefinition);
             if (song != null)
             {
-                yield return CustomSongsPlugin.WaitUntilPrepared(song); // chart still being generated
+                yield return CustomSongsPlugin.WaitUntilPreparedForPlay(song); // chart still being generated
                 if (song.State == SongState.Ready) yield return SongAudio.EnsureGameplay(song);
                 else CustomSongsPlugin.Log.LogError($"{song} cannot be played: {song.Error}");
             }

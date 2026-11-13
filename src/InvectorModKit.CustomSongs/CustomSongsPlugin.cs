@@ -95,32 +95,37 @@ namespace InvectorModKit.CustomSongs
             while (true)
             {
                 // Heavy analysis (and the garbage collections it causes) would make the game stutter
-                // mid-song, so nothing new starts while a song is being played.
-                while (InGame) yield return new WaitForSecondsRealtime(0.5f);
-                if (_checkFolderNow || Time.realtimeSinceStartup >= nextCheck)
+                // mid-song, so nothing new starts while a song is being played, except the song the
+                // loading screen waits for (the game counts as playing from the moment it is launched).
+                while (InGame && !LoadingSongPending) yield return new WaitForSecondsRealtime(0.5f);
+                if (!LoadingSongPending) // that song goes first: the rest waits for the next turn
                 {
-                    _checkFolderNow = false;
-                    yield return CheckFolder();
-                    nextCheck = Time.realtimeSinceStartup + FolderCheckSeconds;
-                }
-                if (_matchRequested)
-                {
-                    _matching = true;
-                    _matchRequested = false;
-                    try { yield return MatchMarketplace(); }
-                    finally { _matching = false; }
-                }
-                if (_metadataReload)
-                {
-                    _metadataReload = false;
-                    foreach (var song in Library.Songs.Where(s => s.State == SongState.Ready))
+                    if (_checkFolderNow || Time.realtimeSinceStartup >= nextCheck)
                     {
-                        song.HasMetadata = false; // metadata (title, artist, cover) is read again, then Prepared again
-                        song.State = SongState.Pending;
-                        song.Priority = long.MaxValue;
+                        _checkFolderNow = false;
+                        yield return CheckFolder();
+                        nextCheck = Time.realtimeSinceStartup + FolderCheckSeconds;
+                    }
+                    if (_matchRequested)
+                    {
+                        _matching = true;
+                        _matchRequested = false;
+                        try { yield return MatchMarketplace(); }
+                        finally { _matching = false; }
+                    }
+                    if (_metadataReload)
+                    {
+                        _metadataReload = false;
+                        foreach (var song in Library.Songs.Where(s => s.State == SongState.Ready))
+                        {
+                            song.HasMetadata = false; // metadata (title, artist, cover) is read again, then Prepared again
+                            song.State = SongState.Pending;
+                            song.Priority = long.MaxValue;
+                        }
                     }
                 }
-                var next = Library.Songs.Where(s => s.State == SongState.Pending).OrderByDescending(s => s.Priority).FirstOrDefault();
+                var next = LoadingSongPending ? _loadingSong
+                    : Library.Songs.Where(s => s.State == SongState.Pending).OrderByDescending(s => s.Priority).FirstOrDefault();
                 if (next == null)
                 {
                     if (!_startupCheckDone) StartupMarketplaceCheck();
@@ -329,6 +334,22 @@ namespace InvectorModKit.CustomSongs
         {
             song.Priority = System.DateTime.UtcNow.Ticks;
             while (song.State == SongState.Pending || song.State == SongState.Processing) yield return null;
+        }
+
+        /// <summary>The song the game's loading screen waits for, prepared first even though the game is playing.</summary>
+        private static CustomSong _loadingSong;
+
+        private static bool LoadingSongPending => _loadingSong != null && _loadingSong.State == SongState.Pending;
+
+        /// <summary>
+        /// Same as <see cref="WaitUntilPrepared"/>, for the game's loading screen: a song still waiting its turn
+        /// (e.g. while every song is read again after a marketplace install) is prepared right away.
+        /// </summary>
+        internal static IEnumerator WaitUntilPreparedForPlay(CustomSong song)
+        {
+            _loadingSong = song;
+            try { yield return WaitUntilPrepared(song); }
+            finally { if (_loadingSong == song) _loadingSong = null; }
         }
 
         private void FlushWorkerLog()
