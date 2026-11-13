@@ -30,6 +30,29 @@ public class DiscordActivityBuilderTests
     private static JObject Build(PresenceSnapshot s, PresenceTexts t = null) => ActivityBuilder.Build(s, t ?? Texts(), Start, Now);
 
     [Fact]
+    public void EnglishTexts_SameForEveryPlayer()
+    {
+        var t = PresenceTexts.English("InvectorModKit 0.4.0", "https://discord.gg/9wXNm5NM26");
+        Assert.Equal("In the main menu", t.Menu);
+        Assert.Equal("Choosing a song", t.SongSelect);
+        Assert.Equal("Browsing the marketplace", t.Marketplace);
+        Assert.Equal("Making a level", t.Editor);
+        Assert.Equal("Paused", t.Paused);
+        Assert.Equal("Looking at the results", t.Results);
+        Assert.Equal("Custom song", t.CustomSong);
+        Assert.Equal("en", t.LanguageCode);
+        Assert.Equal("https://github.com/theovil1/invectormodkit/releases/latest", t.ModUrl);
+        Assert.Equal("https://discord.gg/9wXNm5NM26", t.DiscordUrl);
+        Assert.Equal("InvectorModKit 0.4.0", t.ModVersion);
+        Assert.Equal("Hard · 412300 pts · combo 48", (string)Build(Level(), t)["state"]);
+        var b = (JArray)Build(Level(), t)["buttons"];
+        Assert.Equal("Get InvectorModKit", (string)b[0]["label"]);
+        Assert.Equal("Join the Discord", (string)b[1]["label"]);
+        var editor = new PresenceSnapshot { Screen = PresenceScreen.Editor, Title = "X", Difficulty = "Hard", Notes = 1 };
+        Assert.Equal("X · Hard · 1 note", (string)Build(editor, t)["state"]);
+    }
+
+    [Fact]
     public void Level_ShowsSongDifficultyScoreAndCountdown()
     {
         var a = Build(Level());

@@ -15,8 +15,6 @@ namespace InvectorModKit.Marketplace.Presence
     {
         internal static string ApplicationId = "";
 
-        private const string ModUrl = "https://github.com/theovil1/invectormodkit/releases/latest";
-
         private DiscordPresence _presence;
         private float _nextSample;
         private float _nextEditorCheck;
@@ -90,22 +88,8 @@ namespace InvectorModKit.Marketplace.Presence
             };
         }
 
-        private static PresenceTexts Texts() => new PresenceTexts
-        {
-            Menu = Loc.T("presence_menu"),
-            SongSelect = Loc.T("presence_select"),
-            Marketplace = Loc.T("presence_marketplace"),
-            Paused = Loc.T("presence_paused"),
-            Results = Loc.T("presence_results"),
-            ScoreLine = Loc.T("presence_score"),
-            CustomSong = Loc.T("presence_custom"),
-            GetMod = Loc.T("presence_get_mod"),
-            JoinDiscord = Loc.T("presence_join"),
-            ModVersion = "InvectorModKit " + ModKit.Version,
-            LanguageCode = Loc.Code,
-            ModUrl = ModUrl,
-            DiscordUrl = Ui.Community.DiscordUrl,
-        };
+        /// <summary>English for every player (see <see cref="PresenceTexts.English"/>).</summary>
+        private static PresenceTexts Texts() => PresenceTexts.English("InvectorModKit " + ModKit.Version, Ui.Community.DiscordUrl);
 
         private static bool EditorRunning()
         {

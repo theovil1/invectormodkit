@@ -15,10 +15,11 @@ difficulty, the score and how much is left.
 - The level editor (InvectorLevelEditor.exe, a separate app that runs with or without the game) shows its own
   presence: "Making a level", the song being edited, the difficulty being worked on and its note count, and the time
   since the editor opened. While the editor runs, the game clears its own activity so only the editor's card shows.
-  Same buttons, texts in the editor's language.
+  Same buttons, same English texts.
 - Two buttons: "Get InvectorModKit" (latest release page) and "Join the Discord" (the existing `Community.Discord`
   setting; the button is dropped when the setting is empty).
-- Texts in the game's language, the 11 languages the mod already supports.
+- Texts in English for every player, whatever their language, so friends all read the same card (Theo's choice,
+  an exception to the mod's 11 languages; a first version followed the player's language).
 
 ## Non-goals
 

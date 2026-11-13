@@ -280,7 +280,7 @@ namespace InvectorModKit.ChartEditor.Host
                     Text = (string)p["text"] ?? "Invector Level Editor";
                     return JValue.CreateNull();
                 case "host.presence":
-                    _presence?.Update(PresenceSnapshotOf(p), PresenceTextsOf(p["texts"] as JObject ?? new JObject()));
+                    _presence?.Update(PresenceSnapshotOf(p), PresenceTexts.English("InvectorModKit · Level Editor", "https://discord.gg/9wXNm5NM26"));
                     return JValue.CreateNull();
                 case "host.close":
                     _allowClose = true;
@@ -315,19 +315,6 @@ namespace InvectorModKit.ChartEditor.Host
             Artist = (string)p["artist"] ?? "",
             Difficulty = (string)p["difficulty"] ?? "",
             Notes = (int?)p["notes"] ?? 0,
-        };
-
-        private static PresenceTexts PresenceTextsOf(JObject t) => new PresenceTexts
-        {
-            Editor = (string)t["editor"],
-            NotesOne = (string)t["notesOne"],
-            NotesMany = (string)t["notesMany"],
-            GetMod = (string)t["getMod"],
-            JoinDiscord = (string)t["join"],
-            LanguageCode = (string)t["lang"] ?? "en",
-            ModVersion = "InvectorModKit · " + ((string)t["app"] ?? "Level Editor"), // the editor carries no mod version
-            ModUrl = "https://github.com/theovil1/invectormodkit/releases/latest",
-            DiscordUrl = "https://discord.gg/9wXNm5NM26",
         };
 
         private static void OpenUrl(string url)

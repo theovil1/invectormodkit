@@ -675,10 +675,6 @@ class App {
       artist: this.editor ? $("f-artist").value : "",
       difficulty: this.difficulty,
       notes: this.editor ? this.editor.doc.notes[this.difficulty].length : 0,
-      texts: {
-        editor: t("presenceEditor"), notesOne: t("presenceNotesOne"), notesMany: t("presenceNotesMany"),
-        getMod: t("presenceGetMod"), join: t("presenceJoin"), app: t("appName"), lang: langCode(),
-      },
     }).catch(() => {});
   }
 
