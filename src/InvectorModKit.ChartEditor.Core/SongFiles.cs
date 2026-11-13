@@ -85,6 +85,14 @@ namespace InvectorModKit.ChartEditor
         private static bool IsRoot(string customSongsDir, string folder) =>
             !string.IsNullOrEmpty(customSongsDir) && string.Equals(Path.GetFullPath(folder).TrimEnd('\\', '/'), Path.GetFullPath(customSongsDir).TrimEnd('\\', '/'),StringComparison.OrdinalIgnoreCase);
 
+        /// <summary>root\name, or "name (2)", "name (3)"… when that folder exists (not created).</summary>
+        public static string FreeFolder(string root, string name)
+        {
+            string folder = Path.Combine(root, name);
+            for (int i = 2; Directory.Exists(folder); i++) folder = Path.Combine(root, $"{name} ({i})");
+            return folder;
+        }
+
         /// <summary>"Artist - Title" usable as a folder name (Windows-safe, not too long).</summary>
         public static string FolderName(string artist, string title)
         {
