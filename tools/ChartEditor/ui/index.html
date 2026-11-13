@@ -28,30 +28,39 @@
   </header>
 
   <main id="studio">
-    <!-- Left: the song, its difficulties, the selection, tools, playability -->
+    <!-- Left: tabs for the song, its difficulties and the selection, tools, playability; a band names what is below -->
     <aside id="side">
-      <section class="frame" id="card-song">
-        <h2 data-t="song"></h2>
-        <label class="field"><span data-t="title"></span><input id="f-title" type="text"></label>
-        <label class="field"><span data-t="artist"></span><input id="f-artist" type="text"></label>
-        <div class="row">
-          <label class="field"><span>BPM</span><input id="f-bpm" type="number" step="0.01" min="20" max="400"></label>
-          <button id="btn-tap" data-t="tap"></button>
-        </div>
-        <div class="row">
-          <label class="field"><span data-t="firstBeat"></span><input id="f-first" type="number" step="0.001"></label>
-          <button id="btn-first-minus" class="icon" title="−5 ms">−5</button><button id="btn-first-plus" class="icon" title="+5 ms">+5</button>
-        </div>
-        <div class="row three">
-          <label class="field"><span data-t="start"></span><input id="f-start" type="number" step="0.01"></label>
-          <label class="field"><span data-t="end"></span><input id="f-end" type="number" step="0.01"></label>
-          <label class="field"><span data-t="preview"></span><input id="f-preview" type="number" step="0.01"></label>
-        </div>
-      </section>
-      <section class="frame" id="card-difficulties"><h2 data-t="difficulties"></h2><div id="difficulties"></div></section>
-      <section class="frame" id="card-selection"></section>
-      <section class="frame" id="card-tools"></section>
-      <section class="frame" id="card-issues"><h2 id="issues-title"></h2><ol id="issues"></ol></section>
+      <nav id="side-tabs" role="tablist">
+        <button data-tab="song" role="tab" data-t="song"></button>
+        <button data-tab="notes" role="tab" data-t="notesTab"></button>
+        <button data-tab="tools" role="tab" data-t="toolsTab"></button>
+        <button data-tab="issues" role="tab"><span data-t="playabilityTab"></span><i id="issues-count"></i></button>
+      </nav>
+      <div id="side-body">
+        <section class="frame" id="card-song" data-tab="song">
+          <h2 data-t="song"></h2>
+          <label class="field"><span data-t="title"></span><input id="f-title" type="text"></label>
+          <label class="field"><span data-t="artist"></span><input id="f-artist" type="text"></label>
+          <div class="row">
+            <label class="field"><span>BPM</span><input id="f-bpm" type="number" step="0.01" min="20" max="400"></label>
+            <button id="btn-tap" data-t="tap"></button>
+          </div>
+          <div class="row">
+            <label class="field"><span data-t="firstBeat"></span><input id="f-first" type="number" step="0.001"></label>
+            <button id="btn-first-minus" class="icon" title="−5 ms">−5</button><button id="btn-first-plus" class="icon" title="+5 ms">+5</button>
+          </div>
+          <div class="row three">
+            <label class="field"><span data-t="start"></span><input id="f-start" type="number" step="0.01"></label>
+            <label class="field"><span data-t="end"></span><input id="f-end" type="number" step="0.01"></label>
+            <label class="field"><span data-t="preview"></span><input id="f-preview" type="number" step="0.01"></label>
+          </div>
+        </section>
+        <section class="frame foldable" id="card-difficulties" data-tab="notes"><h2 data-t="difficulties"></h2><div id="difficulties"></div></section>
+        <section class="frame foldable" id="card-selection" data-tab="notes"></section>
+        <section class="frame" id="card-tools" data-tab="tools"></section>
+        <section class="frame" id="card-issues" data-tab="issues"><h2 id="issues-title"></h2><ol id="issues"></ol></section>
+      </div>
+      <div id="side-more" class="hidden"><span class="arrow"></span><b data-t="moreBelow"></b><span id="side-more-list"></span></div>
     </aside>
 
     <!-- Right: the game-like 3D preview in the game's HUD corners, the transport under it -->

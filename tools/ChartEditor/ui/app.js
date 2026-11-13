@@ -8,6 +8,7 @@ import { LANGUAGES, setLang, t, issueText, langCode } from "./i18n.js";
 import { skin } from "./skin.js";
 import { ACTION, MODE_COLOR } from "./look.js";
 import { arrowAction } from "./keys.js";
+import { SidePanel } from "./sidepanel.js";
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, ...kids) => {
@@ -45,6 +46,7 @@ class App {
     this.taps = [];
     this.clipboard = [];
     this.timeline = new Timeline($("timeline"), this);
+    this.side = new SidePanel($("side")); // the tabs on the left
     this.audio.onEnded = () => this.refreshTransport();
     this.preview = null; // the 3D view (none without WebGL)
     this.previewDirty = true;
@@ -641,6 +643,7 @@ class App {
     this.issueTimes = new Set(list.map((i) => Math.round(i.time * 1000)));
     $("issues-title").textContent = t("issues", list.length);
     $("issues-title").classList.toggle("ok", list.length === 0);
+    this.side.count(this.editor ? list.length : null);
     $("issues").replaceChildren(...(this.editor ? list.slice(0, 300).map((i) => el("li", {
       onclick: () => {
         const n = this.editor.doc.notes[this.difficulty].find((n) => Math.abs(n.t - i.time) < 0.0015);

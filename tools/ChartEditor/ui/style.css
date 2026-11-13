@@ -86,9 +86,50 @@ h1, h2, h3 { font-family: var(--f-bold); text-transform: uppercase; letter-spaci
 
 /* ----- the studio: side panel and stage */
 #studio { display: grid; grid-template-columns: clamp(270px, 23vw, 380px) minmax(0, 1fr); gap: 10px; padding: 0 12px; min-height: 0; }
-#side { overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; min-height: 0; }
-#side::-webkit-scrollbar, #issues::-webkit-scrollbar { width: 6px; }
-#side::-webkit-scrollbar-thumb, #issues::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .25); }
+#side { position: relative; display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: hidden; }
+
+/* The side panel's tabs, square like the game's buttons: the open one white. The badge counts playability problems. */
+#side-tabs { display: flex; flex-wrap: wrap; gap: 4px; flex: none; }
+#side-tabs button { flex: 1 1 auto; padding: 5px 6px; font-size: 13px; }
+#side-tabs button.on { background: var(--text); color: var(--bg); }
+#side-tabs i { font-style: normal; font-family: var(--f-bold); margin-left: 5px; color: var(--ok); }
+#side-tabs i.bad { color: var(--danger); }
+#side-tabs i:empty { display: none; }
+#side-tabs button.on i, #side-tabs button:hover i { color: #0A7D36; }
+#side-tabs button.on i.bad, #side-tabs button:hover i.bad { color: #C0143C; }
+
+/* The open tab's panels scroll under a wide white scrollbar. */
+#side-body { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; }
+#side-body::-webkit-scrollbar { width: 12px; }
+#side-body::-webkit-scrollbar-track { background: rgba(255, 255, 255, .05); box-shadow: inset 2px 0 0 var(--soft); }
+#side-body::-webkit-scrollbar-thumb { background: var(--text); border: 2px solid var(--bg); border-right: 0; }
+#side-body::-webkit-scrollbar-thumb:hover, #side-body::-webkit-scrollbar-thumb:active { background: var(--accent); }
+
+/* Panels sharing a tab fold on a click on their title: the game's arrow, down when open. */
+.foldable > h2 { cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; }
+.foldable > h2:hover { color: var(--accent); }
+.foldable > h2::after { flex-basis: 100%; }
+.foldable > h2::before { content: ""; width: 10px; height: 8px; background: var(--text); clip-path: polygon(0 0, 100% 0, 50% 100%); }
+.foldable.folded > h2::before { width: 8px; height: 10px; clip-path: polygon(0 0, 100% 50%, 0 100%); }
+.game-arrows .foldable > h2::before, .game-arrows .foldable.folded > h2::before { width: 10px; height: 16px; background: var(--arrow) center / contain no-repeat; clip-path: none; transform: rotate(90deg); }
+.game-arrows .foldable.folded > h2::before { transform: none; }
+.foldable.folded > :not(h2) { display: none !important; }
+
+/* The band on the bottom edge while there is more below: a stepped fade, the game's arrow, the hidden panels' names. */
+#side-more {
+  position: absolute; left: 0; right: 12px; bottom: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
+  padding: 4px 6px 4px 4px; background: var(--bg); cursor: pointer; font-family: var(--f-semi); font-size: 13px; text-transform: uppercase; letter-spacing: .04em;
+}
+#side-more::before {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 30px; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(12, 9, 18, 0) 0 10px, rgba(12, 9, 18, .5) 10px 20px, rgba(12, 9, 18, .85) 20px 30px);
+}
+#side-more b { font-family: var(--f-bold); white-space: nowrap; }
+#side-more .arrow { width: 14px; height: 9px; margin: 0 2px; background: var(--text); clip-path: polygon(0 0, 100% 0, 50% 100%); }
+.game-arrows #side-more .arrow { width: 12px; height: 20px; margin: -4px 4px; background: var(--arrow) center / contain no-repeat; clip-path: none; transform: rotate(90deg); }
+#side-more-list { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+#side-more button { padding: 1px 8px; font-size: 13px; }
+#side-more:hover b { color: var(--accent); }
 .field { display: flex; flex-direction: column; gap: 2px; margin-bottom: 5px; color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; font-family: var(--f-semi); flex: 1; }
 .field input, .field select { color: var(--text); text-transform: none; letter-spacing: 0; }
 .row { display: flex; gap: 6px; align-items: flex-end; }
@@ -108,7 +149,7 @@ h1, h2, h3 { font-family: var(--f-bold); text-transform: uppercase; letter-spaci
 #difficulties button.on b::before { content: "◀ "; font-size: 12px; }
 #difficulties button:hover { background: rgba(255, 255, 255, .08); color: var(--text); }
 
-#issues { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow-y: auto; }
+#issues { list-style: none; margin: 0; padding: 0; }
 #issues li { padding: 5px 2px; border-bottom: 1px solid var(--soft); cursor: pointer; color: var(--muted); line-height: 1.3; font-size: 14px; }
 #issues li:hover { background: rgba(255, 255, 255, .06); color: var(--text); }
 #issues li b { color: var(--danger); font-family: var(--f-bold); font-variant-numeric: tabular-nums; margin-right: 8px; }
@@ -183,4 +224,5 @@ h1, h2, h3 { font-family: var(--f-bold); text-transform: uppercase; letter-spaci
   #keybar { gap: 4px 14px; font-size: 13px; }
   .files .gbtn { padding: 0 10px; font-size: 15px; }
   .brand .name { display: none; }
+  #side-tabs button { padding: 4px 3px; font-size: 12px; letter-spacing: 0; }
 }
