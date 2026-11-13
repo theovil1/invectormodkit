@@ -245,8 +245,9 @@ export function prepareShip(run, rig, level, rolls) {
   // Walker eases it once a frame towards -lane x 120 degrees, by rotationLerp x 0.75 / (seconds per beat) of the way
   // (Mathf.LerpAngle; the game ran at 60 frames a second when recorded). The tunnel, its hold walls and the List notes
   // turn with it; the camera does not (Walker.rotateSelf is off). The autopilot turns in a turn's perfect window, 1/30 s
-  // before it; a song that starts in List turns from lane 0 to its first note's lane when that note spawns, 3 s before
-  // it; a List after Bounce or Freefly is set to its first note's lane at once when its notes spawn (ModeSelector).
+  // before it, and to a pickup on another lane the frame after it takes the pickup before (its next lane target); a song
+  // that starts in List turns from lane 0 to its first note's lane when that note spawns, 3 s before it; a List after
+  // Bounce or Freefly is set to its first note's lane at once when its notes spawn (ModeSelector).
   const THIRD = (2 * Math.PI) / 3, SPAWN_AHEAD = 3, PERFECT = 1 / 30, FPS = 60;
   const spinStep = Math.min(1, ((rig.rotationLerp ?? 12) * 0.75 * (run.doc.bpm / 60)) / FPS);
   const spinRate = spinStep >= 1 ? Infinity : -Math.log(1 - spinStep) * FPS;
@@ -260,7 +261,11 @@ export function prepareShip(run, rig, level, rolls) {
     const firstLane = inSec[0].lane ?? 1;
     if (i === 0) spinEvents.push({ t: inSec[0].t - SPAWN_AHEAD, lane: firstLane, instant: false });
     else if (sections[i - 1].mode !== "List") spinEvents.push({ t: Math.max(sections[i - 1].from, sec.from - SPAWN_AHEAD), lane: firstLane, instant: true });
-    for (const n of inSec) if (isTurn(n.color)) spinEvents.push({ t: n.t - PERFECT, lane: laneAfter(n, "List"), instant: false });
+    for (let k = 0; k < inSec.length; k++) {
+      const n = inSec[k], prev = inSec[k - 1];
+      if (prev && (n.lane ?? 1) !== laneAfter(prev, "List")) spinEvents.push({ t: prev.t - PERFECT + 1 / FPS, lane: n.lane ?? 1, instant: false });
+      if (isTurn(n.color)) spinEvents.push({ t: n.t - PERFECT, lane: laneAfter(n, "List"), instant: false });
+    }
   }
   spinEvents.sort((a, b) => a.t - b.t);
   const spinAt = (e, t) => (t <= e.t ? e.from : spinRate === Infinity ? e.target : e.target + (e.from - e.target) * Math.exp(-spinRate * (t - e.t)));

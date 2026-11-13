@@ -7,9 +7,11 @@ namespace InvectorModKit.Charting
     /// What the game physically allows, measured on the official charts (5th percentiles where a minimum
     /// is needed). Used by the generator to build charts and by <see cref="Validate"/> to check any chart.
     ///
-    /// Key facts: a turn pickup IS the lane change — the next pickup is one lane over in the turn's
-    /// direction (List wraps around the tube, Bounce's flat road does not, so a turn never points off
-    /// its edge). Freefly is sparse (~0.46 rings/s at every difficulty) with no strums or turns.
+    /// Key facts: the game places every pickup at its own lane. A turn pickup asks the player to steer one
+    /// lane over in its direction (List wraps around the tube, Bounce's flat road does not, so a turn never
+    /// points off its edge). The official Hard and Ultra charts also change lanes without a turn (the player
+    /// steers with no note to press), never faster than <see cref="MinLaneChange"/>. Freefly is sparse
+    /// (~0.46 rings/s at every difficulty) with no strums or turns.
     /// </summary>
     public static class Playability
     {
@@ -17,6 +19,15 @@ namespace InvectorModKit.Charting
         public static readonly double[] MinAfterTurnList = { 0.45, 0.29, 0.15, 0.12 };
         public static readonly double[] MinAfterTurnBounce = { 0.29, 0.24, 0.15, 0.12 };
         public static readonly double[] MinBeforeTurn = { 0.16, 0.15, 0.12, 0.11 };
+
+        /// <summary>
+        /// Time to reach another lane than the one the ship is on (the previous pickup's, or the one its turn leads
+        /// to), per lane crossed on the road. Hard and Ultra: the official minimums (List 0.377/0.433 s, Bounce
+        /// 0.330/0.234 s), rounded down, Ultra never stricter than Hard. Casual and Normal never do it in the official
+        /// charts: the Hard value or the time needed after a turn, whichever is longer.
+        /// </summary>
+        public static readonly double[] MinLaneChangeList = { 0.45, 0.37, 0.37, 0.37 };
+        public static readonly double[] MinLaneChangeBounce = { 0.33, 0.33, 0.33, 0.23 };
 
         /// <summary>Closest two notes ever are in the official charts (1st percentile ~0.115-0.14 s).</summary>
         public const double MinNoteGap = 0.115;
@@ -87,6 +98,9 @@ namespace InvectorModKit.Charting
         public static double MinAfterTurn(SectionMode mode, Difficulty d) =>
             mode == SectionMode.Bounce ? MinAfterTurnBounce[(int)d] : MinAfterTurnList[(int)d];
 
+        public static double MinLaneChange(SectionMode mode, Difficulty d) =>
+            mode == SectionMode.Bounce ? MinLaneChangeBounce[(int)d] : MinLaneChangeList[(int)d];
+
         /// <summary>Can a turn in this direction be placed on this lane?</summary>
         public static bool TurnAllowed(SectionMode mode, int lane, int turnColor)
         {
@@ -156,12 +170,15 @@ namespace InvectorModKit.Charting
                         if (gap < 0.45) Add(n.Time, "rings", mode, gap, null, $" Freefly: rings {gap:0.00}s apart");
                         if (n.Lane != p.Lane && gap < 2.5) Add(n.Time, "freefly-move", mode, gap, null, $" Freefly: position change in {gap:0.00}s");
                     }
-                    else if (NoteColor.IsTurn(p.Color))
+                    else
                     {
-                        if (n.Lane != LaneAfterTurn(mode, p.Lane, p.Color)) Add(n.Time, "turn-lane", mode, gap, null, $" {mode}: lane does not follow the turn");
-                        if (gap < MinAfterTurn(mode, d) - 1e-3) Add(n.Time, "turn-time", mode, gap, null, $" {mode}: only {gap:0.00}s to move after a turn");
+                        bool turn = NoteColor.IsTurn(p.Color);
+                        int from = turn ? LaneAfterTurn(mode, p.Lane, p.Color) : p.Lane;
+                        int crossed = n.Lane == from ? 0 : mode == SectionMode.List ? 1 : Math.Abs(n.Lane - from);
+                        if (turn && gap < MinAfterTurn(mode, d) - 1e-3) Add(n.Time, "turn-time", mode, gap, null, $" {mode}: only {gap:0.00}s to move after a turn");
+                        else if (crossed > 0 && gap < crossed * MinLaneChange(mode, d) - 1e-3)
+                            Add(n.Time, "lane-time", mode, gap, null, $" {mode}: only {gap:0.00}s to change lane");
                     }
-                    else if (n.Lane != p.Lane) Add(n.Time, "lane-change", mode, gap, null, $" {mode}: lane change without a turn");
                 }
                 prev = n;
                 prevMode = mode;
@@ -178,7 +195,7 @@ namespace InvectorModKit.Charting
         public double Time;
         /// <summary>
         /// Which rule (stable, for translations): gap, pair, turns, freefly-note, turn-off-track, rings,
-        /// freefly-move, turn-lane, turn-time, lane-change.
+        /// freefly-move, turn-time, lane-time.
         /// </summary>
         public string Code;
         public SectionMode? Mode;
