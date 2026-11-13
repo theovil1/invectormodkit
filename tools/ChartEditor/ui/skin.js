@@ -21,8 +21,10 @@ export const skin = {
     await this.loadFonts();
     const root = document.documentElement;
     root.classList.toggle("skinned", this.has("InfoFrameSimple"));
+    root.classList.toggle("game-arrows", this.has("DirectionArrowDifficulty Right"));
     for (const [variable, name] of [["--frame", "InfoFrameSimple"], ["--button", "MenuButtonGradient New"], ["--headline", "NewsHeaderLine"],
-      ["--hud-tl", "HUD_TopLeft"], ["--hud-tr", "HUD_TopRight"], ["--hud-bl", "HUD_BottomLeft"], ["--hud-br", "HUD_BottomRight"]])
+      ["--hud-tl", "HUD_TopLeft"], ["--hud-tr", "HUD_TopRight"], ["--hud-bl", "HUD_BottomLeft"], ["--hud-br", "HUD_BottomRight"],
+      ["--arrow", "DirectionArrowDifficulty Right"]])
       if (this.has(name)) root.style.setProperty(variable, `url("${this.url(name)}")`);
     return this;
   },
