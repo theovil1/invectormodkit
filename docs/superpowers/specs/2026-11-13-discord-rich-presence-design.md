@@ -46,14 +46,14 @@ difficulty, the score and how much is left.
 
 ## Design
 
-- A pure, tested part (in a library with a test project): the pipe framing, the activity builder (game state in,
+- A pure, tested part (in the marketplace client, `Discord/` folder, run by CI): the pipe framing, the activity builder (game state in,
   Discord activity JSON out), and the update scheduler (rate limit, coalescing, reconnect with backoff).
-- A thin game part: a new BepInEx plugin that reads `ModKit.CurrentState`, the level and difficulty from
+- A thin game part, inside the Marketplace plugin (it already holds `Loc` and the Discord invite), that reads `ModKit.CurrentState`, the level and difficulty from
   `StateGame.gameSession` (as the marketplace leaderboard already does), score/combo and song position while playing,
   and hands snapshots to the scheduler. Custom songs get their title/artist from CustomSongs.
-- The installer ships the new plugin with the others.
+- No new plugin or DLL: the installer is unchanged.
 
 ## Left to the builder
 
-Exact screen wording, where the score/combo/position live in the game's code, plugin vs. existing-plugin placement,
+Exact screen wording, where the score/combo/position live in the game's code,
 and the asset names on the Discord application.
