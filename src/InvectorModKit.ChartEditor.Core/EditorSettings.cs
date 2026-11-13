@@ -14,6 +14,8 @@ namespace InvectorModKit.ChartEditor
         /// <summary>Marketplace session token.</summary>
         public string Token;
         public string MarketplaceUrl = "https://invector-marketplace.invector-marketplace.workers.dev";
+        /// <summary>Shows the level being made on the player's Discord profile.</summary>
+        public bool DiscordPresence = true;
 
         [JsonIgnore] public string FilePath;
 

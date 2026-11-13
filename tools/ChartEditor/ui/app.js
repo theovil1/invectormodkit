@@ -383,6 +383,7 @@ class App {
     this.renderIssues();
     this.timeline.draw();
     this.syncPreview();
+    this.refreshPresence();
   }
 
   nudgeFirstBeat(dt) { if (this.editor) this.edit((doc) => m.setMeta(doc, { firstBeat: doc.firstBeat + dt })); }
@@ -662,6 +663,23 @@ class App {
     const title = (name ? name + dirty + " · " : "") + t("appName");
     document.title = title;
     if (inHost) call("host.title", { text: title }).catch(() => {});
+    this.refreshPresence();
+  }
+
+  /** What the player's Discord profile shows: the song being edited, its difficulty and note count. */
+  refreshPresence() {
+    if (!inHost) return;
+    const song = this.editor ? $("f-title").value : "";
+    call("host.presence", {
+      title: song,
+      artist: this.editor ? $("f-artist").value : "",
+      difficulty: this.difficulty,
+      notes: this.editor ? this.editor.doc.notes[this.difficulty].length : 0,
+      texts: {
+        editor: t("presenceEditor"), notesOne: t("presenceNotesOne"), notesMany: t("presenceNotesMany"),
+        getMod: t("presenceGetMod"), join: t("presenceJoin"), app: t("appName"), lang: langCode(),
+      },
+    }).catch(() => {});
   }
 
   showCursor(time, h) {
