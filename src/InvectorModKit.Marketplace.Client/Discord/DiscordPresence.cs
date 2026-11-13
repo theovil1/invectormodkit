@@ -13,7 +13,7 @@ namespace InvectorModKit.Marketplace.Client.Discord
     public sealed class DiscordPresence : IDisposable
     {
         /// <summary>The "Invector: Rhythm Galaxy" application on Discord's developer portal: its name and art assets.</summary>
-        public const string DefaultApplicationId = "";
+        public const string DefaultApplicationId = "1570718340719186024";
 
         private static readonly int[] BackoffSeconds = { 5, 10, 20, 40, 60 };
         private const double MajorGap = 4, MinorGap = 15, EndTolerance = 2000;
