@@ -65,9 +65,9 @@ namespace InvectorModKit.ChartEditor.Host
                 }
             }
             _backend = new EditorBackend(settings, OpenUrl);
-            if (settings.DiscordPresence && !string.IsNullOrEmpty(DiscordPresence.DefaultApplicationId))
+            if (settings.DiscordPresence && !string.IsNullOrEmpty(DiscordPresence.EditorApplicationId))
             {
-                _presence = new DiscordPresence(DiscordPresence.DefaultApplicationId, Process.GetCurrentProcess().Id,
+                _presence = new DiscordPresence(DiscordPresence.EditorApplicationId, Process.GetCurrentProcess().Id,
                     () => new Win32DiscordPipe(), m => Debug.WriteLine(m), DateTime.UtcNow);
                 _presence.Start();
             }

@@ -15,6 +15,9 @@ namespace InvectorModKit.Marketplace.Client.Discord
         /// <summary>The "Invector: Rhythm Galaxy" application on Discord's developer portal: its name and art assets.</summary>
         public const string DefaultApplicationId = "1570718340719186024";
 
+        /// <summary>The "Invector Level Editor" application: the level editor's own name and art assets.</summary>
+        public const string EditorApplicationId = "1570749566523809882";
+
         private static readonly int[] BackoffSeconds = { 5, 10, 20, 40, 60 };
         // Discord accepts 5 activity updates per 20 s: one every 4 s at most
         private const double MinGap = 4, EndTolerance = 2000;

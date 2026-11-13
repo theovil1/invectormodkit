@@ -37,7 +37,9 @@ difficulty, the score and how much is left.
 - Discord accepts 5 activity updates per 20 seconds: every change (screen, song, score, combo) is sent at most
   every 4 seconds. (A first version held score/combo to 15 s; Theo found it far too slow.)
 - A Discord application (developer portal, Theo's account) named "Invector: Rhythm Galaxy" holds the name shown and the
-  image assets. Its application ID becomes a config setting with that default.
+  image assets. Its application ID becomes a config setting with that default. The level editor has its own
+  application, "Invector Level Editor" (its app icon as logo, the same difficulty icons), so its card reads
+  "Playing Invector Level Editor". The game still clears its card while the editor runs (Theo's choice).
 - Players can turn the feature off with a config setting.
 
 ## Approaches

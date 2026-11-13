@@ -1,8 +1,10 @@
 """Makes the Discord rich presence art assets: logo.png from the game's official Steam art (the cover's planet
-behind the official logo), and one icon per difficulty drawn in big square pixels.
+behind the official logo), the level editor's logo from its app icon, and one icon per difficulty drawn in big
+square pixels.
 
-Run: python docs/discord/make_assets.py (needs Pillow). Upload the PNGs to the Discord application's
-Rich Presence > Art Assets, under their file names without the extension.
+Run: python docs/discord/make_assets.py (needs Pillow). Upload the PNGs of docs/discord to the game's Discord
+application ("Invector: Rhythm Galaxy") and those of docs/discord/editor to the level editor's ("Invector Level
+Editor"), in Rich Presence > Art Assets, under their file names without the extension.
 """
 import math
 import os
@@ -64,8 +66,23 @@ def icon(color, mark):
     return g
 
 
+EDITOR_ICON = os.path.join(OUT, "..", "..", "tools", "ChartEditor", "editor.ico")
+
+
+def editor_logo(folder, size=1024):
+    """The level editor's own app icon (the diamond), scaled up with no smoothing."""
+    ico = Image.open(EDITOR_ICON)
+    ico.size = max(ico.info["sizes"], key=lambda s: s[0])
+    ico.convert("RGBA").resize((size, size), Image.NEAREST).save(os.path.join(folder, "logo.png"))
+
+
 if __name__ == "__main__":
+    # docs/discord: the game's application; docs/discord/editor: the level editor's ("Invector Level Editor")
+    editor = os.path.join(OUT, "editor")
+    os.makedirs(editor, exist_ok=True)
     official_logo()
+    editor_logo(editor)
     for name, (color, mark) in DIFFICULTIES.items():
-        save(icon(color, mark), 512, name + ".png")
-    print("saved in", OUT)
+        for folder in (OUT, editor):
+            save(icon(color, mark), 512, os.path.join(folder, name + ".png"))
+    print("saved in", OUT, "and", editor)

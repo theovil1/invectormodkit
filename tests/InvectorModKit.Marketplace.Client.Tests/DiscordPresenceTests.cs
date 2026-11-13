@@ -223,4 +223,11 @@ public class DiscordPresenceTests
         p.Tick(T);
         Assert.Empty(_pipe.Activities);
     }
+
+    [Fact]
+    public void LevelEditor_HasItsOwnApplication()
+    {
+        Assert.Matches("^[0-9]{17,20}$", DiscordPresence.EditorApplicationId);
+        Assert.NotEqual(DiscordPresence.DefaultApplicationId, DiscordPresence.EditorApplicationId);
+    }
 }
