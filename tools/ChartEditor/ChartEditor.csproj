@@ -17,6 +17,8 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <ProjectReference Include="..\..\src\InvectorModKit.ChartEditor.Core\InvectorModKit.ChartEditor.Core.csproj" />
+    <!-- Discord rich presence, shared with the game's mod -->
+    <ProjectReference Include="..\..\src\InvectorModKit.Marketplace.Client\InvectorModKit.Marketplace.Client.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="ui\**\*" Exclude="ui\tests\**;ui\package.json" CopyToOutputDirectory="PreserveNewest" />

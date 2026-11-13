@@ -14,6 +14,9 @@ leaderboards, and edit levels with a visual level editor.
   your own. Each chart has its own leaderboards, with your Steam friends.
 - **Level editor** (optional): place notes, long notes, turns and zones on a timeline, hear the music, preview the
   level in 3D the way the game shows it, then send it to the game, where it reloads by itself.
+- **Discord profile**: with Discord open, your friends see the song, difficulty, score and time left of the level
+  you play, or the level you are making in the editor. Turn it off with `Presence = false` in
+  `BepInEx/config/com.invectormodkit.marketplace.cfg`.
 - **Updates in the game**: when a new version is out, the main menu offers it. It installs when you quit the game.
 - **Everything in the game's 11 languages.**
 

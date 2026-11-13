@@ -47,6 +47,11 @@ namespace InvectorModKit.Marketplace
             Leaderboards.Register(Scores.MarketplaceLeaderboard.Instance);
             Ui.Community.DiscordUrl = Config.Bind("Community", "Discord", "https://discord.gg/9wXNm5NM26", "Invite link of the InvectorModKit Discord (empty: no Discord button).").Value.Trim();
             gameObject.AddComponent<Ui.CornerBadge>();
+            if (Config.Bind("Discord", "Presence", true, "Show the song, difficulty and score you are playing on your Discord profile.").Value)
+            {
+                Presence.PresenceTracker.ApplicationId = Config.Bind("Discord", "ApplicationId", Client.Discord.DiscordPresence.DefaultApplicationId, "Discord application whose name and images the profile shows.").Value.Trim();
+                gameObject.AddComponent<Presence.PresenceTracker>();
+            }
             _checkUpdates = Config.Bind("Updates", "Check", true, "Look for a newer version of the mod at start (GitHub Releases) and offer it in the main menu.");
             LanguageCycling = Config.Bind("Debug", "LanguageCycling", false, "F6 in the marketplace shows it in the next of its 11 languages (to check translations; the game's language is not changed).");
             if (_checkUpdates.Value) Updates.Check();

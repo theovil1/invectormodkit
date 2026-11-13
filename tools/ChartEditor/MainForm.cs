@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
+using InvectorModKit.Marketplace.Client.Discord;
 using Microsoft.Win32;
 using Newtonsoft.Json.Linq;
 
@@ -37,6 +38,9 @@ namespace InvectorModKit.ChartEditor.Host
         /// <summary>A song to open, from the command line or a later start; the page takes it with host.takeSong.</summary>
         private string _waitingSong;
 
+        /// <summary>The level being made, on the player's Discord profile (null when turned off in settings).</summary>
+        private readonly DiscordPresence _presence;
+
         public MainForm(string song = null, EditorInstance instance = null)
         {
             _waitingSong = song;
@@ -61,6 +65,12 @@ namespace InvectorModKit.ChartEditor.Host
                 }
             }
             _backend = new EditorBackend(settings, OpenUrl);
+            if (settings.DiscordPresence && !string.IsNullOrEmpty(DiscordPresence.EditorApplicationId))
+            {
+                _presence = new DiscordPresence(DiscordPresence.EditorApplicationId, Process.GetCurrentProcess().Id,
+                    () => new Win32DiscordPipe(), m => Debug.WriteLine(m), DateTime.UtcNow);
+                _presence.Start();
+            }
             _fontsDir = Path.Combine(data, "fonts");
             _gameData.Changed += state => Post(new JObject
             {
@@ -269,6 +279,9 @@ namespace InvectorModKit.ChartEditor.Host
                 case "host.title":
                     Text = (string)p["text"] ?? "Invector Level Editor";
                     return JValue.CreateNull();
+                case "host.presence":
+                    _presence?.Update(PresenceSnapshotOf(p), PresenceTexts.English("InvectorModKit · Level Editor", "https://discord.gg/9wXNm5NM26"));
+                    return JValue.CreateNull();
                 case "host.close":
                     _allowClose = true;
                     BeginInvoke(new Action(Close));
@@ -288,6 +301,21 @@ namespace InvectorModKit.ChartEditor.Host
             }
             base.OnFormClosing(e);
         }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            _presence?.Dispose();
+            base.OnFormClosed(e);
+        }
+
+        private static PresenceSnapshot PresenceSnapshotOf(JObject p) => new PresenceSnapshot
+        {
+            Screen = PresenceScreen.Editor,
+            Title = (string)p["title"] ?? "",
+            Artist = (string)p["artist"] ?? "",
+            Difficulty = (string)p["difficulty"] ?? "",
+            Notes = (int?)p["notes"] ?? 0,
+        };
 
         private static void OpenUrl(string url)
         {
