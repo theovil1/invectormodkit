@@ -104,6 +104,7 @@ namespace InvectorModKit.Charting
                         list.Add(ReadNote((JObject)n));
                 list.Sort((a, b) => a.Time.CompareTo(b.Time));
                 JoinChords(list);
+                RemoveCopies(list);
                 chart.Notes[d] = list;
             }
             return chart;
@@ -121,6 +122,30 @@ namespace InvectorModKit.Charting
                 var note = notes[i];
                 note.Time = notes[first].Time;
                 notes[i] = note;
+            }
+        }
+
+        /// <summary>
+        /// Keeps one note per button in each chord, as the game's own level editor does. The game collects one note
+        /// of each button per frame, and the oldest note still in its timing window shuts out the ones after it: a
+        /// second copy was never collected and made the game ignore the notes that followed. All strums count as
+        /// one button (the longest hold is kept); a star set mark on any copy stays. Notes must be sorted by time
+        /// with their chords joined.
+        /// </summary>
+        private static void RemoveCopies(List<Note> notes)
+        {
+            for (int i = 1; i < notes.Count; i++)
+            {
+                for (int k = i - 1; k >= 0 && notes[k].Time == notes[i].Time; k--)
+                {
+                    if (notes[k].Kind != notes[i].Kind || (notes[k].Kind == NoteKind.Pickup && notes[k].Color != notes[i].Color)) continue;
+                    var kept = notes[k];
+                    kept.Length = Math.Max(kept.Length, notes[i].Length);
+                    if (kept.StarSet == 0 && notes[i].StarSet > 0) { kept.StarSet = notes[i].StarSet; kept.LastInSet = notes[i].LastInSet; }
+                    notes[k] = kept;
+                    notes.RemoveAt(i--);
+                    break;
+                }
             }
         }
 
